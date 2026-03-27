@@ -1041,6 +1041,22 @@ export default {
     removeAttachment(attachments) {
       this.attachedFiles = attachments;
     },
+    attachCannedResponseFiles(files) {
+      files.forEach(file => {
+        this.attachedFiles.push({
+          currentChatId: this.currentChat.id,
+          resource: {
+            type: file.file_type,
+            name: file.filename,
+            size: 0,
+          },
+          isPrivate: this.isPrivate,
+          thumb: file.file_url,
+          blobSignedId: file.blob_signed_id,
+          isRecordedAudio: false,
+        });
+      });
+    },
     setReplyToInPayload(payload) {
       if (this.inReplyTo?.id) {
         return {
@@ -1061,7 +1077,7 @@ export default {
         let caption =
           this.isAnInstagramChannel || this.isATiktokChannel ? '' : message;
         this.attachedFiles.forEach(attachment => {
-          const attachedFile = this.globalConfig.directUploadsEnabled
+          const attachedFile = attachment.blobSignedId
             ? attachment.blobSignedId
             : attachment.resource.file;
           let attachmentPayload = {
@@ -1117,11 +1133,10 @@ export default {
       if (this.attachedFiles && this.attachedFiles.length) {
         messagePayload.files = [];
         this.attachedFiles.forEach(attachment => {
-          if (this.globalConfig.directUploadsEnabled) {
-            messagePayload.files.push(attachment.blobSignedId);
-          } else {
-            messagePayload.files.push(attachment.resource.file);
-          }
+          const file = attachment.blobSignedId
+            ? attachment.blobSignedId
+            : attachment.resource.file;
+          messagePayload.files.push(file);
         });
       }
 
@@ -1327,6 +1342,7 @@ export default {
           @toggle-variables-menu="toggleVariablesMenu"
           @clear-selection="clearEditorSelection"
           @execute-copilot-action="executeCopilotAction"
+          @attach-canned-files="attachCannedResponseFiles"
         />
 
         <QuotedEmailPreview

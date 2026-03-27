@@ -8,11 +8,14 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   def create
     @canned_response = Current.account.canned_responses.new(canned_response_params)
     @canned_response.save!
+    attach_files
     render json: @canned_response
   end
 
   def update
     @canned_response.update!(canned_response_params)
+    update_files
+    @canned_response.reload
     render json: @canned_response
   end
 
@@ -31,14 +34,31 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     params.require(:canned_response).permit(:short_code, :content)
   end
 
+  def file_blob_ids
+    params.dig(:canned_response, :file_ids)
+  end
+
+  def attach_files
+    return if file_blob_ids.blank?
+
+    blobs = file_blob_ids.map { |signed_id| ActiveStorage::Blob.find_signed!(signed_id) }
+    @canned_response.files.attach(blobs)
+  end
+
+  def update_files
+    return unless params[:canned_response].key?(:file_ids)
+
+    @canned_response.files.detach
+    attach_files
+  end
+
   def canned_responses
     if params[:search]
-      Current.account.canned_responses
+      Current.account.canned_responses.with_attached_files
              .where('short_code ILIKE :search OR content ILIKE :search', search: "%#{params[:search]}%")
              .order_by_search(params[:search])
-
     else
-      Current.account.canned_responses
+      Current.account.canned_responses.with_attached_files
     end
   end
 end

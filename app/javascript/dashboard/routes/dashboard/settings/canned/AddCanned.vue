@@ -2,6 +2,7 @@
 import { useVuelidate } from '@vuelidate/core';
 import { required, minLength } from '@vuelidate/validators';
 import { useAlert } from 'dashboard/composables';
+import { uploadFile } from 'dashboard/helper/uploadHelper';
 
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Modal from '../../../../components/Modal.vue';
@@ -36,6 +37,8 @@ export default {
         message: '',
       },
       show: true,
+      attachedFiles: [],
+      isUploading: false,
     };
   },
   validations: {
@@ -51,20 +54,46 @@ export default {
     resetForm() {
       this.shortCode = '';
       this.content = '';
+      this.attachedFiles = [];
       this.v$.shortCode.$reset();
       this.v$.content.$reset();
     },
+    async onFileSelect(event) {
+      const files = Array.from(event.target.files);
+      if (!files.length) return;
+
+      this.isUploading = true;
+      try {
+        for (const file of files) {
+          const { fileUrl, blobId } = await uploadFile(file);
+          this.attachedFiles.push({
+            fileUrl,
+            blobId,
+            filename: file.name,
+          });
+        }
+      } catch (error) {
+        useAlert(this.$t('CANNED_MGMT.FILES.UPLOAD_ERROR'));
+      } finally {
+        this.isUploading = false;
+        event.target.value = '';
+      }
+    },
+    removeFile(index) {
+      this.attachedFiles.splice(index, 1);
+    },
     addCannedResponse() {
-      // Show loading on button
       this.addCanned.showLoading = true;
-      // Make API Calls
+      const payload = {
+        short_code: this.shortCode,
+        content: this.content,
+      };
+      if (this.attachedFiles.length) {
+        payload.file_ids = this.attachedFiles.map(f => f.blobId);
+      }
       this.$store
-        .dispatch('createCannedResponse', {
-          short_code: this.shortCode,
-          content: this.content,
-        })
+        .dispatch('createCannedResponse', payload)
         .then(() => {
-          // Reset Form, Show success message
           this.addCanned.showLoading = false;
           useAlert(this.$t('CANNED_MGMT.ADD.API.SUCCESS_MESSAGE'));
           this.resetForm();
@@ -118,6 +147,51 @@ export default {
             />
           </div>
         </div>
+
+        <div class="w-full">
+          <label>{{ $t('CANNED_MGMT.FILES.LABEL') }}</label>
+          <div
+            v-if="attachedFiles.length"
+            class="flex flex-wrap gap-2 mb-2"
+          >
+            <div
+              v-for="(file, index) in attachedFiles"
+              :key="file.blobId"
+              class="relative group"
+            >
+              <img
+                :src="file.fileUrl"
+                :alt="file.filename"
+                class="w-16 h-16 object-cover rounded-lg border border-n-weak"
+              />
+              <button
+                type="button"
+                class="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-n-slate-12 text-n-slate-1 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                @click="removeFile(index)"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+          <label
+            class="flex h-8 items-center gap-2 px-3 py-1 text-xs cursor-pointer rounded-lg border border-dashed border-n-strong hover:bg-n-alpha-2 transition-colors w-fit"
+            :class="{ 'opacity-50 pointer-events-none': isUploading }"
+          >
+            <input
+              type="file"
+              accept="image/png, image/jpeg, image/gif, image/webp"
+              multiple
+              class="hidden"
+              @change="onFileSelect"
+            />
+            <span>{{
+              isUploading
+                ? $t('CANNED_MGMT.FILES.UPLOADING')
+                : $t('CANNED_MGMT.FILES.ADD_BUTTON')
+            }}</span>
+          </label>
+        </div>
+
         <div class="flex flex-row justify-end w-full gap-2 px-0 py-2">
           <NextButton
             faded
@@ -132,7 +206,8 @@ export default {
             :disabled="
               v$.content.$invalid ||
               v$.shortCode.$invalid ||
-              addCanned.showLoading
+              addCanned.showLoading ||
+              isUploading
             "
             :is-loading="addCanned.showLoading"
           />

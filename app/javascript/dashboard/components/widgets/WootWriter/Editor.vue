@@ -108,6 +108,7 @@ const emit = defineEmits([
   'input',
   'update:modelValue',
   'executeCopilotAction',
+  'attachCannedFiles',
 ]);
 
 const { t } = useI18n();
@@ -861,6 +862,7 @@ useEmitter(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, insertContentIntoEditor);
       v-if="shouldShowCannedResponses"
       :search-key="cannedSearchTerm"
       @replace="content => insertSpecialContent('cannedResponse', content)"
+      @attach-files="files => emit('attachCannedFiles', files)"
     />
     <VariableList
       v-if="shouldShowVariables"

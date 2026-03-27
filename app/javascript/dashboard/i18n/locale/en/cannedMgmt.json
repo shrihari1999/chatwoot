@@ -63,6 +63,12 @@
         "ERROR_MESSAGE": "Could not connect to Woot server. Please try again."
       }
     },
+    "FILES": {
+      "LABEL": "Attachments",
+      "ADD_BUTTON": "Add images",
+      "UPLOADING": "Uploading...",
+      "UPLOAD_ERROR": "Could not upload file. Please try again."
+    },
     "DELETE": {
       "BUTTON_TEXT": "Delete",
       "API": {

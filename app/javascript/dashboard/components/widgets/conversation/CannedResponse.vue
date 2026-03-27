@@ -10,7 +10,7 @@ export default {
       default: '',
     },
   },
-  emits: ['replace'],
+  emits: ['replace', 'attachFiles'],
   computed: {
     ...mapGetters({
       cannedMessages: 'getCannedResponses',
@@ -20,6 +20,7 @@ export default {
         label: cannedMessage.short_code,
         key: cannedMessage.short_code,
         description: cannedMessage.content,
+        files: cannedMessage.files || [],
       }));
     },
   },
@@ -37,6 +38,9 @@ export default {
     },
     handleMentionClick(item = {}) {
       this.$emit('replace', item.description);
+      if (item.files && item.files.length) {
+        this.$emit('attachFiles', item.files);
+      }
     },
   },
 };
