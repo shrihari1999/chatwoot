@@ -35,7 +35,7 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   end
 
   def file_blob_ids
-    params.dig(:canned_response, :file_ids)
+    params[:file_ids]
   end
 
   def attach_files
@@ -46,7 +46,7 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   end
 
   def update_files
-    return unless params[:canned_response].key?(:file_ids)
+    return unless params.key?(:file_ids)
 
     @canned_response.files.detach
     attach_files
