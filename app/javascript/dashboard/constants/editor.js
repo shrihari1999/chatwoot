@@ -84,6 +84,11 @@ export const FORMATTING = {
       'redo',
     ],
   },
+  'Channel::Lazada': {
+    marks: [],
+    nodes: [],
+    menu: ['copilot', 'undo', 'redo'],
+  },
   'Channel::Line': {
     marks: ['strong', 'em', 'code', 'strike'],
     nodes: ['codeBlock'],

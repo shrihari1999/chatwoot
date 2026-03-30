@@ -5,6 +5,7 @@ export function useChannelIcon(inbox) {
     'Channel::Api': 'i-woot-api',
     'Channel::Email': 'i-woot-mail',
     'Channel::FacebookPage': 'i-woot-messenger',
+    'Channel::Lazada': 'i-ri-shopping-bag-3-fill',
     'Channel::Line': 'i-woot-line',
     'Channel::Sms': 'i-woot-sms',
     'Channel::Telegram': 'i-woot-telegram',
