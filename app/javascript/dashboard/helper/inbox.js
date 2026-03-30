@@ -7,6 +7,7 @@ export const INBOX_TYPES = {
   API: 'Channel::Api',
   EMAIL: 'Channel::Email',
   TELEGRAM: 'Channel::Telegram',
+  LAZADA: 'Channel::Lazada',
   LINE: 'Channel::Line',
   SMS: 'Channel::Sms',
   INSTAGRAM: 'Channel::Instagram',
@@ -27,6 +28,7 @@ const INBOX_ICON_MAP_FILL = {
   [INBOX_TYPES.API]: 'i-ri-cloudy-fill',
   [INBOX_TYPES.EMAIL]: 'i-ri-mail-fill',
   [INBOX_TYPES.TELEGRAM]: 'i-ri-telegram-fill',
+  [INBOX_TYPES.LAZADA]: 'i-ri-shopping-bag-3-fill',
   [INBOX_TYPES.LINE]: 'i-ri-line-fill',
   [INBOX_TYPES.INSTAGRAM]: 'i-ri-instagram-fill',
   [INBOX_TYPES.TIKTOK]: 'i-ri-tiktok-fill',
@@ -43,6 +45,7 @@ const INBOX_ICON_MAP_LINE = {
   [INBOX_TYPES.API]: 'i-woot-api',
   [INBOX_TYPES.EMAIL]: 'i-woot-mail',
   [INBOX_TYPES.TELEGRAM]: 'i-woot-telegram',
+  [INBOX_TYPES.LAZADA]: 'i-ri-shopping-bag-3-line',
   [INBOX_TYPES.LINE]: 'i-woot-line',
   [INBOX_TYPES.INSTAGRAM]: 'i-woot-instagram',
   [INBOX_TYPES.VOICE]: 'i-woot-voice',
@@ -94,6 +97,9 @@ export const getReadableInboxByType = (type, phoneNumber) => {
     case INBOX_TYPES.TELEGRAM:
       return 'telegram';
 
+    case INBOX_TYPES.LAZADA:
+      return 'lazada';
+
     case INBOX_TYPES.LINE:
       return 'line';
 
@@ -132,6 +138,9 @@ export const getInboxClassByType = (type, phoneNumber) => {
 
     case INBOX_TYPES.TELEGRAM:
       return 'brand-telegram';
+
+    case INBOX_TYPES.LAZADA:
+      return 'brand-lazada';
 
     case INBOX_TYPES.LINE:
       return 'brand-line';

@@ -101,6 +101,7 @@ gem 'wisper', '2.0.0'
 
 ##--- gems for channels ---##
 gem 'facebook-messenger'
+gem 'lazop_api_client'
 gem 'line-bot-api'
 gem 'twilio-ruby'
 # twitty will handle subscription of twitter account events

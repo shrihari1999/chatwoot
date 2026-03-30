@@ -405,6 +405,39 @@
         "CONFIGURE_SMTP_IMAP_LINK": "Click here",
         "CONFIGURE_SMTP_IMAP_TEXT": " to configure IMAP and SMTP settings"
       },
+      "LAZADA_CHANNEL": {
+        "TITLE": "Lazada IM",
+        "DESC": "Integrate with Lazada IM to manage buyer conversations from your Lazada shop.",
+        "CHANNEL_NAME": {
+          "LABEL": "Channel Name",
+          "PLACEHOLDER": "Enter a channel name",
+          "ERROR": "This field is required"
+        },
+        "SHOP_ID": {
+          "LABEL": "Shop ID",
+          "PLACEHOLDER": "Your Lazada Seller/Shop ID"
+        },
+        "APP_KEY": {
+          "LABEL": "App Key",
+          "PLACEHOLDER": "Lazada Open Platform App Key"
+        },
+        "APP_SECRET": {
+          "LABEL": "App Secret",
+          "PLACEHOLDER": "Lazada Open Platform App Secret"
+        },
+        "ACCESS_TOKEN": {
+          "LABEL": "Access Token",
+          "PLACEHOLDER": "Lazada OAuth Access Token"
+        },
+        "SUBMIT_BUTTON": "Create Lazada IM Channel",
+        "API": {
+          "ERROR_MESSAGE": "We were not able to save the Lazada IM channel"
+        },
+        "API_CALLBACK": {
+          "TITLE": "Callback URL",
+          "SUBTITLE": "Configure this webhook URL in your Lazada Open Platform app to receive messages."
+        }
+      },
       "LINE_CHANNEL": {
         "TITLE": "LINE Channel",
         "DESC": "Integrate with LINE channel and start supporting your customers.",
@@ -480,6 +513,10 @@
           "TELEGRAM": {
             "TITLE": "Telegram",
             "DESCRIPTION": "Configure Telegram channel using Bot token"
+          },
+          "LAZADA": {
+            "TITLE": "Lazada IM",
+            "DESCRIPTION": "Manage Lazada buyer conversations"
           },
           "LINE": {
             "TITLE": "Line",

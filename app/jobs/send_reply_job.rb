@@ -4,6 +4,7 @@ class SendReplyJob < ApplicationJob
   CHANNEL_SERVICES = {
     'Channel::TwitterProfile' => ::Twitter::SendOnTwitterService,
     'Channel::TwilioSms' => ::Twilio::SendOnTwilioService,
+    'Channel::Lazada' => ::Lazada::SendOnLazadaService,
     'Channel::Line' => ::Line::SendOnLineService,
     'Channel::Telegram' => ::Telegram::SendOnTelegramService,
     'Channel::Whatsapp' => ::Whatsapp::SendOnWhatsappService,
