@@ -227,6 +227,14 @@ export default {
     </SettingsFieldSection>
   </div>
 
+  <div v-else-if="isALazadaChannel">
+    <SettingsFieldSection
+      :label="$t('INBOX_MGMT.ADD.LAZADA_CHANNEL.API_CALLBACK.TITLE')"
+      :help-text="$t('INBOX_MGMT.ADD.LAZADA_CHANNEL.API_CALLBACK.SUBTITLE')"
+    >
+      <woot-code :script="inbox.callback_webhook_url" lang="html" />
+    </SettingsFieldSection>
+  </div>
   <div v-else-if="isALineChannel">
     <SettingsFieldSection
       :label="$t('INBOX_MGMT.ADD.LINE_CHANNEL.API_CALLBACK.TITLE')"

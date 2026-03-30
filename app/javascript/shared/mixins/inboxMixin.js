@@ -56,6 +56,9 @@ export default {
     isATwilioChannel() {
       return this.channelType === INBOX_TYPES.TWILIO;
     },
+    isALazadaChannel() {
+      return this.channelType === INBOX_TYPES.LAZADA;
+    },
     isALineChannel() {
       return this.channelType === INBOX_TYPES.LINE;
     },

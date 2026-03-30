@@ -171,6 +171,7 @@ export default {
 
       if (
         this.isATwilioChannel ||
+        this.isALazadaChannel ||
         this.isALineChannel ||
         this.isAPIInbox ||
         this.isAVoiceChannel ||
@@ -250,6 +251,7 @@ export default {
         this.isAFacebookInbox ||
         this.isAPIInbox ||
         this.isAnInstagramChannel ||
+        this.isALazadaChannel ||
         this.isALineChannel ||
         this.isATiktokChannel ||
         this.isATelegramChannel
