@@ -23,16 +23,20 @@ class Lazada::SessionUpdateService
     end
   end
 
+  def data
+    @data ||= params[:data] || params
+  end
+
   def session_id
-    @session_id ||= params[:session_id]
+    @session_id ||= data[:session_id]
   end
 
   def to_position
-    @to_position ||= params[:to_position]
+    @to_position ||= data[:to_position]
   end
 
   def unread_count
-    @unread_count ||= params[:unread_count].to_i
+    @unread_count ||= data[:unread_count].to_i
   end
 
   def unread_count_changed?

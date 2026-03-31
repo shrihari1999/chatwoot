@@ -33,6 +33,7 @@ class Webhooks::LazadaEventsJob < ApplicationJob
   end
 
   def session_update?
-    @params[:sync_type] == 'SESSION_UPDATE'
+    # Lazada sends sync_type nested inside 'data'
+    @params.dig(:data, :sync_type) == 'SESSION_UPDATE'
   end
 end
