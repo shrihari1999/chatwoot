@@ -188,7 +188,7 @@ export default {
     },
     showAudioRecorderButton() {
       if (this.isEditorDisabled) return false;
-      if (this.isALineChannel || this.isATiktokChannel) {
+      if (this.isALineChannel || this.isATiktokChannel || this.isALazadaChannel) {
         return false;
       }
       // Disable audio recorder for safari browser as recording is not supported

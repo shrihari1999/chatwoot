@@ -154,6 +154,10 @@ class Inbox < ApplicationRecord
     channel_type == 'Channel::Telegram'
   end
 
+  def lazada?
+    channel_type == 'Channel::Lazada'
+  end
+
   def whatsapp?
     channel_type == 'Channel::Whatsapp'
   end

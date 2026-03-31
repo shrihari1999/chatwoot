@@ -282,6 +282,7 @@ export default {
         this.isASmsInbox ||
         this.isATelegramChannel ||
         this.isALineChannel ||
+        this.isALazadaChannel ||
         this.isAnInstagramChannel ||
         this.isATiktokChannel
       );
