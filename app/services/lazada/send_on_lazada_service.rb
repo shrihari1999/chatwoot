@@ -31,12 +31,17 @@ class Lazada::SendOnLazadaService < Base::SendOnChannelService
     message.attachments.each_with_index do |attachment, index|
       next unless attachment.file_type == 'image'
 
+      # Use file_url instead of download_url to avoid CORS and authentication issues
+      # file_url goes through Chatwoot's server which can be accessed by Lazada
+      image_url = attachment.file_url
+      
       Rails.logger.info "[Lazada SendAttachment] Sending attachment #{index + 1}/#{message.attachments.count}: #{attachment.file.filename}"
+      Rails.logger.info "[Lazada SendAttachment] Image URL: #{image_url}"
       
       response = channel.send_im_message(
         session_id: session_id,
         template_id: 3,
-        img_url: attachment.download_url
+        img_url: image_url
       )
       
       Rails.logger.info "[Lazada SendAttachment] Attachment #{index + 1} response: success=#{response.success?}, body=#{response.body}"
