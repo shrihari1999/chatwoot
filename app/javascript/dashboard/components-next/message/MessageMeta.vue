@@ -111,6 +111,7 @@ const isRead = computed(() => {
     isAWhatsAppChannel.value ||
     isATwilioChannel.value ||
     isAFacebookInbox.value ||
+    isALazadaChannel.value ||
     isAnInstagramChannel.value ||
     isATiktokChannel.value
   ) {

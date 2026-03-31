@@ -5,9 +5,12 @@ class Webhooks::LazadaEventsJob < ApplicationJob
     @params = params.with_indifferent_access
     return unless valid_channel?
     return unless valid_signature?(post_body, signature)
-    return unless im_message?
-
-    Lazada::IncomingMessageService.new(inbox: @channel.inbox, params: @params).perform
+    
+    if im_message?
+      Lazada::IncomingMessageService.new(inbox: @channel.inbox, params: @params).perform
+    elsif session_update?
+      Lazada::SessionUpdateService.new(inbox: @channel.inbox, params: @params).perform
+    end
   end
 
   private
@@ -27,5 +30,9 @@ class Webhooks::LazadaEventsJob < ApplicationJob
 
   def im_message?
     @params[:message_type].to_i == 2
+  end
+
+  def session_update?
+    @params[:sync_type] == 'SESSION_UPDATE'
   end
 end
