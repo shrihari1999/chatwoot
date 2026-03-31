@@ -44,6 +44,8 @@ class Lazada::SendOnLazadaService < Base::SendOnChannelService
     if response.success?
       message_id = response.body.dig('data', 'message_id')
       message.update!(source_id: message_id) if message_id.present?
+      # Update message status to 'sent' after successful delivery
+      Messages::StatusUpdateService.new(message, 'sent').perform
     else
       error_msg = response.body&.dig('message') || "Lazada API error: #{response.code}"
       Messages::StatusUpdateService.new(message, 'failed', error_msg).perform
