@@ -35,18 +35,26 @@ class Lazada::SendOnLazadaService < Base::SendOnChannelService
       # file_url goes through Chatwoot's server which can be accessed by Lazada
       image_url = attachment.file_url
       
+      # Get image dimensions - Lazada requires width and height
+      metadata = attachment.file.metadata
+      width = metadata['width'] || 800  # Default if not available
+      height = metadata['height'] || 600
+      
       Rails.logger.info "[Lazada SendAttachment] Sending attachment #{index + 1}/#{message.attachments.count}: #{attachment.file.filename}"
       Rails.logger.info "[Lazada SendAttachment] Image URL: #{image_url}"
+      Rails.logger.info "[Lazada SendAttachment] Dimensions: #{width}x#{height}"
       
       response = channel.send_im_message(
         session_id: session_id,
         template_id: 3,
-        img_url: image_url
+        img_url: image_url,
+        width: width.to_i,
+        height: height.to_i
       )
       
       Rails.logger.info "[Lazada SendAttachment] Attachment #{index + 1} response: success=#{response.success?}, body=#{response.body}"
       
-      handle_response(response, index)
+      handle_response(response, index + 1)
     end
 
     send_text(session_id) if message.outgoing_content.present?
