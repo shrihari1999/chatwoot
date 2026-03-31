@@ -100,7 +100,7 @@ class ContactInboxBuilder
   end
 
   def allowed_channels?
-    @inbox.email? || @inbox.sms? || @inbox.twilio? || @inbox.whatsapp?
+    @inbox.email? || @inbox.sms? || @inbox.twilio? || @inbox.whatsapp? || @inbox.lazada?
   end
 end
 
