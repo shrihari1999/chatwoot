@@ -138,10 +138,15 @@ export const useInbox = (inboxId = null) => {
     return channelType.value === INBOX_TYPES.VOICE;
   });
 
+  const isALazadaChannel = computed(() => {
+    return channelType.value === INBOX_TYPES.LAZADA;
+  });
+
   return {
     inbox,
     isAFacebookInbox,
     isALineChannel,
+    isALazadaChannel,
     isAPIInbox,
     isASmsInbox,
     isATelegramChannel,

@@ -12,6 +12,7 @@ import { MESSAGE_STATUS, MESSAGE_TYPES } from './constants';
 const {
   isAFacebookInbox,
   isALineChannel,
+  isALazadaChannel,
   isAPIInbox,
   isASmsInbox,
   isATelegramChannel,
@@ -61,6 +62,7 @@ const isSent = computed(() => {
     isAFacebookInbox.value ||
     isASmsInbox.value ||
     isATelegramChannel.value ||
+    isALazadaChannel.value ||
     isAnInstagramChannel.value ||
     isATiktokChannel.value
   ) {
