@@ -55,7 +55,6 @@ describe('CategoryManager.vue', () => {
 
   it('disables Add button when input is empty', () => {
     const wrapper = mountComponent();
-    // canAdd computed reflects the disabled state
     expect(wrapper.vm.canAdd).toBe(false);
   });
 
@@ -94,14 +93,17 @@ describe('CategoryManager.vue', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  // Delete: the delete button is the second button inside each chip (index 1)
   it('dispatches deleteCannedResponseCategory when confirm returns true', async () => {
     const dispatch = vi.fn().mockResolvedValue({});
     const categories = [{ id: 42, name: 'Greetings' }];
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const wrapper = mountComponent({ categories, dispatch });
 
-    const deleteBtn = wrapper.find('span.inline-flex button[type="button"]');
-    await deleteBtn.trigger('click');
+    const buttons = wrapper
+      .find('span.inline-flex')
+      .findAll('button[type="button"]');
+    await buttons[1].trigger('click'); // delete button
     await wrapper.vm.$nextTick();
 
     expect(dispatch).toHaveBeenCalledWith(
@@ -117,8 +119,10 @@ describe('CategoryManager.vue', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const wrapper = mountComponent({ categories, dispatch });
 
-    const deleteBtn = wrapper.find('span.inline-flex button[type="button"]');
-    await deleteBtn.trigger('click');
+    const buttons = wrapper
+      .find('span.inline-flex')
+      .findAll('button[type="button"]');
+    await buttons[1].trigger('click');
     await wrapper.vm.$nextTick();
     await wrapper.vm.$nextTick();
 
@@ -136,10 +140,72 @@ describe('CategoryManager.vue', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const wrapper = mountComponent({ categories, dispatch });
 
-    const deleteBtn = wrapper.find('span.inline-flex button[type="button"]');
-    await deleteBtn.trigger('click');
+    const buttons = wrapper
+      .find('span.inline-flex')
+      .findAll('button[type="button"]');
+    await buttons[1].trigger('click');
 
     expect(dispatch).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+
+  // Edit: click the name button (index 0) to enter edit mode
+  it('enters edit mode when category name is clicked', async () => {
+    const categories = [{ id: 1, name: 'Greetings' }];
+    const wrapper = mountComponent({ categories });
+
+    expect(wrapper.vm.editingId).toBeNull();
+    const nameBtn = wrapper
+      .find('span.inline-flex')
+      .find('button[type="button"]');
+    await nameBtn.trigger('click');
+
+    expect(wrapper.vm.editingId).toBe(1);
+    expect(wrapper.vm.editingName).toBe('Greetings');
+  });
+
+  it('cancels edit on Escape key', async () => {
+    const categories = [{ id: 1, name: 'Greetings' }];
+    const wrapper = mountComponent({ categories });
+
+    wrapper.vm.startEdit(categories[0]);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.editingId).toBe(1);
+    wrapper.vm.onEditKeydown({ key: 'Escape' }, categories[0]);
+    expect(wrapper.vm.editingId).toBeNull();
+  });
+
+  it('dispatches updateCannedResponseCategory on Enter with changed name', async () => {
+    const dispatch = vi.fn().mockResolvedValue({});
+    const categories = [{ id: 1, name: 'Greetings' }];
+    const wrapper = mountComponent({ categories, dispatch });
+
+    wrapper.vm.startEdit(categories[0]);
+    wrapper.vm.editingName = 'Hello';
+    await wrapper.vm.$nextTick();
+
+    await wrapper.vm.onEditKeydown(
+      { key: 'Enter', preventDefault: vi.fn() },
+      categories[0]
+    );
+
+    expect(dispatch).toHaveBeenCalledWith(
+      'cannedResponseCategory/updateCannedResponseCategory',
+      { id: 1, name: 'Hello' }
+    );
+  });
+
+  it('does not dispatch update when name is unchanged', async () => {
+    const dispatch = vi.fn().mockResolvedValue({});
+    const categories = [{ id: 1, name: 'Greetings' }];
+    const wrapper = mountComponent({ categories, dispatch });
+
+    wrapper.vm.startEdit(categories[0]);
+    // name unchanged
+    await wrapper.vm.saveEdit(categories[0]);
+
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(wrapper.vm.editingId).toBeNull();
   });
 });

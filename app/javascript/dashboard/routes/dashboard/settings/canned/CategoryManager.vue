@@ -14,6 +14,9 @@ export default {
     return {
       newCategoryName: '',
       isSubmitting: false,
+      editingId: null,
+      editingName: '',
+      isSavingEdit: false,
     };
   },
   computed: {
@@ -62,6 +65,53 @@ export default {
         useAlert(errorMessage);
       }
     },
+    startEdit(category) {
+      this.editingId = category.id;
+      this.editingName = category.name;
+      this.$nextTick(() => {
+        const input = this.$refs[`editInput-${category.id}`];
+        if (input && typeof input.focus === 'function') input.focus();
+      });
+    },
+    cancelEdit() {
+      this.editingId = null;
+      this.editingName = '';
+    },
+    async saveEdit(category) {
+      const name = this.editingName.trim();
+      // No change — just cancel
+      if (name === category.name) {
+        this.cancelEdit();
+        return;
+      }
+      if (!name) {
+        this.cancelEdit();
+        return;
+      }
+      this.isSavingEdit = true;
+      try {
+        await this.$store.dispatch(
+          'cannedResponseCategory/updateCannedResponseCategory',
+          { id: category.id, name }
+        );
+        this.editingId = null;
+        this.editingName = '';
+      } catch (error) {
+        const errorMessage =
+          error?.message || this.$t('CANNED_MGMT.EDIT.API.ERROR_MESSAGE');
+        useAlert(errorMessage);
+      } finally {
+        this.isSavingEdit = false;
+      }
+    },
+    onEditKeydown(event, category) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        this.saveEdit(category);
+      } else if (event.key === 'Escape') {
+        this.cancelEdit();
+      }
+    },
   },
 };
 </script>
@@ -82,15 +132,48 @@ export default {
         :key="category.id"
         class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full bg-n-alpha-2 text-n-slate-12 border border-n-weak"
       >
-        <span>{{ category.name }}</span>
-        <button
-          type="button"
-          class="flex items-center justify-center size-4 rounded-full text-n-slate-11 hover:bg-n-ruby-2 hover:text-n-ruby-11 transition-colors"
-          :aria-label="$t('CANNED_MGMT.DELETE.BUTTON_TEXT')"
-          @click="removeCategory(category)"
-        >
-          <Icon icon="i-lucide-x" class="size-3" />
-        </button>
+        <!-- Editing mode -->
+        <template v-if="editingId === category.id">
+          <input
+            :ref="`editInput-${category.id}`"
+            v-model="editingName"
+            type="text"
+            class="w-24 bg-transparent border-b border-n-slate-9 outline-none text-xs"
+            :disabled="isSavingEdit"
+            @keydown="onEditKeydown($event, category)"
+            @blur="saveEdit(category)"
+          />
+          <button
+            type="button"
+            class="flex items-center justify-center size-4 rounded-full text-n-slate-11 hover:bg-n-slate-3 hover:text-n-slate-12 transition-colors"
+            :aria-label="$t('CANNED_MGMT.CATEGORY.EDIT_CANCEL')"
+            @mousedown.prevent="cancelEdit"
+          >
+            <Icon icon="i-lucide-x" class="size-3" />
+          </button>
+        </template>
+
+        <!-- View mode -->
+        <template v-else>
+          <button
+            type="button"
+            class="hover:underline decoration-dotted cursor-pointer bg-transparent border-none p-0 text-xs text-n-slate-12"
+            :aria-label="
+              $t('CANNED_MGMT.CATEGORY.EDIT_LABEL', { name: category.name })
+            "
+            @click="startEdit(category)"
+          >
+            {{ category.name }}
+          </button>
+          <button
+            type="button"
+            class="flex items-center justify-center size-4 rounded-full text-n-slate-11 hover:bg-n-ruby-2 hover:text-n-ruby-11 transition-colors"
+            :aria-label="$t('CANNED_MGMT.DELETE.BUTTON_TEXT')"
+            @click="removeCategory(category)"
+          >
+            <Icon icon="i-lucide-x" class="size-3" />
+          </button>
+        </template>
       </span>
     </div>
 

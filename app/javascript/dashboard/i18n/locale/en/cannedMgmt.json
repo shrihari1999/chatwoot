@@ -89,6 +89,8 @@
       "NO_CATEGORY": "No category",
       "MANAGE": "Manage Categories",
       "ADD": "Add Category",
+      "EDIT_LABEL": "Edit category {name}",
+      "EDIT_CANCEL": "Cancel edit",
       "DELETE_CONFIRM": "Are you sure you want to delete this category? Canned responses in this category will become uncategorised."
     },
     "TABLE_HEADER": {
