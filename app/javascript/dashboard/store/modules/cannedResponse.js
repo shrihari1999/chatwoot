@@ -98,10 +98,10 @@ const actions = {
     try {
       await CannedResponseAPI.delete(id);
       commit(types.default.DELETE_CANNED, id);
-      commit(types.default.SET_CANNED_UI_FLAG, { deletingItem: true });
+      commit(types.default.SET_CANNED_UI_FLAG, { deletingItem: false });
       return id;
     } catch (error) {
-      commit(types.default.SET_CANNED_UI_FLAG, { deletingItem: true });
+      commit(types.default.SET_CANNED_UI_FLAG, { deletingItem: false });
       return throwErrorMessage(error);
     }
   },
