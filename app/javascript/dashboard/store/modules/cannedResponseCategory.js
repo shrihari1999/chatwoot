@@ -42,7 +42,7 @@ const actions = {
 
   createCannedResponseCategory: async function createCannedResponseCategory(
     { commit },
-    name
+    { name }
   ) {
     commit(types.default.SET_CANNED_CATEGORY_UI_FLAG, { creatingItem: true });
     try {

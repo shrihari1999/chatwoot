@@ -54,6 +54,8 @@ export default {
           'cannedResponseCategory/deleteCannedResponseCategory',
           category.id
         );
+        // Refresh canned responses since backend nullifies category_id on affected records
+        await this.$store.dispatch('getCannedResponse');
       } catch (error) {
         const errorMessage =
           error?.message || this.$t('CANNED_MGMT.DELETE.API.ERROR_MESSAGE');

@@ -5,7 +5,7 @@ import EditCanned from './EditCanned.vue';
 import CategoryManager from './CategoryManager.vue';
 import SettingsLayout from '../SettingsLayout.vue';
 import BaseSettingsHeader from '../components/BaseSettingsHeader.vue';
-import { computed, onMounted, ref, defineOptions } from 'vue';
+import { computed, onMounted, ref, watch, defineOptions } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   useStoreGetters,
@@ -47,6 +47,16 @@ const selectedCategoryId = ref(null);
 const categories = useMapGetter(
   'cannedResponseCategory/getCannedResponseCategories'
 );
+
+// Reset filter if the selected category has been deleted
+watch(categories, newCats => {
+  if (
+    selectedCategoryId.value !== null &&
+    !(newCats || []).find(c => c.id === selectedCategoryId.value)
+  ) {
+    selectedCategoryId.value = null;
+  }
+});
 
 const records = computed(() =>
   getters.getSortedCannedResponses.value(sortOrder.value)

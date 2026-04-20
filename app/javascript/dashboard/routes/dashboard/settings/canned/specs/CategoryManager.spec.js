@@ -111,6 +111,25 @@ describe('CategoryManager.vue', () => {
     confirmSpy.mockRestore();
   });
 
+  it('refreshes canned responses after a successful category delete', async () => {
+    const dispatch = vi.fn().mockResolvedValue({});
+    const categories = [{ id: 42, name: 'Greetings' }];
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const wrapper = mountComponent({ categories, dispatch });
+
+    const deleteBtn = wrapper.find('span.inline-flex button[type="button"]');
+    await deleteBtn.trigger('click');
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+
+    expect(dispatch).toHaveBeenCalledWith(
+      'cannedResponseCategory/deleteCannedResponseCategory',
+      42
+    );
+    expect(dispatch).toHaveBeenCalledWith('getCannedResponse');
+    confirmSpy.mockRestore();
+  });
+
   it('does not dispatch delete when confirm returns false', async () => {
     const dispatch = vi.fn().mockResolvedValue({});
     const categories = [{ id: 42, name: 'Greetings' }];

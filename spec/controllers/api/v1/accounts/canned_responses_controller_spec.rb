@@ -131,6 +131,21 @@ RSpec.describe 'Canned Responses API', type: :request do
         expect(body['category']).to eq({ 'id' => category.id, 'name' => category.name })
         expect(account.canned_responses.last.category_id).to eq(category.id)
       end
+
+      it 'rejects creating a canned response with a category from another account' do
+        other_account = create(:account)
+        foreign_category = create(:canned_response_category, account: other_account, name: 'Foreign')
+        params = { short_code: 'cross', content: 'content', category_id: foreign_category.id }
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/canned_responses",
+               params: params,
+               headers: agent.create_new_auth_token,
+               as: :json
+        end.not_to change(account.canned_responses, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
     end
   end
 
