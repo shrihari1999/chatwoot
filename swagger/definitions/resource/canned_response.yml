@@ -12,6 +12,19 @@ properties:
   content:
     type: string
     description: Message content for canned response
+  category_id:
+    type: integer
+    nullable: true
+    description: ID of the canned response category (optional)
+  category:
+    type: object
+    nullable: true
+    description: The category the canned response belongs to
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
   created_at:
     type: string
     description: The date and time when the canned response was created

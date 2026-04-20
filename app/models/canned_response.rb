@@ -19,6 +19,7 @@ class CannedResponse < ApplicationRecord
   validates :short_code, uniqueness: { scope: :account_id }
 
   belongs_to :account
+  belongs_to :category, class_name: 'CannedResponseCategory', optional: true
   has_many_attached :files
 
   def file_base_data

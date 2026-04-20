@@ -67,7 +67,8 @@
       "LABEL": "Attachments",
       "ADD_BUTTON": "Add images",
       "UPLOADING": "Uploading...",
-      "UPLOAD_ERROR": "Could not upload file. Please try again."
+      "UPLOAD_ERROR": "Could not upload file. Please try again.",
+      "REMOVE_FILE": "Remove file"
     },
     "DELETE": {
       "BUTTON_TEXT": "Delete",
@@ -81,6 +82,20 @@
         "YES": "Yes, delete ",
         "NO": "No, keep "
       }
+    },
+    "CATEGORY": {
+      "LABEL": "Category",
+      "PLACEHOLDER": "Select category",
+      "NO_CATEGORY": "No category",
+      "MANAGE": "Manage Categories",
+      "ADD": "Add Category",
+      "DELETE_CONFIRM": "Are you sure you want to delete this category? Canned responses in this category will become uncategorised."
+    },
+    "TABLE_HEADER": {
+      "CATEGORY": "Category"
+    },
+    "FILTER": {
+      "ALL_CATEGORIES": "All Categories"
     }
   }
 }

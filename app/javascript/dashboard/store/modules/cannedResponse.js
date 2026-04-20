@@ -30,16 +30,30 @@ const getters = {
   getUIFlags(_state) {
     return _state.uiFlags;
   },
+  getCannedResponsesByCategory(_state) {
+    const grouped = {};
+    const uncategorized = [];
+    _state.records.forEach(record => {
+      if (record.category && record.category.name) {
+        const key = record.category.name;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(record);
+      } else {
+        uncategorized.push(record);
+      }
+    });
+    return { grouped, uncategorized };
+  },
 };
 
 const actions = {
   getCannedResponse: async function getCannedResponse(
     { commit },
-    { searchKey } = {}
+    { searchKey, categoryId } = {}
   ) {
     commit(types.default.SET_CANNED_UI_FLAG, { fetchingList: true });
     try {
-      const response = await CannedResponseAPI.get({ searchKey });
+      const response = await CannedResponseAPI.get({ searchKey, categoryId });
       commit(types.default.SET_CANNED, response.data);
       commit(types.default.SET_CANNED_UI_FLAG, { fetchingList: false });
     } catch (error) {
