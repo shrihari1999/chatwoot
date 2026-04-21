@@ -87,7 +87,12 @@ export default {
       this.$store.dispatch('getCannedResponse', { searchKey: this.searchKey });
     },
     handleMentionClick(item = {}) {
-      this.$emit('replace', item.description);
+      // Only emit `replace` when the canned response has text content.
+      // The parent editor feeds the description into MessageMarkdownTransformer.parse,
+      // which throws when given null/undefined (e.g., for image-only responses).
+      if (item.description) {
+        this.$emit('replace', item.description);
+      }
       if (item.files && item.files.length) {
         this.$emit('attachFiles', item.files);
       }
@@ -105,7 +110,7 @@ export default {
   >
     <template #default="{ item, selected }">
       <div
-        v-if="item.files && item.files.length && !item.description"
+        v-if="item.files.length && !item.description"
         class="flex flex-wrap gap-1 py-0.5"
       >
         <img
@@ -130,10 +135,7 @@ export default {
         >
           {{ getPlainText(item.description) }}
         </p>
-        <div
-          v-if="item.files && item.files.length"
-          class="flex flex-wrap gap-1 mt-0.5"
-        >
+        <div v-if="item.files.length" class="flex flex-wrap gap-1 mt-0.5">
           <img
             v-for="file in item.files.slice(0, 2)"
             :key="file.blob_id"

@@ -2,21 +2,17 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   before_action :fetch_canned_response, only: [:update, :destroy]
 
   def index
-    render json: canned_responses.map { |cr|
-      cr.as_json.merge(
-        category: cr.category ? cr.category.as_json(only: [:id, :name]) : nil
-      )
-    }
+    render json: canned_responses.map { |cr| serialize(cr) }
   end
 
   def create
-    @canned_response = Current.account.canned_responses.new(canned_response_params)
-    @canned_response.pending_file_ids = file_blob_ids
-    @canned_response.save!
-    attach_files
-    render json: @canned_response.as_json.merge(
-      category: @canned_response.category ? @canned_response.category.as_json(only: [:id, :name]) : nil
-    )
+    ActiveRecord::Base.transaction do
+      @canned_response = Current.account.canned_responses.new(canned_response_params)
+      @canned_response.pending_file_ids = file_blob_ids
+      @canned_response.save!
+      attach_files
+    end
+    render json: serialize(@canned_response)
   end
 
   def update
@@ -28,9 +24,7 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
       raise ActiveRecord::RecordInvalid.new(@canned_response) unless @canned_response.valid?
     end
     @canned_response.reload
-    render json: @canned_response.as_json.merge(
-      category: @canned_response.category ? @canned_response.category.as_json(only: [:id, :name]) : nil
-    )
+    render json: serialize(@canned_response)
   end
 
   def destroy
@@ -48,8 +42,14 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     params.require(:canned_response).permit(:short_code, :content, :category_id)
   end
 
+  def serialize(canned_response)
+    canned_response.as_json.merge(
+      category: canned_response.category&.as_json(only: [:id, :name])
+    )
+  end
+
   def file_blob_ids
-    params[:file_ids]
+    Array(params[:file_ids])
   end
 
   def attach_files
@@ -59,6 +59,8 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     @canned_response.files.attach(blobs)
   end
 
+  # Note: `file_ids: []` is meaningful — it explicitly clears attachments. We distinguish
+  # "key absent" (leave files untouched) from "empty array" (detach all) via params.key?.
   def update_files
     return unless params.key?(:file_ids)
 

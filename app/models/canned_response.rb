@@ -13,6 +13,10 @@
 class CannedResponse < ApplicationRecord
   include Rails.application.routes.url_helpers
 
+  # Transient attribute set by the controller before `save` on create, carrying the
+  # Active Storage signed blob IDs of files that will be attached after the record is
+  # persisted. Read by `content_or_files_present` so image-only responses pass validation
+  # before the attachments physically exist on the record.
   attr_accessor :pending_file_ids
 
   validates :short_code, presence: true

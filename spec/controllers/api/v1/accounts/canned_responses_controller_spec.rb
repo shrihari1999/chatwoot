@@ -146,6 +146,21 @@ RSpec.describe 'Canned Responses API', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
       end
+
+      it 'rolls back the created record when attaching files raises' do
+        # An invalid signed blob ID makes `attach_files` raise inside the create
+        # transaction; the canned response must not be persisted.
+        params = { short_code: 'bad-blob', content: '', file_ids: ['not-a-real-signed-id'] }
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/canned_responses",
+               params: params,
+               headers: agent.create_new_auth_token,
+               as: :json
+        end.not_to change(account.canned_responses, :count)
+
+        expect(account.canned_responses.exists?(short_code: 'bad-blob')).to be(false)
+      end
     end
   end
 
@@ -173,6 +188,19 @@ RSpec.describe 'Canned Responses API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(canned_response.reload.short_code).to eq('B')
+      end
+
+      it 'rolls back when clearing both content and file_ids' do
+        original_content = canned_response.content
+        params = { content: '', file_ids: [] }
+
+        put "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}",
+            params: params,
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(canned_response.reload.content).to eq(original_content)
       end
     end
   end

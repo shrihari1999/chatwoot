@@ -1,5 +1,4 @@
 <script>
-/* eslint no-console: 0 */
 import { mapGetters } from 'vuex';
 import { useVuelidate } from '@vuelidate/core';
 import { required, minLength, requiredIf } from '@vuelidate/validators';
@@ -62,6 +61,17 @@ export default {
     pageTitle() {
       return `${this.$t('CANNED_MGMT.EDIT.TITLE')} - ${this.edshortCode}`;
     },
+    contentHasError() {
+      return this.v$.content.$error && this.attachedFiles.length === 0;
+    },
+    isSubmitDisabled() {
+      return (
+        (this.v$.content.$invalid && this.attachedFiles.length === 0) ||
+        this.v$.shortCode.$invalid ||
+        this.editCanned.showLoading ||
+        this.isUploading
+      );
+    },
   },
   watch: {
     edcategoryId(newVal) {
@@ -69,10 +79,6 @@ export default {
     },
   },
   methods: {
-    setPageName({ name }) {
-      this.v$.content.$touch();
-      this.content = name;
-    },
     resetForm() {
       this.shortCode = '';
       this.content = '';
@@ -169,18 +175,14 @@ export default {
         </div>
 
         <div class="w-full">
-          <label
-            :class="{ error: v$.content.$error && attachedFiles.length === 0 }"
-          >
+          <label :class="{ error: contentHasError }">
             {{ $t('CANNED_MGMT.EDIT.FORM.CONTENT.LABEL') }}
           </label>
           <div class="editor-wrap">
             <WootMessageEditor
               v-model="content"
               class="message-editor [&>div]:px-1"
-              :class="{
-                editor_warning: v$.content.$error && attachedFiles.length === 0,
-              }"
+              :class="{ editor_warning: contentHasError }"
               channel-type="Context::Default"
               enable-variables
               :enable-canned-responses="false"
@@ -252,12 +254,7 @@ export default {
           <NextButton
             type="submit"
             :label="$t('CANNED_MGMT.EDIT.FORM.SUBMIT')"
-            :disabled="
-              (v$.content.$invalid && attachedFiles.length === 0) ||
-              v$.shortCode.$invalid ||
-              editCanned.showLoading ||
-              isUploading
-            "
+            :disabled="isSubmitDisabled"
             :is-loading="editCanned.showLoading"
           />
         </div>

@@ -47,6 +47,17 @@ export default {
     ...mapGetters({
       categories: 'cannedResponseCategory/getCannedResponseCategories',
     }),
+    contentHasError() {
+      return this.v$.content.$error && this.attachedFiles.length === 0;
+    },
+    isSubmitDisabled() {
+      return (
+        (this.v$.content.$invalid && this.attachedFiles.length === 0) ||
+        this.v$.shortCode.$invalid ||
+        this.addCanned.showLoading ||
+        this.isUploading
+      );
+    },
   },
   validations() {
     return {
@@ -159,18 +170,14 @@ export default {
         </div>
 
         <div class="w-full">
-          <label
-            :class="{ error: v$.content.$error && attachedFiles.length === 0 }"
-          >
+          <label :class="{ error: contentHasError }">
             {{ $t('CANNED_MGMT.ADD.FORM.CONTENT.LABEL') }}
           </label>
           <div class="editor-wrap">
             <WootMessageEditor
               v-model="content"
               class="message-editor [&>div]:px-1"
-              :class="{
-                editor_warning: v$.content.$error && attachedFiles.length === 0,
-              }"
+              :class="{ editor_warning: contentHasError }"
               channel-type="Context::Default"
               enable-variables
               :enable-canned-responses="false"
@@ -242,12 +249,7 @@ export default {
           <NextButton
             type="submit"
             :label="$t('CANNED_MGMT.ADD.FORM.SUBMIT')"
-            :disabled="
-              (v$.content.$invalid && attachedFiles.length === 0) ||
-              v$.shortCode.$invalid ||
-              addCanned.showLoading ||
-              isUploading
-            "
+            :disabled="isSubmitDisabled"
             :is-loading="addCanned.showLoading"
           />
         </div>

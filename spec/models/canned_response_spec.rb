@@ -6,7 +6,7 @@ RSpec.describe CannedResponse, type: :model do
   let(:account) { create(:account) }
 
   describe 'validations' do
-    it 'is valid with both content and no files' do
+    it 'is valid with content and no files' do
       cr = build(:canned_response, account: account, content: 'Hello', short_code: 'hi')
       expect(cr).to be_valid
     end
@@ -28,6 +28,17 @@ RSpec.describe CannedResponse, type: :model do
       cr.pending_file_ids = []
       expect(cr).not_to be_valid
       expect(cr.errors[:base]).to include('A canned response must have a message or at least one image attachment')
+    end
+
+    it 'is valid without content when files are attached' do
+      cr = create(:canned_response, account: account, content: 'temp', short_code: 'img')
+      cr.files.attach(
+        io: StringIO.new('x'),
+        filename: 'a.png',
+        content_type: 'image/png'
+      )
+      cr.content = nil
+      expect(cr).to be_valid
     end
 
     it 'requires short_code' do
