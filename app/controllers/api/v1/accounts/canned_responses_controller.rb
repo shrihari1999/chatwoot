@@ -55,7 +55,12 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   def attach_files
     return if file_blob_ids.blank?
 
-    blobs = file_blob_ids.map { |signed_id| ActiveStorage::Blob.find_signed!(signed_id) }
+    blobs = file_blob_ids.map do |signed_id|
+      ActiveStorage::Blob.find_signed!(signed_id)
+    rescue ActiveRecord::RecordNotFound, ActiveSupport::MessageVerifier::InvalidSignature
+      @canned_response.errors.add(:files, 'contains an invalid attachment reference')
+      raise ActiveRecord::RecordInvalid, @canned_response
+    end
     @canned_response.files.attach(blobs)
   end
 

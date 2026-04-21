@@ -87,12 +87,13 @@ export default {
       this.$store.dispatch('getCannedResponse', { searchKey: this.searchKey });
     },
     handleMentionClick(item = {}) {
-      // Only emit `replace` when the canned response has text content.
-      // The parent editor feeds the description into MessageMarkdownTransformer.parse,
-      // which throws when given null/undefined (e.g., for image-only responses).
-      if (item.description) {
-        this.$emit('replace', item.description);
-      }
+      // Always emit `replace` so the editor removes the trigger text (e.g., "/img")
+      // from the ProseMirror state. This causes the suggestion plugin's onExit to fire,
+      // which closes the picker. For image-only responses (no description) we pass ''
+      // so the trigger is deleted without inserting any text content.
+      // NOTE: passing null/undefined to MessageMarkdownTransformer.parse would throw;
+      // '' is safe and results in an empty paragraph that collapses to nothing on insert.
+      this.$emit('replace', item.description || '');
       if (item.files && item.files.length) {
         this.$emit('attachFiles', item.files);
       }
