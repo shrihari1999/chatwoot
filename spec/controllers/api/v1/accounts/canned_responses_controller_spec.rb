@@ -9,9 +9,12 @@ RSpec.describe 'Canned Responses API', type: :request do
 
   def expected_payload(canned_responses)
     canned_responses.map do |cr|
+      # `as_json` may return symbol keys for merged attributes (e.g. `files:`).
+      # Use deep_stringify_keys so comparisons against response.parsed_body (all
+      # string keys) work correctly.
       cr.as_json.merge(
         'category' => cr.category ? cr.category.as_json(only: [:id, :name]) : nil
-      )
+      ).deep_stringify_keys
     end
   end
 
@@ -146,6 +149,22 @@ RSpec.describe 'Canned Responses API', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
       end
+
+      it 'rolls back the created record when attaching files raises' do
+        # An invalid signed blob ID makes `attach_files` raise inside the create
+        # transaction; the canned response must not be persisted and a 422 is returned.
+        params = { short_code: 'bad-blob', content: '', file_ids: ['not-a-real-signed-id'] }
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/canned_responses",
+               params: params,
+               headers: agent.create_new_auth_token,
+               as: :json
+        end.not_to change(account.canned_responses, :count)
+
+        expect(account.canned_responses.exists?(short_code: 'bad-blob')).to be(false)
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
     end
   end
 
@@ -173,6 +192,44 @@ RSpec.describe 'Canned Responses API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(canned_response.reload.short_code).to eq('B')
+      end
+
+      it 'rolls back when clearing both content and file_ids' do
+        original_content = canned_response.content
+        params = { content: '', file_ids: [] }
+
+        put "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}",
+            params: params,
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(canned_response.reload.content).to eq(original_content)
+      end
+
+      it 'preserves existing files when updating short_code without file_ids key' do
+        # Build an image-only canned response (no content) with pending_file_ids set so
+        # content_or_files_present validation passes at save time.
+        blob = ActiveStorage::Blob.create_and_upload!(
+          io: StringIO.new('fake png data'),
+          filename: 'test.png',
+          content_type: 'image/png'
+        )
+        image_only = build(:canned_response, account: account, content: '')
+        image_only.pending_file_ids = [blob.signed_id]
+        image_only.save!
+        image_only.files.attach(blob)
+        expect(image_only.files.attached?).to be(true)
+
+        # Update only short_code — no file_ids key in request; existing file must survive
+        put "/api/v1/accounts/#{account.id}/canned_responses/#{image_only.id}",
+            params: { short_code: 'new-img-code' },
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(image_only.reload.short_code).to eq('new-img-code')
+        expect(image_only.files.attached?).to be(true)
       end
     end
   end
