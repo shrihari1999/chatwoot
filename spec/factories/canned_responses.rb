@@ -6,4 +6,9 @@ FactoryBot.define do
     sequence(:short_code) { |n| "CODE#{n}" }
     account
   end
+
+  factory :canned_response_category do
+    sequence(:name) { |n| "Category #{n}" }
+    account
+  end
 end

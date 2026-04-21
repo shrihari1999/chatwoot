@@ -2,11 +2,16 @@
 import { useAlert } from 'dashboard/composables';
 import AddCanned from './AddCanned.vue';
 import EditCanned from './EditCanned.vue';
+import CategoryManager from './CategoryManager.vue';
 import SettingsLayout from '../SettingsLayout.vue';
 import BaseSettingsHeader from '../components/BaseSettingsHeader.vue';
-import { computed, onMounted, ref, defineOptions } from 'vue';
+import { computed, onMounted, ref, watch, defineOptions } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useStoreGetters, useStore } from 'dashboard/composables/store';
+import {
+  useStoreGetters,
+  useStore,
+  useMapGetter,
+} from 'dashboard/composables/store';
 import { picoSearch } from '@scmmishra/pico-search';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 
@@ -37,15 +42,38 @@ const cannedResponseAPI = ref({ message: '' });
 
 const sortOrder = ref('asc');
 const searchQuery = ref('');
+const selectedCategoryId = ref(null);
+
+const categories = useMapGetter(
+  'cannedResponseCategory/getCannedResponseCategories'
+);
+
+// Reset filter if the selected category has been deleted
+watch(categories, newCats => {
+  if (
+    selectedCategoryId.value !== null &&
+    !(newCats || []).find(c => c.id === selectedCategoryId.value)
+  ) {
+    selectedCategoryId.value = null;
+  }
+});
 
 const records = computed(() =>
   getters.getSortedCannedResponses.value(sortOrder.value)
 );
 
 const filteredRecords = computed(() => {
+  let result = records.value;
+
+  if (selectedCategoryId.value !== null) {
+    result = result.filter(
+      record => record.category?.id === selectedCategoryId.value
+    );
+  }
+
   const query = searchQuery.value.trim();
-  if (!query) return records.value;
-  return picoSearch(records.value, query, [
+  if (!query) return result;
+  return picoSearch(result, query, [
     { name: 'short_code', weight: 4 },
     'content',
   ]);
@@ -78,8 +106,17 @@ const fetchCannedResponses = async () => {
   }
 };
 
+const fetchCannedResponseCategories = async () => {
+  try {
+    await store.dispatch('cannedResponseCategory/getCannedResponseCategories');
+  } catch (error) {
+    // Ignore Error
+  }
+};
+
 onMounted(() => {
   fetchCannedResponses();
+  fetchCannedResponseCategories();
 });
 
 const showAlertMessage = message => {
@@ -133,6 +170,7 @@ const confirmDeletion = () => {
 const tableHeaders = computed(() => {
   return [
     t('CANNED_MGMT.LIST.TABLE_HEADER.SHORT_CODE'),
+    t('CANNED_MGMT.TABLE_HEADER.CATEGORY'),
     t('CANNED_MGMT.LIST.TABLE_HEADER.ACTIONS'),
   ];
 });
@@ -170,6 +208,31 @@ const tableHeaders = computed(() => {
     </template>
 
     <template #body>
+      <CategoryManager />
+
+      <div class="flex items-center gap-2 mb-4">
+        <label class="flex items-center gap-2 m-0">
+          <span class="text-sm text-n-slate-11">
+            {{ $t('CANNED_MGMT.CATEGORY.LABEL') }}
+          </span>
+          <select
+            v-model="selectedCategoryId"
+            class="h-8 m-0 px-2 py-1 text-sm rounded-lg border border-n-weak bg-n-alpha-1"
+          >
+            <option :value="null">
+              {{ $t('CANNED_MGMT.FILTER.ALL_CATEGORIES') }}
+            </option>
+            <option
+              v-for="category in categories || []"
+              :key="category.id"
+              :value="category.id"
+            >
+              {{ category.name }}
+            </option>
+          </select>
+        </label>
+      </div>
+
       <BaseTable
         :headers="tableHeaders"
         :items="filteredRecords"
@@ -202,6 +265,9 @@ const tableHeaders = computed(() => {
         <template #header-1>
           {{ tableHeaders[1] }}
         </template>
+        <template #header-2>
+          {{ tableHeaders[2] }}
+        </template>
 
         <template #row="{ items }">
           <BaseTableRow
@@ -231,6 +297,15 @@ const tableHeaders = computed(() => {
                     />
                   </div>
                 </div>
+              </BaseTableCell>
+
+              <BaseTableCell>
+                <span class="text-body-main text-n-slate-11">
+                  {{
+                    cannedItem.category?.name ||
+                    $t('CANNED_MGMT.CATEGORY.NO_CATEGORY')
+                  }}
+                </span>
               </BaseTableCell>
 
               <BaseTableCell align="end" class="w-24">
@@ -269,6 +344,9 @@ const tableHeaders = computed(() => {
         :edshort-code="activeResponse.short_code"
         :edcontent="activeResponse.content"
         :edfiles="activeResponse.files"
+        :edcategory-id="
+          activeResponse.category_id ?? activeResponse.category?.id ?? null
+        "
         :on-close="hideEditPopup"
       />
     </woot-modal>

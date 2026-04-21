@@ -1,4 +1,5 @@
 <script>
+import { mapGetters } from 'vuex';
 import { useVuelidate } from '@vuelidate/core';
 import { required, minLength } from '@vuelidate/validators';
 import { useAlert } from 'dashboard/composables';
@@ -32,6 +33,7 @@ export default {
     return {
       shortCode: '',
       content: this.responseContent || '',
+      categoryId: null,
       addCanned: {
         showLoading: false,
         message: '',
@@ -40,6 +42,11 @@ export default {
       attachedFiles: [],
       isUploading: false,
     };
+  },
+  computed: {
+    ...mapGetters({
+      categories: 'cannedResponseCategory/getCannedResponseCategories',
+    }),
   },
   validations: {
     shortCode: {
@@ -54,6 +61,7 @@ export default {
     resetForm() {
       this.shortCode = '';
       this.content = '';
+      this.categoryId = null;
       this.attachedFiles = [];
       this.v$.shortCode.$reset();
       this.v$.content.$reset();
@@ -64,14 +72,13 @@ export default {
 
       this.isUploading = true;
       try {
-        for (const file of files) {
-          const { fileUrl, blobId } = await uploadFile(file);
-          this.attachedFiles.push({
-            fileUrl,
-            blobId,
-            filename: file.name,
-          });
-        }
+        const uploads = await Promise.all(
+          files.map(async file => {
+            const { fileUrl, blobId } = await uploadFile(file);
+            return { fileUrl, blobId, filename: file.name };
+          })
+        );
+        this.attachedFiles.push(...uploads);
       } catch (error) {
         useAlert(this.$t('CANNED_MGMT.FILES.UPLOAD_ERROR'));
       } finally {
@@ -87,6 +94,7 @@ export default {
       const payload = {
         short_code: this.shortCode,
         content: this.content,
+        category_id: this.categoryId,
       };
       if (this.attachedFiles.length) {
         payload.file_ids = this.attachedFiles.map(f => f.blobId);
@@ -131,6 +139,24 @@ export default {
         </div>
 
         <div class="w-full">
+          <label>
+            {{ $t('CANNED_MGMT.CATEGORY.LABEL') }}
+            <select v-model="categoryId">
+              <option :value="null">
+                {{ $t('CANNED_MGMT.CATEGORY.NO_CATEGORY') }}
+              </option>
+              <option
+                v-for="category in categories"
+                :key="category.id"
+                :value="category.id"
+              >
+                {{ category.name }}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <div class="w-full">
           <label :class="{ error: v$.content.$error }">
             {{ $t('CANNED_MGMT.ADD.FORM.CONTENT.LABEL') }}
           </label>
@@ -150,10 +176,7 @@ export default {
 
         <div class="w-full">
           <label>{{ $t('CANNED_MGMT.FILES.LABEL') }}</label>
-          <div
-            v-if="attachedFiles.length"
-            class="flex flex-wrap gap-2 mb-2"
-          >
+          <div v-if="attachedFiles.length" class="flex flex-wrap gap-2 mb-2">
             <div
               v-for="(file, index) in attachedFiles"
               :key="file.blobId"
@@ -167,9 +190,19 @@ export default {
               <button
                 type="button"
                 class="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-n-slate-12 text-n-slate-1 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                :aria-label="$t('CANNED_MGMT.FILES.REMOVE_FILE')"
                 @click="removeFile(index)"
               >
-                &times;
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  class="size-3"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>

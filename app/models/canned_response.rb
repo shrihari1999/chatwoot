@@ -17,8 +17,10 @@ class CannedResponse < ApplicationRecord
   validates :short_code, presence: true
   validates :account, presence: true
   validates :short_code, uniqueness: { scope: :account_id }
+  validate :category_belongs_to_account, if: -> { category_id.present? }
 
   belongs_to :account
+  belongs_to :category, class_name: 'CannedResponseCategory', optional: true
   has_many_attached :files
 
   def file_base_data
@@ -48,4 +50,12 @@ class CannedResponse < ApplicationRecord
 
     order(Arel.sql(order_clause) => :desc)
   }
+
+  private
+
+  def category_belongs_to_account
+    return if account && account.canned_response_categories.exists?(id: category_id)
+
+    errors.add(:category, 'must belong to the same account')
+  end
 end
