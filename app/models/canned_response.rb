@@ -13,10 +13,12 @@
 class CannedResponse < ApplicationRecord
   include Rails.application.routes.url_helpers
 
-  validates :content, presence: true
+  attr_accessor :pending_file_ids
+
   validates :short_code, presence: true
   validates :account, presence: true
   validates :short_code, uniqueness: { scope: :account_id }
+  validate :content_or_files_present
   validate :category_belongs_to_account, if: -> { category_id.present? }
 
   belongs_to :account
@@ -52,6 +54,14 @@ class CannedResponse < ApplicationRecord
   }
 
   private
+
+  def content_or_files_present
+    return if content.present?
+    return if files.attached?
+    return if pending_file_ids.present?
+
+    errors.add(:base, 'A canned response must have a message or at least one image attachment')
+  end
 
   def category_belongs_to_account
     return if account && account.canned_response_categories.exists?(id: category_id)

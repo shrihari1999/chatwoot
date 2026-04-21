@@ -11,6 +11,7 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
 
   def create
     @canned_response = Current.account.canned_responses.new(canned_response_params)
+    @canned_response.pending_file_ids = file_blob_ids
     @canned_response.save!
     attach_files
     render json: @canned_response.as_json.merge(
@@ -19,8 +20,13 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   end
 
   def update
-    @canned_response.update!(canned_response_params)
-    update_files
+    ActiveRecord::Base.transaction do
+      @canned_response.pending_file_ids = file_blob_ids
+      @canned_response.update!(canned_response_params)
+      update_files
+      # Re-validate after file changes — guards against clearing both content and files
+      raise ActiveRecord::RecordInvalid.new(@canned_response) unless @canned_response.valid?
+    end
     @canned_response.reload
     render json: @canned_response.as_json.merge(
       category: @canned_response.category ? @canned_response.category.as_json(only: [:id, :name]) : nil
