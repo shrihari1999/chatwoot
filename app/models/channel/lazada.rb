@@ -42,6 +42,10 @@ class Channel::Lazada < ApplicationRecord
     })
   end
 
+  def read_session(session_id:)
+    lazada_api_request('/im/session/read', 'POST', { session_id: session_id })
+  end
+
   private
 
   def lazada_api_request(api_path, http_method, api_params = {})
