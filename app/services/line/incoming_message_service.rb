@@ -17,6 +17,11 @@ class Line::IncomingMessageService
 
   def parse_events
     params[:events].each do |event|
+      if event['type'] == 'read'
+        handle_read_event(event)
+        next
+      end
+
       next unless event_type_message?(event)
 
       get_line_contact_info(event)
@@ -40,9 +45,18 @@ class Line::IncomingMessageService
       inbox_id: @inbox.id,
       message_type: :incoming,
       sender: @contact,
-      source_id: event['message']['id'].to_s
+      source_id: event['message']['id'].to_s,
+      additional_attributes: message_additional_attributes(event)
     )
     @message
+  end
+
+  def message_additional_attributes(event)
+    { mark_as_read_token: event.dig('message', 'markAsReadToken') }.compact
+  end
+
+  def handle_read_event(event)
+    Line::ReadStatusService.new(inbox: @inbox, event: event).perform
   end
 
   def message_content(event)

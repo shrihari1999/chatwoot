@@ -275,6 +275,21 @@ describe Line::IncomingMessageService do
         expect(line_channel.inbox.messages.first.content).to eq('Hello, world')
       end
 
+      it 'stores mark_as_read_token in additional_attributes when markAsReadToken is present' do
+        token_params = params.deep_dup
+        token_params[:events][0][:message][:markAsReadToken] = 'tok_abc'
+
+        described_class.new(inbox: line_channel.inbox, params: token_params).perform
+
+        expect(line_channel.inbox.messages.first.additional_attributes['mark_as_read_token']).to eq('tok_abc')
+      end
+
+      it 'does not include mark_as_read_token when markAsReadToken is absent' do
+        described_class.new(inbox: line_channel.inbox, params: params).perform
+
+        expect(line_channel.inbox.messages.first.additional_attributes).not_to have_key('mark_as_read_token')
+      end
+
       it 'creates appropriate conversations, message and contacts for multi user' do
         line_user_profile2 = double
         allow(line_bot).to receive(:get_profile).with('U4af49806292').and_return(line_user_profile2)
@@ -470,6 +485,42 @@ describe Line::IncomingMessageService do
         expect(line_channel.inbox.conversations.count).to eq(1)
         expect(line_channel.inbox.conversations.last.messages.count).to eq(2)
         expect(line_channel.inbox.conversations.last.messages.last.content).to eq('Second message')
+      end
+    end
+
+    context 'when read event is received' do
+      let(:read_params) do
+        {
+          'destination': '2342234234',
+          'events': [
+            {
+              'type': 'read',
+              'mode': 'active',
+              'timestamp': 1_462_629_479_859,
+              'source': {
+                'type': 'user',
+                'userId': 'U4af4980629'
+              },
+              'read': {
+                'messageId': '325708'
+              }
+            }
+          ]
+        }.with_indifferent_access
+      end
+
+      it 'invokes Line::ReadStatusService and does not call get_line_contact_info' do
+        read_service = instance_double(Line::ReadStatusService, perform: true)
+        service = described_class.new(inbox: line_channel.inbox, params: read_params)
+
+        expect(Line::ReadStatusService).to receive(:new).with(
+          inbox: line_channel.inbox,
+          event: read_params[:events][0]
+        ).and_return(read_service)
+        expect(read_service).to receive(:perform)
+        expect(service).not_to receive(:get_line_contact_info)
+
+        service.perform
       end
     end
 
