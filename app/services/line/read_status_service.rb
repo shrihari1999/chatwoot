@@ -16,9 +16,19 @@ class Line::ReadStatusService
   private
 
   def conversation
-    @conversation ||= inbox.conversations
-                           .joins(:contact_inbox)
-                           .find_by(contact_inboxes: { source_id: user_id })
+    @conversation ||= begin
+      contact_inbox = inbox.contact_inboxes.find_by(source_id: user_id)
+      return if contact_inbox.blank?
+
+      # Mirror Line::IncomingMessageService#set_conversation:
+      # when lock_to_single_conversation is off, prefer the latest unresolved thread.
+      if inbox.lock_to_single_conversation
+        contact_inbox.conversations.last
+      else
+        contact_inbox.conversations.where.not(status: :resolved).last ||
+          contact_inbox.conversations.last
+      end
+    end
   end
 
   def user_id
