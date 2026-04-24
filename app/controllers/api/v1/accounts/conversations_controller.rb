@@ -118,6 +118,7 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
     # Always update immediately if there are unread messages to maintain accurate read/unread state.
     # Visiting a conversation should clear any unread inbox notifications for this conversation.
     Notification::MarkConversationReadService.new(user: Current.user, account: Current.account, conversation: @conversation).perform
+    Line::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::Line'
     return update_last_seen_on_conversation(DateTime.now.utc, true) if assignee? && @conversation.assignee_unread_messages.any?
     return update_last_seen_on_conversation(DateTime.now.utc, false) if !assignee? && @conversation.unread_messages.any?
 
