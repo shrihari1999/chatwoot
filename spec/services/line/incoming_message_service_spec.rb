@@ -323,7 +323,7 @@ describe Line::IncomingMessageService do
         expect(reply_message.content_attributes['in_reply_to_external_id']).to eq(existing_message.source_id)
       end
 
-      it 'sets no reply attributes when quotedMessageId does not match any known message' do
+      it 'does not set reply attributes when quotedMessageId does not match any known message' do
         reply_params = params.deep_dup
         reply_params[:events][0][:message][:id] = '999999'
         reply_params[:events][0][:message][:quotedMessageId] = 'unknown-msg-id'
@@ -331,6 +331,10 @@ describe Line::IncomingMessageService do
         described_class.new(inbox: line_channel.inbox, params: reply_params).perform
 
         reply_message = line_channel.inbox.messages.last
+        # Messages::InReplyToMessageBuilder (invoked via the Message model's
+        # before_save :ensure_in_reply_to) overwrites both fields with nil when the
+        # referenced source_id is not found in the conversation, matching the
+        # behavior of other channels (e.g. WhatsApp, TikTok).
         expect(reply_message.content_attributes['in_reply_to']).to be_nil
         expect(reply_message.content_attributes['in_reply_to_external_id']).to be_nil
       end

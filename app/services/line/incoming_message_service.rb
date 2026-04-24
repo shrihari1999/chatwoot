@@ -56,11 +56,10 @@ class Line::IncomingMessageService
     quoted_message_id = event.dig('message', 'quotedMessageId')
     return {} if quoted_message_id.blank?
 
-    # Look up the Chatwoot message that corresponds to the quoted LINE message ID
-    quoted_message = @conversation.messages.find_by(source_id: quoted_message_id.to_s)
-    return {} if quoted_message.nil?
-
-    { in_reply_to: quoted_message.id, in_reply_to_external_id: quoted_message_id.to_s }
+    # The Message model's `before_save :ensure_in_reply_to` callback resolves
+    # `in_reply_to` from `in_reply_to_external_id` via Messages::InReplyToMessageBuilder,
+    # matching the pattern used by other channels (Facebook, Instagram, WhatsApp, TikTok).
+    { in_reply_to_external_id: quoted_message_id.to_s }
   end
 
   def message_additional_attributes(event)
