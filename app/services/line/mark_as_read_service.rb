@@ -25,16 +25,27 @@ class Line::MarkAsReadService
     @channel ||= conversation.inbox.channel
   end
 
+  def token_message
+    @token_message ||= conversation.messages
+                                   .incoming
+                                   .where.not(Arel.sql("additional_attributes->>'mark_as_read_token' IS NULL"))
+                                   .order(created_at: :desc)
+                                   .first
+  end
+
   def mark_as_read_token
-    @mark_as_read_token ||= conversation.messages
-                                        .incoming
-                                        .where.not("additional_attributes->>'mark_as_read_token' IS NULL")
-                                        .order(created_at: :desc)
-                                        .pick("additional_attributes->>'mark_as_read_token'")
+    token_message&.additional_attributes&.fetch('mark_as_read_token', nil)
   end
 
   def call_line_api
     payload = { markAsReadToken: mark_as_read_token }.to_json
     channel.client.post(channel.client.endpoint, MARK_AS_READ_PATH, payload, channel.client.credentials)
+    consume_token
+  end
+
+  def consume_token
+    # Clear the token after use so repeated agent opens don't replay stale single-use tokens.
+    updated = token_message.additional_attributes.except('mark_as_read_token')
+    token_message.update_columns(additional_attributes: updated)
   end
 end
