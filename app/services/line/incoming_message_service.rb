@@ -42,6 +42,7 @@ class Line::IncomingMessageService
       content: message_content(event),
       account_id: @inbox.account_id,
       content_type: message_content_type(event),
+      content_attributes: message_content_attributes(event),
       inbox_id: @inbox.id,
       message_type: :incoming,
       sender: @contact,
@@ -51,8 +52,22 @@ class Line::IncomingMessageService
     @message
   end
 
+  def message_content_attributes(event)
+    quoted_message_id = event.dig('message', 'quotedMessageId')
+    return {} if quoted_message_id.blank?
+
+    # Look up the Chatwoot message that corresponds to the quoted LINE message ID
+    quoted_message = @conversation.messages.find_by(source_id: quoted_message_id.to_s)
+    return {} if quoted_message.nil?
+
+    { in_reply_to: quoted_message.id, in_reply_to_external_id: quoted_message_id.to_s }
+  end
+
   def message_additional_attributes(event)
-    { mark_as_read_token: event.dig('message', 'markAsReadToken') }.compact
+    {
+      mark_as_read_token: event.dig('message', 'markAsReadToken'),
+      quote_token: event.dig('message', 'quoteToken')
+    }.compact
   end
 
   def handle_read_event(event)

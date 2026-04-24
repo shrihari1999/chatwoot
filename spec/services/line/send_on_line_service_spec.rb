@@ -211,6 +211,70 @@ describe Line::SendOnLineService do
 
         described_class.new(message: message).perform
       end
+
+      context 'when the agent replies to a customer message that has a quoteToken' do
+        let(:quoted_message) do
+          create(:message,
+                 message_type: :incoming,
+                 source_id: 'line-msg-111',
+                 additional_attributes: { 'quote_token' => 'qt_abc123' },
+                 conversation: message.conversation)
+        end
+
+        let(:reply_message) do
+          create(:message,
+                 message_type: :outgoing,
+                 content: 'quoting you',
+                 content_attributes: { 'in_reply_to_external_id' => quoted_message.source_id },
+                 conversation: message.conversation)
+        end
+
+        before do
+          quoted_message # ensure it is persisted before the reply is sent
+          allow(line_client).to receive(:push_message).and_return(OpenStruct.new(code: '200', body: { 'message' => 'ok' }.to_json))
+        end
+
+        it 'includes quoteToken in the push payload' do
+          expect(line_client).to receive(:push_message).with(
+            reply_message.conversation.contact_inbox.source_id,
+            { type: 'text', text: reply_message.content, quoteToken: 'qt_abc123' }
+          )
+
+          described_class.new(message: reply_message).perform
+        end
+      end
+
+      context 'when the agent replies to a message whose quoteToken has been consumed or is absent' do
+        let(:quoted_message) do
+          create(:message,
+                 message_type: :incoming,
+                 source_id: 'line-msg-222',
+                 additional_attributes: {},
+                 conversation: message.conversation)
+        end
+
+        let(:reply_message) do
+          create(:message,
+                 message_type: :outgoing,
+                 content: 'no token here',
+                 content_attributes: { 'in_reply_to_external_id' => quoted_message.source_id },
+                 conversation: message.conversation)
+        end
+
+        before do
+          quoted_message
+          allow(line_client).to receive(:push_message).and_return(OpenStruct.new(code: '200', body: { 'message' => 'ok' }.to_json))
+        end
+
+        it 'sends the message without a quoteToken' do
+          expect(line_client).to receive(:push_message).with(
+            reply_message.conversation.contact_inbox.source_id,
+            { type: 'text', text: reply_message.content }
+          )
+
+          described_class.new(message: reply_message).perform
+        end
+      end
     end
   end
 end

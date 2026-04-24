@@ -59,10 +59,30 @@ class Line::SendOnLineService < Base::SendOnChannelService
 
   # https://developers.line.biz/en/reference/messaging-api/#text-message
   def text_message
-    {
+    payload = {
       type: 'text',
       text: message.outgoing_content
     }
+
+    # Add quoteToken if the agent is replying to a customer message.
+    # quoteToken is stored on the original inbound message's additional_attributes
+    # and is required by LINE to quote a specific message. It expires after 24 hours.
+    # Note: LINE only supports quoting user messages (not bot messages).
+    token = quote_token_for_reply
+    payload[:quoteToken] = token if token.present?
+
+    payload
+  end
+
+  # Retrieve the LINE quoteToken for the message being quoted, if any.
+  def quote_token_for_reply
+    in_reply_to_external_id = message.content_attributes['in_reply_to_external_id']
+    return if in_reply_to_external_id.blank?
+
+    quoted_message = message.conversation.messages.find_by(source_id: in_reply_to_external_id)
+    return if quoted_message.nil?
+
+    quoted_message.additional_attributes['quote_token']
   end
 
   # https://developers.line.biz/en/reference/messaging-api/#flex-message
