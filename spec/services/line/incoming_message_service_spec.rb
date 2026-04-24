@@ -290,6 +290,55 @@ describe Line::IncomingMessageService do
         expect(line_channel.inbox.messages.first.additional_attributes).not_to have_key('mark_as_read_token')
       end
 
+      it 'stores quote_token in additional_attributes when quoteToken is present' do
+        quote_params = params.deep_dup
+        quote_params[:events][0][:message][:quoteToken] = 'q3Plxr4Agk...'
+
+        described_class.new(inbox: line_channel.inbox, params: quote_params).perform
+
+        expect(line_channel.inbox.messages.first.additional_attributes['quote_token']).to eq('q3Plxr4Agk...')
+      end
+
+      it 'does not include quote_token when quoteToken is absent' do
+        described_class.new(inbox: line_channel.inbox, params: params).perform
+
+        expect(line_channel.inbox.messages.first.additional_attributes).not_to have_key('quote_token')
+      end
+
+      it 'sets in_reply_to and in_reply_to_external_id when quotedMessageId matches a known message' do
+        # First, create an existing inbound message that will be quoted
+        described_class.new(inbox: line_channel.inbox, params: params).perform
+        existing_message = line_channel.inbox.messages.first
+
+        # Now send a reply quoting the first message
+        reply_params = params.deep_dup
+        reply_params[:events][0][:message][:id] = '999999'
+        reply_params[:events][0][:message][:text] = 'quoting you'
+        reply_params[:events][0][:message][:quotedMessageId] = existing_message.source_id
+
+        described_class.new(inbox: line_channel.inbox, params: reply_params).perform
+
+        reply_message = line_channel.inbox.messages.last
+        expect(reply_message.content_attributes['in_reply_to']).to eq(existing_message.id)
+        expect(reply_message.content_attributes['in_reply_to_external_id']).to eq(existing_message.source_id)
+      end
+
+      it 'does not set reply attributes when quotedMessageId does not match any known message' do
+        reply_params = params.deep_dup
+        reply_params[:events][0][:message][:id] = '999999'
+        reply_params[:events][0][:message][:quotedMessageId] = 'unknown-msg-id'
+
+        described_class.new(inbox: line_channel.inbox, params: reply_params).perform
+
+        reply_message = line_channel.inbox.messages.last
+        # Messages::InReplyToMessageBuilder (invoked via the Message model's
+        # before_save :ensure_in_reply_to) overwrites both fields with nil when the
+        # referenced source_id is not found in the conversation, matching the
+        # behavior of other channels (e.g. WhatsApp, TikTok).
+        expect(reply_message.content_attributes['in_reply_to']).to be_nil
+        expect(reply_message.content_attributes['in_reply_to_external_id']).to be_nil
+      end
+
       it 'creates appropriate conversations, message and contacts for multi user' do
         line_user_profile2 = double
         allow(line_bot).to receive(:get_profile).with('U4af49806292').and_return(line_user_profile2)

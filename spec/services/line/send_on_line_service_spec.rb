@@ -212,5 +212,99 @@ describe Line::SendOnLineService do
         described_class.new(message: message).perform
       end
     end
+
+    context 'when the agent replies to a quoted customer message' do
+      let(:conversation) { create(:conversation, inbox: line_channel.inbox) }
+
+      let(:quoted_message) do
+        create(:message,
+               message_type: :incoming,
+               source_id: 'line-msg-111',
+               additional_attributes: quoted_attributes,
+               conversation: conversation)
+      end
+
+      let(:reply_message) do
+        create(:message,
+               message_type: :outgoing,
+               content: 'reply',
+               content_attributes: { 'in_reply_to_external_id' => quoted_message.source_id },
+               conversation: conversation)
+      end
+
+      before do
+        quoted_message # ensure the quoted message exists before the reply is built
+        allow(line_client).to receive(:push_message).and_return(OpenStruct.new(code: '200', body: { 'message' => 'ok' }.to_json))
+      end
+
+      context 'with a quoteToken on the quoted message' do
+        let(:quoted_attributes) { { 'quote_token' => 'qt_abc123' } }
+
+        it 'includes quoteToken in the push payload' do
+          expect(line_client).to receive(:push_message).with(
+            reply_message.conversation.contact_inbox.source_id,
+            { type: 'text', text: reply_message.content, quoteToken: 'qt_abc123' }
+          )
+
+          described_class.new(message: reply_message).perform
+        end
+      end
+
+      context 'without a quoteToken (consumed or absent)' do
+        let(:quoted_attributes) { {} }
+
+        it 'sends the message without a quoteToken' do
+          expect(line_client).to receive(:push_message).with(
+            reply_message.conversation.contact_inbox.source_id,
+            { type: 'text', text: reply_message.content }
+          )
+
+          described_class.new(message: reply_message).perform
+        end
+      end
+    end
+
+    context 'when the push_message response contains sentMessages metadata' do
+      let(:outgoing_message) do
+        create(:message, message_type: :outgoing, content: 'hello',
+                         conversation: create(:conversation, inbox: line_channel.inbox))
+      end
+
+      it 'persists the LINE message id as source_id and stores the quoteToken' do
+        sent_messages_response = {
+          'sentMessages' => [
+            { 'id' => '461230878437638435', 'quoteToken' => 'qt_new_from_response' }
+          ]
+        }.to_json
+        allow(line_client).to receive(:push_message).and_return(OpenStruct.new(code: '200', body: sent_messages_response))
+
+        described_class.new(message: outgoing_message).perform
+        outgoing_message.reload
+
+        expect(outgoing_message.source_id).to eq('461230878437638435')
+        expect(outgoing_message.additional_attributes['quote_token']).to eq('qt_new_from_response')
+      end
+
+      it 'leaves the message untouched when sentMessages is absent' do
+        allow(line_client).to receive(:push_message).and_return(OpenStruct.new(code: '200', body: { 'message' => 'ok' }.to_json))
+
+        expect { described_class.new(message: outgoing_message).perform }
+          .not_to(change { [outgoing_message.reload.source_id, outgoing_message.additional_attributes] })
+      end
+
+      it 'does not persist metadata on a failed send' do
+        error_response = {
+          'message' => 'The request was invalid',
+          'sentMessages' => [{ 'id' => 'should-not-be-stored', 'quoteToken' => 'should-not-be-stored' }]
+        }.to_json
+        allow(line_client).to receive(:push_message).and_return(OpenStruct.new(code: '400', body: error_response))
+
+        described_class.new(message: outgoing_message).perform
+        outgoing_message.reload
+
+        expect(outgoing_message.source_id).to be_nil
+        expect(outgoing_message.additional_attributes).not_to have_key('quote_token')
+      end
+    end
   end
 end

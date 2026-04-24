@@ -13,12 +13,38 @@ class Line::SendOnLineService < Base::SendOnChannelService
     parsed_json = JSON.parse(response.body)
 
     if response.code == '200'
+      # Persist the LINE-assigned message id and (if any) quoteToken from the `sentMessages`
+      # array so that:
+      # * Customers quoting this agent message can be matched back via `quotedMessageId` (source_id).
+      # * Agents can later quote this message using the stored `quote_token`.
+      # See https://developers.line.biz/en/reference/messaging-api/#send-push-message-response
+      persist_sent_message_metadata(parsed_json)
       # If the request is successful, update the message status to delivered
       Messages::StatusUpdateService.new(message, 'delivered').perform
     else
       # If the request is not successful, update the message status to failed and save the external error
       Messages::StatusUpdateService.new(message, 'failed', external_error(parsed_json)).perform
     end
+  end
+
+  def persist_sent_message_metadata(parsed_json)
+    # We send a single text message per outgoing Chatwoot message (attachments are pushed
+    # alongside and share the same Chatwoot message). Use the first entry's id/quoteToken.
+    first_sent = parsed_json['sentMessages']&.first
+    return if first_sent.blank?
+
+    updates = sent_message_updates(first_sent)
+    message.update!(updates) if updates.any?
+  end
+
+  def sent_message_updates(first_sent)
+    updates = {}
+    updates[:source_id] = first_sent['id'] if first_sent['id'].present? && message.source_id.blank?
+
+    quote_token = first_sent['quoteToken']
+    updates[:additional_attributes] = (message.additional_attributes || {}).merge('quote_token' => quote_token) if quote_token.present?
+
+    updates
   end
 
   def build_payload
@@ -59,10 +85,18 @@ class Line::SendOnLineService < Base::SendOnChannelService
 
   # https://developers.line.biz/en/reference/messaging-api/#text-message
   def text_message
-    {
-      type: 'text',
-      text: message.outgoing_content
-    }
+    { type: 'text', text: message.outgoing_content, quoteToken: quote_token_for_reply }.compact
+  end
+
+  # Retrieve the LINE quoteToken for the message being quoted, if any.
+  # quoteToken is stored on the quoted message's additional_attributes and is
+  # required by LINE to quote a specific message. It expires after 24 hours.
+  # Note: LINE only supports quoting user messages (not bot messages).
+  def quote_token_for_reply
+    quoted_id = message.content_attributes['in_reply_to']
+    return if quoted_id.blank?
+
+    message.conversation.messages.find_by(id: quoted_id)&.additional_attributes&.dig('quote_token')
   end
 
   # https://developers.line.biz/en/reference/messaging-api/#flex-message

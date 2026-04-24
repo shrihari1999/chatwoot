@@ -42,6 +42,7 @@ class Line::IncomingMessageService
       content: message_content(event),
       account_id: @inbox.account_id,
       content_type: message_content_type(event),
+      content_attributes: message_content_attributes(event),
       inbox_id: @inbox.id,
       message_type: :incoming,
       sender: @contact,
@@ -51,8 +52,21 @@ class Line::IncomingMessageService
     @message
   end
 
+  def message_content_attributes(event)
+    quoted_message_id = event.dig('message', 'quotedMessageId')
+    return {} if quoted_message_id.blank?
+
+    # The Message model's `before_save :ensure_in_reply_to` callback resolves
+    # `in_reply_to` from `in_reply_to_external_id` via Messages::InReplyToMessageBuilder,
+    # matching the pattern used by other channels (Facebook, Instagram, WhatsApp, TikTok).
+    { in_reply_to_external_id: quoted_message_id.to_s }
+  end
+
   def message_additional_attributes(event)
-    { mark_as_read_token: event.dig('message', 'markAsReadToken') }.compact
+    {
+      mark_as_read_token: event.dig('message', 'markAsReadToken'),
+      quote_token: event.dig('message', 'quoteToken')
+    }.compact
   end
 
   def handle_read_event(event)
