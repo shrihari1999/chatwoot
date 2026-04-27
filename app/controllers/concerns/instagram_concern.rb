@@ -38,7 +38,8 @@ module InstagramConcern
   end
 
   def fetch_instagram_user_details(access_token)
-    endpoint = 'https://graph.instagram.com/v22.0/me'
+    api_version = GlobalConfigService.load('INSTAGRAM_API_VERSION', 'v22.0')
+    endpoint = "https://graph.instagram.com/#{api_version}/me"
     params = {
       fields: 'id,username,user_id,name,profile_picture_url,account_type',
       access_token: access_token

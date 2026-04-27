@@ -100,7 +100,7 @@ gem 'administrate-field-belongs_to_search', '>= 0.9.0'
 gem 'wisper', '2.0.0'
 
 ##--- gems for channels ---##
-gem 'facebook-messenger'
+gem 'facebook-messenger', '~> 2.1'
 gem 'line-bot-api'
 gem 'twilio-ruby'
 # twitty will handle subscription of twitter account events
