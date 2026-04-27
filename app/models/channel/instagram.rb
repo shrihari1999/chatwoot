@@ -44,8 +44,9 @@ class Channel::Instagram < ApplicationRecord
 
   def subscribe
     # ref https://developers.facebook.com/docs/instagram-platform/webhooks#enable-subscriptions
+    api_version = GlobalConfigService.load('INSTAGRAM_API_VERSION', 'v22.0')
     HTTParty.post(
-      "https://graph.instagram.com/v22.0/#{instagram_id}/subscribed_apps",
+      "https://graph.instagram.com/#{api_version}/#{instagram_id}/subscribed_apps",
       query: {
         subscribed_fields: %w[messages message_reactions messaging_seen],
         access_token: access_token
@@ -57,8 +58,9 @@ class Channel::Instagram < ApplicationRecord
   end
 
   def unsubscribe
+    api_version = GlobalConfigService.load('INSTAGRAM_API_VERSION', 'v22.0')
     HTTParty.delete(
-      "https://graph.instagram.com/v22.0/#{instagram_id}/subscribed_apps",
+      "https://graph.instagram.com/#{api_version}/#{instagram_id}/subscribed_apps",
       query: {
         access_token: access_token
       }

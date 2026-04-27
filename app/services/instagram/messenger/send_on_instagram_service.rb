@@ -13,8 +13,9 @@ class Instagram::Messenger::SendOnInstagramService < Instagram::BaseSendService
     query = { access_token: access_token }
     query[:appsecret_proof] = app_secret_proof if app_secret_proof
 
+    api_version = GlobalConfigService.load('FACEBOOK_API_VERSION', 'v22.0')
     response = HTTParty.post(
-      'https://graph.facebook.com/v11.0/me/messages',
+      "https://graph.facebook.com/#{api_version}/me/messages",
       body: message_content,
       query: query
     )
