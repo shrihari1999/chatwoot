@@ -77,7 +77,7 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
   def reply_to_payload
     return {} if reply_to_external_id.blank?
 
-    { reply_to: reply_to_external_id }
+    { reply_to: { mid: reply_to_external_id } }
   end
 
   def reply_to_external_id
