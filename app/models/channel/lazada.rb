@@ -47,7 +47,7 @@ class Channel::Lazada < ApplicationRecord
   end
 
   def recall_im_message(message_id:)
-    lazada_api_request('/im/message/recall', 'POST', { message_id: message_id.to_s })
+    lazada_api_request('/im/message/recall', 'POST', { message_id: message_id })
   end
 
   private

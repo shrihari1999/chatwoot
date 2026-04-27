@@ -5,8 +5,16 @@ class Lazada::IncomingMessageService
   def perform
     data = params[:data]
     return if data.blank?
+
+    # Recall webhooks (status=1) must be handled regardless of sender. Sellers
+    # can recall their own outgoing messages too, and we still want to mark
+    # those as deleted in Chatwoot.
+    if recalled_message?(data)
+      Lazada::IncomingRecallService.new(inbox: inbox, params: params).perform
+      return
+    end
+
     return if seller_message?(data)
-    return Lazada::RecallMessageService.new(inbox: inbox, params: params).perform if recalled_message?(data)
 
     set_contact(data)
     set_conversation(data)

@@ -6,14 +6,7 @@ class Lazada::RecallJob < ApplicationJob
   def perform(message_id)
     message = Message.find_by(id: message_id)
     return unless message
-    return if message.source_id.blank?
 
-    channel = message.inbox.channel
-    return unless channel.is_a?(Channel::Lazada)
-
-    result = channel.recall_im_message(message_id: message.source_id)
-    return if result.success?
-
-    Rails.logger.warn "[Lazada Recall] Failed to recall message #{message.source_id}: #{result.message}"
+    Lazada::OutgoingRecallService.new(message: message).perform
   end
 end
