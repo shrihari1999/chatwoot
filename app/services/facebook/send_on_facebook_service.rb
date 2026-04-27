@@ -54,20 +54,28 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
   end
 
   def fb_text_message_payload
-    if message.content_type == 'input_select' && message.content_attributes['items'].any?
-      {
-        text: message.content,
-        quick_replies: message.content_attributes['items'].map do |item|
-          {
-            content_type: 'text',
-            payload: item['title'],
-            title: item['title']
-          }
-        end
-      }
-    else
-      { text: message.outgoing_content }
-    end
+    payload = if message.content_type == 'input_select' && message.content_attributes['items'].any?
+                {
+                  text: message.content,
+                  quick_replies: message.content_attributes['items'].map do |item|
+                    {
+                      content_type: 'text',
+                      payload: item['title'],
+                      title: item['title']
+                    }
+                  end
+                }
+              else
+                { text: message.outgoing_content }
+              end
+    payload[:reply_to] = { mid: reply_to_external_id } if reply_to_external_id.present?
+    payload
+  end
+
+  # Returns the external message ID (Facebook mid) of the message being quoted,
+  # or nil if this is not a reply-to message.
+  def reply_to_external_id
+    @reply_to_external_id ||= message.content_attributes&.dig('in_reply_to_external_id')
   end
 
   def external_error(response)
@@ -79,7 +87,7 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
   end
 
   def fb_attachment_message_params(attachment)
-    {
+    params = {
       recipient: { id: contact.get_source_id(inbox.id) },
       message: {
         attachment: {
@@ -92,6 +100,8 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
       messaging_type: 'MESSAGE_TAG',
       tag: message_tag
     }
+    params[:message][:reply_to] = { mid: reply_to_external_id } if reply_to_external_id.present?
+    params
   end
 
   def message_tag
