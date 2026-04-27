@@ -50,16 +50,15 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
       message: fb_text_message_payload,
       messaging_type: 'MESSAGE_TAG',
       tag: message_tag
-    }
+    }.merge(reply_to_payload)
   end
 
   def fb_text_message_payload
-    base = if message.content_type == 'input_select' && message.content_attributes['items'].any?
-             quick_replies_payload
-           else
-             { text: message.outgoing_content }
-           end
-    base.merge(reply_to_payload)
+    if message.content_type == 'input_select' && message.content_attributes['items'].any?
+      quick_replies_payload
+    else
+      { text: message.outgoing_content }
+    end
   end
 
   def quick_replies_payload
@@ -78,7 +77,7 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
   def reply_to_payload
     return {} if reply_to_external_id.blank?
 
-    { reply_to: { mid: reply_to_external_id } }
+    { reply_to: reply_to_external_id }
   end
 
   def reply_to_external_id
@@ -103,10 +102,10 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
             url: attachment.download_url
           }
         }
-      }.merge(reply_to_payload),
+      },
       messaging_type: 'MESSAGE_TAG',
       tag: message_tag
-    }
+    }.merge(reply_to_payload)
   end
 
   def message_tag
