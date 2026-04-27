@@ -137,6 +137,7 @@ class Message < ApplicationRecord
   after_create_commit :execute_after_create_commit_callbacks
 
   after_update_commit :dispatch_update_event
+  after_update_commit :trigger_lazada_recall
   after_commit :reindex_for_search, if: :should_index?, on: [:create, :update]
 
   def channel_token
@@ -453,6 +454,15 @@ class Message < ApplicationRecord
 
   def reindex_for_search
     reindex(mode: :async)
+  end
+
+  def trigger_lazada_recall
+    return unless saved_change_to_content_attributes?
+    return unless content_attributes['deleted'] == true
+    return unless outgoing?
+    return unless inbox.channel_type == 'Channel::Lazada'
+
+    Lazada::RecallJob.perform_later(id)
   end
 end
 

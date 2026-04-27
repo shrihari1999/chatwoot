@@ -6,7 +6,7 @@ class Lazada::IncomingMessageService
     data = params[:data]
     return if data.blank?
     return if seller_message?(data)
-    return if recalled_message?(data)
+    return Lazada::RecallMessageService.new(inbox: inbox, params: params).perform if recalled_message?(data)
 
     set_contact(data)
     set_conversation(data)
