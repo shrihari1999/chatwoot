@@ -510,6 +510,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_000002) do
     t.index ["instagram_id"], name: "index_channel_instagram_on_instagram_id", unique: true
   end
 
+  create_table "channel_lazada", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.string "shop_id", null: false
+    t.string "app_key", null: false
+    t.string "app_secret", null: false
+    t.string "access_token", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["shop_id"], name: "index_channel_lazada_on_shop_id", unique: true
+  end
+
   create_table "channel_line", force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "line_channel_id", null: false
@@ -1253,8 +1264,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_000002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["team_id", "user_id"], name: "index_team_members_on_team_id_and_user_id", unique: true
-    t.index ["team_id"], name: "index_team_members_on_team_id"
-    t.index ["user_id"], name: "index_team_members_on_user_id"
   end
 
   create_table "teams", force: :cascade do |t|
@@ -1345,36 +1354,36 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_000002) do
     t.index ["inbox_id"], name: "index_working_hours_on_inbox_id"
   end
 
-  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "inboxes", "portals"
-  create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
-      on("accounts").
-      after(:insert).
-      for_each(:row) do
-    "execute format('create sequence IF NOT EXISTS conv_dpid_seq_%s', NEW.id);"
-  end
+  # no candidate create_trigger statement could be found, creating an adapter-specific one
+  execute(<<-SQL)
+CREATE OR REPLACE FUNCTION public.chatwoot_account_dpid_create_seq()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  EXECUTE format('CREATE SEQUENCE IF NOT EXISTS conv_dpid_seq_%s', NEW.id);
+  RETURN NEW;
+END;
+$function$
+  SQL
 
-  create_trigger("conversations_before_insert_row_tr", :generated => true, :compatibility => 1).
-      on("conversations").
-      before(:insert).
-      for_each(:row) do
-    "NEW.display_id := nextval('conv_dpid_seq_' || NEW.account_id);"
-  end
+  # no candidate create_trigger statement could be found, creating an adapter-specific one
+  execute("CREATE TRIGGER accounts_conv_dpid_seq_tr AFTER INSERT ON \"accounts\" FOR EACH ROW EXECUTE FUNCTION chatwoot_account_dpid_create_seq()")
 
-  create_trigger("camp_dpid_before_insert", :generated => true, :compatibility => 1).
-      on("accounts").
-      name("camp_dpid_before_insert").
-      after(:insert).
-      for_each(:row) do
-    "execute format('create sequence IF NOT EXISTS camp_dpid_seq_%s', NEW.id);"
-  end
+  # no candidate create_trigger statement could be found, creating an adapter-specific one
+  execute(<<-SQL)
+CREATE OR REPLACE FUNCTION public.chatwoot_conv_dpid_set()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.display_id := nextval('conv_dpid_seq_' || NEW.account_id);
+  RETURN NEW;
+END;
+$function$
+  SQL
 
-  create_trigger("campaigns_before_insert_row_tr", :generated => true, :compatibility => 1).
-      on("campaigns").
-      before(:insert).
-      for_each(:row) do
-    "NEW.display_id := nextval('camp_dpid_seq_' || NEW.account_id);"
-  end
+  # no candidate create_trigger statement could be found, creating an adapter-specific one
+  execute("CREATE TRIGGER conversations_before_insert_row_tr BEFORE INSERT ON \"conversations\" FOR EACH ROW EXECUTE FUNCTION chatwoot_conv_dpid_set()")
 
 end

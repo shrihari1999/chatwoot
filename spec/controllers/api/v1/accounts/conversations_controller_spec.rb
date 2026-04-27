@@ -816,6 +816,50 @@ RSpec.describe 'Conversations API', type: :request do
         expect(conversation.reload.assignee_last_seen_at).to be_within(1.second).of(initial_assignee_last_seen)
       end
     end
+
+    context 'when the conversation belongs to a Facebook Page inbox' do
+      before do
+        allow(Facebook::Messenger::Subscriptions).to receive(:subscribe).and_return(true)
+      end
+
+      # Build the channel then create the inbox against the same account so Pundit's
+      # inbox_access? check (`user.inboxes.where(account_id: account.id)`) passes.
+      let(:facebook_channel) { create(:channel_facebook_page, account: account) }
+      let(:facebook_inbox) { create(:inbox, channel: facebook_channel, account: account) }
+      let(:contact) { create(:contact, account: account) }
+      let(:contact_inbox) { create(:contact_inbox, inbox: facebook_inbox, contact: contact) }
+      let(:fb_conversation) do
+        create(:conversation, inbox: facebook_inbox, contact: contact,
+                              contact_inbox: contact_inbox, account: account)
+      end
+      let(:agent) { create(:user, account: account, role: :agent) }
+
+      before do
+        create(:inbox_member, user: agent, inbox: facebook_inbox)
+      end
+
+      it 'enqueues Facebook::MarkAsReadJob' do
+        expect(Facebook::MarkAsReadJob).to receive(:perform_later).with(fb_conversation)
+
+        post "/api/v1/accounts/#{account.id}/conversations/#{fb_conversation.display_id}/update_last_seen",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+      end
+
+      it 'does NOT enqueue Facebook::MarkAsReadJob for an Instagram DM conversation on the same channel' do
+        fb_conversation.update!(additional_attributes: { 'type' => 'instagram_direct_message' })
+
+        expect(Facebook::MarkAsReadJob).not_to receive(:perform_later)
+
+        post "/api/v1/accounts/#{account.id}/conversations/#{fb_conversation.display_id}/update_last_seen",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+      end
+    end
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/unread' do
