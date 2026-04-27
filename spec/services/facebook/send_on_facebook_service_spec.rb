@@ -206,5 +206,199 @@ describe Facebook::SendOnFacebookService do
                                                     }, { page_id: facebook_channel.page_id })
       end
     end
+
+    context 'with reply-to (in_reply_to_external_id)' do
+      let(:reply_to_mid) { 'mid.original_message_123' }
+      # Simulate a real incoming FB message that was received from the user with a Facebook mid
+      let!(:incoming_message) do
+        create(
+          :message,
+          message_type: 'incoming',
+          inbox: facebook_inbox,
+          account: account,
+          conversation: conversation,
+          source_id: reply_to_mid
+        )
+      end
+
+      it 'includes reply_to in text message payload when replying to an incoming FB message' do
+        # Agent replies to the incoming message (frontend sends in_reply_to: internal_message_id)
+        # The before_save callback resolves that to in_reply_to_external_id = source_id (FB mid)
+        message = create(
+          :message,
+          message_type: 'outgoing',
+          inbox: facebook_inbox,
+          account: account,
+          conversation: conversation,
+          in_reply_to: incoming_message.id
+        )
+        described_class.new(message: message).perform
+        expect(bot).to have_received(:deliver).with(
+          {
+            recipient: { id: contact_inbox.source_id },
+            message: {
+              text: message.content,
+              reply_to: { mid: reply_to_mid }
+            },
+            messaging_type: 'MESSAGE_TAG',
+            tag: 'ACCOUNT_UPDATE'
+          },
+          { page_id: facebook_channel.page_id }
+        )
+      end
+
+      it 'does NOT include reply_to in text message payload when in_reply_to is not set' do
+        message = create(
+          :message,
+          message_type: 'outgoing',
+          inbox: facebook_inbox,
+          account: account,
+          conversation: conversation
+        )
+        described_class.new(message: message).perform
+        expect(bot).to have_received(:deliver).with(
+          {
+            recipient: { id: contact_inbox.source_id },
+            message: { text: message.content },
+            messaging_type: 'MESSAGE_TAG',
+            tag: 'ACCOUNT_UPDATE'
+          },
+          { page_id: facebook_channel.page_id }
+        )
+      end
+
+      it 'does NOT include reply_to when referenced message has no source_id (e.g. outgoing message not yet delivered)' do
+        incoming_no_source = create(
+          :message,
+          message_type: 'incoming',
+          inbox: facebook_inbox,
+          account: account,
+          conversation: conversation,
+          source_id: nil
+        )
+        message = create(
+          :message,
+          message_type: 'outgoing',
+          inbox: facebook_inbox,
+          account: account,
+          conversation: conversation,
+          in_reply_to: incoming_no_source.id
+        )
+        described_class.new(message: message).perform
+        expect(bot).to have_received(:deliver).with(
+          {
+            recipient: { id: contact_inbox.source_id },
+            message: { text: message.content },
+            messaging_type: 'MESSAGE_TAG',
+            tag: 'ACCOUNT_UPDATE'
+          },
+          { page_id: facebook_channel.page_id }
+        )
+      end
+
+      it 'includes reply_to in attachment message payload when replying to an incoming FB message' do
+        message = build(
+          :message,
+          message_type: 'outgoing',
+          inbox: facebook_inbox,
+          account: account,
+          conversation: conversation,
+          content: nil,
+          in_reply_to: incoming_message.id
+        )
+        attachment = message.attachments.new(account_id: message.account_id, file_type: :image)
+        attachment.file.attach(
+          io: Rails.root.join('spec/assets/avatar.png').open,
+          filename: 'avatar.png',
+          content_type: 'image/png'
+        )
+        message.save!
+
+        described_class.new(message: message).perform
+
+        expect(bot).to have_received(:deliver).with(
+          {
+            recipient: { id: contact_inbox.source_id },
+            message: {
+              attachment: {
+                type: 'image',
+                payload: { url: anything }
+              },
+              reply_to: { mid: reply_to_mid }
+            },
+            messaging_type: 'MESSAGE_TAG',
+            tag: 'ACCOUNT_UPDATE'
+          },
+          { page_id: facebook_channel.page_id }
+        )
+      end
+
+      it 'does NOT include reply_to in attachment payload when in_reply_to is not set' do
+        message = build(
+          :message,
+          message_type: 'outgoing',
+          inbox: facebook_inbox,
+          account: account,
+          conversation: conversation,
+          content: nil
+        )
+        attachment = message.attachments.new(account_id: message.account_id, file_type: :image)
+        attachment.file.attach(
+          io: Rails.root.join('spec/assets/avatar.png').open,
+          filename: 'avatar.png',
+          content_type: 'image/png'
+        )
+        message.save!
+
+        described_class.new(message: message).perform
+
+        expect(bot).to have_received(:deliver).with(
+          {
+            recipient: { id: contact_inbox.source_id },
+            message: {
+              attachment: {
+                type: 'image',
+                payload: { url: anything }
+              }
+            },
+            messaging_type: 'MESSAGE_TAG',
+            tag: 'ACCOUNT_UPDATE'
+          },
+          { page_id: facebook_channel.page_id }
+        )
+      end
+
+      it 'includes reply_to in input_select message payload when replying to an incoming FB message' do
+        # Note: for input_select messages, we must use create() so the before_save :ensure_in_reply_to
+        # callback runs to resolve in_reply_to (internal id) -> in_reply_to_external_id (FB mid).
+        # content_attributes must include 'in_reply_to' (not just the accessor) because
+        # the store accessor overwrites the entire hash when content_attributes= is assigned.
+        message = create(
+          :message,
+          message_type: 'outgoing',
+          inbox: facebook_inbox,
+          account: account,
+          conversation: conversation,
+          content_type: 'input_select',
+          content_attributes: { 'items' => [{ 'title' => 'Yes', 'value' => 'yes' }], 'in_reply_to' => incoming_message.id }
+        )
+
+        described_class.new(message: message).perform
+
+        expect(bot).to have_received(:deliver).with(
+          {
+            recipient: { id: contact_inbox.source_id },
+            message: {
+              text: message.content,
+              quick_replies: [{ content_type: 'text', payload: 'Yes', title: 'Yes' }],
+              reply_to: { mid: reply_to_mid }
+            },
+            messaging_type: 'MESSAGE_TAG',
+            tag: 'ACCOUNT_UPDATE'
+          },
+          { page_id: facebook_channel.page_id }
+        )
+      end
+    end
   end
 end
