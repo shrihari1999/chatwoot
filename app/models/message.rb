@@ -137,6 +137,7 @@ class Message < ApplicationRecord
   after_create_commit :execute_after_create_commit_callbacks
 
   after_update_commit :dispatch_update_event
+  after_update_commit :trigger_lazada_recall
   after_commit :reindex_for_search, if: :should_index?, on: [:create, :update]
 
   def channel_token
@@ -453,6 +454,28 @@ class Message < ApplicationRecord
 
   def reindex_for_search
     reindex(mode: :async)
+  end
+
+  def trigger_lazada_recall
+    return unless lazada_recall_eligible?
+
+    Lazada::RecallJob.perform_later(id)
+  end
+
+  def lazada_recall_eligible?
+    saved_change_to_content_attributes? &&
+      transitioned_to_deleted? &&
+      outgoing? &&
+      inbox.channel_type == 'Channel::Lazada'
+  end
+
+  # Only true when content_attributes change flips the `deleted` flag from a
+  # non-true value to true. Prevents re-triggering the recall on subsequent
+  # content_attributes writes while the message is already deleted.
+  def transitioned_to_deleted?
+    prev_attrs, curr_attrs = saved_change_to_content_attributes
+    curr_attrs.is_a?(Hash) && curr_attrs['deleted'] == true &&
+      !(prev_attrs.is_a?(Hash) && prev_attrs['deleted'] == true)
   end
 end
 
