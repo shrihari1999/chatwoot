@@ -13,6 +13,13 @@ class Lazada::IncomingRecallService
     message_to_delete = inbox.messages.find_by(source_id: data[:message_id].to_s)
     return if message_to_delete.blank?
 
+    # Only process incoming messages. Outgoing messages (agent-sent) are recalled
+    # via the UI delete action → messages_controller → trigger_lazada_recall callback.
+    # If we allowed this service to mark an outgoing message deleted, the
+    # after_update_commit :trigger_lazada_recall callback would fire and enqueue a
+    # spurious OutgoingRecallService call back to the Lazada API.
+    return unless message_to_delete.incoming?
+
     ActiveRecord::Base.transaction do
       message_to_delete.attachments.destroy_all
       message_to_delete.update!(content: I18n.t('conversations.messages.deleted'), deleted: true)

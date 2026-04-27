@@ -30,6 +30,17 @@ RSpec.describe Message do
       end.to have_enqueued_job(Lazada::RecallJob).with(lazada_message.id)
     end
 
+    it 'enqueues RecallJob via store-accessor form (deleted: true) matching IncomingRecallService write style' do
+      # IncomingRecallService writes `deleted: true` via the store accessor rather than
+      # `content_attributes: { deleted: true }`. This test confirms the accessor form also
+      # triggers saved_change_to_content_attributes? and fires the callback correctly.
+      # (The accessor merges into content_attributes; the hash form replaces it entirely —
+      # both must work for transitioned_to_deleted? to be reliable.)
+      expect do
+        lazada_message.update!(content: I18n.t('conversations.messages.deleted'), deleted: true)
+      end.to have_enqueued_job(Lazada::RecallJob).with(lazada_message.id)
+    end
+
     it 'does not enqueue when content_attributes change but message is already deleted' do
       lazada_message.update!(content: I18n.t('conversations.messages.deleted'),
                              content_attributes: { deleted: true })

@@ -45,12 +45,35 @@ RSpec.describe Lazada::IncomingRecallService do
       expect(message.reload.attachments.count).to eq(0)
     end
 
+    it 'does nothing when the matched message is outgoing (prevents spurious OutgoingRecallService trigger)' do
+      outgoing_msg = create(:message, conversation: conversation, inbox: inbox, account: account,
+                                      message_type: :outgoing, source_id: source_id, content: 'agent sent')
+
+      expect do
+        described_class.new(inbox: inbox, params: build_params).perform
+      end.not_to have_enqueued_job(Lazada::RecallJob)
+
+      # Message must not be modified either
+      expect(outgoing_msg.reload.content).to eq('agent sent')
+    end
+
     it 'does nothing when params data is blank' do
       message = create(:message, conversation: conversation, inbox: inbox, account: account,
                                  source_id: source_id, content: 'original content')
 
       expect do
         described_class.new(inbox: inbox, params: { data: nil }).perform
+      end.not_to raise_error
+
+      expect(message.reload.content).to eq('original content')
+    end
+
+    it 'does nothing when data is present but message_id is blank' do
+      message = create(:message, conversation: conversation, inbox: inbox, account: account,
+                                 source_id: source_id, content: 'original content')
+
+      expect do
+        described_class.new(inbox: inbox, params: { data: { message_id: nil } }).perform
       end.not_to raise_error
 
       expect(message.reload.content).to eq('original content')
