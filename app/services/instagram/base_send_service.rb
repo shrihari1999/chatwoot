@@ -31,7 +31,7 @@ class Instagram::BaseSendService < Base::SendOnChannelService
       recipient: { id: contact.get_source_id(inbox.id) },
       message: {
         text: message.outgoing_content
-      }
+      }.merge(reply_to_payload)
     }
 
     merge_human_agent_tag(params)
@@ -47,10 +47,20 @@ class Instagram::BaseSendService < Base::SendOnChannelService
             url: attachment.download_url
           }
         }
-      }
+      }.merge(reply_to_payload)
     }
 
     merge_human_agent_tag(params)
+  end
+
+  def reply_to_payload
+    return {} if reply_to_external_id.blank?
+
+    { reply_to: { mid: reply_to_external_id } }
+  end
+
+  def reply_to_external_id
+    message.content_attributes&.dig('in_reply_to_external_id')
   end
 
   def process_response(response, message_content)

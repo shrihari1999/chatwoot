@@ -180,5 +180,104 @@ describe Instagram::Messenger::SendOnInstagramService do
         expect(message.reload.external_error).to eq('100 - Invalid message format')
       end
     end
+
+    context 'with reply-to (in_reply_to_external_id)' do
+      let(:reply_to_mid) { 'mid.original_ig_message_123' }
+      let!(:incoming_message) do
+        create(
+          :message,
+          message_type: 'incoming',
+          inbox: instagram_messenger_inbox,
+          account: account,
+          conversation: conversation,
+          source_id: reply_to_mid
+        )
+      end
+
+      before do
+        allow(Facebook::Messenger::Configuration::AppSecretProofCalculator).to receive(:call).and_return('app_secret_key', 'access_token')
+        allow(HTTParty).to receive(:post).and_return(mock_response)
+        InstallationConfig.where(name: 'ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT').first_or_create(value: false)
+      end
+
+      it 'includes reply_to in text message payload when replying to an incoming IG message' do
+        message = create(
+          :message,
+          message_type: 'outgoing',
+          inbox: instagram_messenger_inbox,
+          account: account,
+          conversation: conversation,
+          in_reply_to: incoming_message.id
+        )
+
+        described_class.new(message: message).perform
+
+        expect(HTTParty).to have_received(:post).with(
+          anything,
+          hash_including(
+            body: hash_including(
+              message: hash_including(
+                text: message.content,
+                reply_to: { mid: reply_to_mid }
+              )
+            )
+          )
+        )
+      end
+
+      it 'does NOT include reply_to in text message payload when in_reply_to is not set' do
+        message = create(
+          :message,
+          message_type: 'outgoing',
+          inbox: instagram_messenger_inbox,
+          account: account,
+          conversation: conversation
+        )
+
+        described_class.new(message: message).perform
+
+        expect(HTTParty).to have_received(:post).with(
+          anything,
+          hash_including(
+            body: hash_including(
+              message: hash_excluding(:reply_to)
+            )
+          )
+        )
+      end
+
+      it 'includes reply_to in attachment message payload when replying to an incoming IG message' do
+        message = build(
+          :message,
+          message_type: 'outgoing',
+          inbox: instagram_messenger_inbox,
+          account: account,
+          conversation: conversation,
+          content: nil,
+          in_reply_to: incoming_message.id
+        )
+        attachment = message.attachments.new(account_id: message.account_id, file_type: :image)
+        attachment.file.attach(
+          io: Rails.root.join('spec/assets/avatar.png').open,
+          filename: 'avatar.png',
+          content_type: 'image/png'
+        )
+        message.save!
+
+        described_class.new(message: message).perform
+
+        expect(HTTParty).to have_received(:post).with(
+          anything,
+          hash_including(
+            body: hash_including(
+              message: hash_including(
+                attachment: hash_including(type: 'image'),
+                reply_to: { mid: reply_to_mid }
+              )
+            )
+          )
+        )
+      end
+    end
   end
 end
