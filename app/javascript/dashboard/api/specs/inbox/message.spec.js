@@ -43,6 +43,22 @@ describe('#ConversationAPI', () => {
         }
       );
     });
+
+    it('#sendReaction sends emoji and default action', () => {
+      messageAPI.sendReaction(12, 99, '❤️');
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        `/api/v1/conversations/12/messages/99/react`,
+        { emoji: '❤️', reaction_action: 'react' }
+      );
+    });
+
+    it('#sendReaction passes custom action', () => {
+      messageAPI.sendReaction(12, 99, '👍', 'unreact');
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        `/api/v1/conversations/12/messages/99/react`,
+        { emoji: '👍', reaction_action: 'unreact' }
+      );
+    });
   });
   describe('#buildCreatePayload', () => {
     it('builds form payload if file is available', () => {

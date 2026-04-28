@@ -14,6 +14,7 @@ import {
 import MenuItem from '../../../components/widgets/conversation/contextMenu/menuItem.vue';
 import { useTrack } from 'dashboard/composables';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import MessageApi from 'dashboard/api/inbox/message.js';
 
 export default {
   components: {
@@ -133,6 +134,19 @@ export default {
       this.$emit('replyTo', this.message);
       this.handleClose();
     },
+    async handleReaction(emoji) {
+      try {
+        await MessageApi.sendReaction(
+          this.conversationId,
+          this.messageId,
+          emoji,
+          'react'
+        );
+      } catch (error) {
+        // silently ignore
+      }
+      this.handleClose();
+    },
     openDeleteModal() {
       this.handleClose();
       this.showDeleteModal = true;
@@ -197,6 +211,19 @@ export default {
       @close="handleClose"
     >
       <div class="menu-container">
+        <div
+          v-if="enabledOptions['react']"
+          class="flex gap-1 px-2 py-2 border-b border-n-weak"
+        >
+          <button
+            v-for="emoji in ['❤️', '😂', '😮', '😢', '😡', '👍']"
+            :key="emoji"
+            class="text-lg hover:scale-125 transition-transform cursor-pointer bg-transparent border-0 p-0.5"
+            @click.stop="handleReaction(emoji)"
+          >
+            {{ emoji }}
+          </button>
+        </div>
         <MenuItem
           v-if="enabledOptions['replyTo']"
           :option="{

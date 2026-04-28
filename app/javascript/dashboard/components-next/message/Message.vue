@@ -364,6 +364,11 @@ const payloadForContextMenu = computed(() => {
   };
 });
 
+const canReact = computed(() => {
+  const channelType = inbox.value?.channel_type;
+  return ['Channel::FacebookPage', 'Channel::Instagram'].includes(channelType);
+});
+
 const contextMenuEnabledOptions = computed(() => {
   const hasText = !!props.content;
   const hasAttachments = !!(props.attachments && props.attachments.length > 0);
@@ -386,6 +391,7 @@ const contextMenuEnabledOptions = computed(() => {
       !props.private &&
       props.inboxSupportsReplyTo.outgoing &&
       !isFailedOrProcessing,
+    react: canReact.value && !isFailedOrProcessing && !isMessageDeleted.value,
   };
 });
 

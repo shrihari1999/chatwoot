@@ -108,6 +108,13 @@ class MessageApi extends ApiClient {
       }
     );
   }
+
+  sendReaction(conversationId, messageId, emoji, action = 'react') {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/react`,
+      { emoji, reaction_action: action }
+    );
+  }
 }
 
 export default new MessageApi();
