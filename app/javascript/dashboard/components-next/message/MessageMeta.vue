@@ -132,6 +132,8 @@ const statusToShow = computed(() => {
 
   return MESSAGE_STATUS.PROGRESS;
 });
+
+const isMessageEdited = computed(() => contentAttributes.value?.edited);
 </script>
 
 <template>
@@ -139,6 +141,9 @@ const statusToShow = computed(() => {
     <div class="inline">
       <time class="inline">{{ readableTime }}</time>
     </div>
+    <span v-if="isMessageEdited" class="italic">
+      {{ $t('CONVERSATION.EDITED') }}
+    </span>
     <Icon v-if="isPrivate" icon="i-lucide-lock-keyhole" class="size-3" />
     <MessageStatus v-if="showStatusIndicator" :status="statusToShow" />
   </div>
