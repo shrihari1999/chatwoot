@@ -31,7 +31,9 @@ RSpec.describe Facebook::UpdateMessageService do
 
       described_class.new(inbox: inbox, response: build_response).perform
 
-      expect(message.reload.content).to eq('edited text')
+      message.reload
+      expect(message.content).to eq('edited text')
+      expect(message.edited).to be true
     end
 
     it 'does nothing when no message is found with that source_id' do

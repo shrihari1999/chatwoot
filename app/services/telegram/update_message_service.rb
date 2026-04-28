@@ -32,9 +32,9 @@ class Telegram::UpdateMessageService
     edited_message = params[:edited_message]
 
     if edited_message[:text].present?
-      @message.update!(content: edited_message[:text])
+      @message.update!(content: edited_message[:text], edited: true)
     elsif edited_message[:caption].present?
-      @message.update!(content: edited_message[:caption])
+      @message.update!(content: edited_message[:caption], edited: true)
     end
   end
 
