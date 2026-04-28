@@ -91,6 +91,39 @@ RSpec.describe 'POST /api/v1/accounts/:account_id/conversations/:conversation_id
       end
     end
 
+    context 'when on a Facebook inbox configured as Instagram DM (instagram_id present)' do
+      let(:fb_ig_channel) do
+        stub_request(:post, /graph\.facebook\.com/).to_return(status: 200, body: '', headers: {})
+        create(:channel_facebook_page, account: account, instagram_id: '12345678901234567')
+      end
+      let(:fb_ig_inbox)        { create(:inbox, account: account, channel: fb_ig_channel) }
+      let(:fb_ig_conversation) { create(:conversation, account: account, inbox: fb_ig_inbox, contact: contact) }
+      let(:fb_ig_message)      { create(:message, conversation: fb_ig_conversation, inbox: fb_ig_inbox, source_id: 'mid.fbig') }
+
+      before do
+        create(:inbox_member, inbox: fb_ig_inbox, user: agent)
+      end
+
+      def fb_ig_react_url
+        "/api/v1/accounts/#{account.id}/conversations/#{fb_ig_conversation.display_id}/messages/#{fb_ig_message.id}/react"
+      end
+
+      it 'routes to Facebook::SendReactionService (not Instagram::SendReactionService), persists locally' do
+        service_double = instance_double(Facebook::SendReactionService, perform: true)
+        allow(Facebook::SendReactionService).to receive(:new).and_return(service_double)
+        allow(Instagram::SendReactionService).to receive(:new)
+
+        post fb_ig_react_url,
+             params: { emoji: '❤️', reaction_action: 'react' },
+             headers: { 'api_access_token' => agent.access_token.token }
+
+        expect(response).to have_http_status(:ok)
+        expect(fb_ig_message.reload.reactions).to include('❤️')
+        expect(Facebook::SendReactionService).to have_received(:new)
+        expect(Instagram::SendReactionService).not_to have_received(:new)
+      end
+    end
+
     context 'when on an Instagram inbox' do
       let(:ig_channel) do
         instagram_id = SecureRandom.hex(16)

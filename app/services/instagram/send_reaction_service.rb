@@ -71,10 +71,6 @@ class Instagram::SendReactionService
     error_code = parsed.dig('error', 'code')
     error_message = parsed.dig('error', 'message')
 
-    # https://developers.facebook.com/docs/messenger-platform/error-codes
-    # Access token has expired or become invalid.
-    channel.authorization_error! if error_code == 190
-
     Rails.logger.error("Instagram reaction response: #{error_code} - #{error_message}")
     raise StandardError, "Instagram reaction failed: #{error_code} - #{error_message}"
   end
