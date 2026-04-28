@@ -16,12 +16,16 @@ RSpec.describe Webhooks::FacebookMessageEditJob do
       stub_request(:post, /graph.facebook.com/).to_return(status: 200, body: '', headers: {})
     end
 
+    # Use the wrapped shape that the gem actually enqueues (Common#to_json wraps
+    # the raw messaging hash under a 'messaging' key).
     let(:message_edit_json) do
       {
-        'sender' => { 'id' => 'FB_USER_PSID' },
-        'recipient' => { 'id' => facebook_channel.page_id },
-        'timestamp' => 1_458_668_856_463,
-        'message_edit' => { 'mid' => mid, 'text' => 'edited text', 'num_edit' => 1 }
+        'messaging' => {
+          'sender' => { 'id' => 'FB_USER_PSID' },
+          'recipient' => { 'id' => facebook_channel.page_id },
+          'timestamp' => 1_458_668_856_463,
+          'message_edit' => { 'mid' => mid, 'text' => 'edited text' }
+        }
       }.to_json
     end
 

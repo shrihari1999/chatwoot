@@ -3,34 +3,61 @@
 require 'rails_helper'
 
 RSpec.describe Integrations::Facebook::MessageEditParser do
-  let(:payload) do
+  # The gem's Common#to_json wraps the raw messaging hash under a 'messaging' key,
+  # so the job receives {"messaging": {"sender":..., "message_edit":...}}.
+  let(:wrapped_payload) do
     {
-      'sender' => { 'id' => 'PSID_123' },
-      'recipient' => { 'id' => 'PAGE_456' },
-      'timestamp' => 1_458_668_856_463,
-      'message_edit' => {
-        'mid' => 'm_abc123',
-        'text' => 'edited text here',
-        'num_edit' => 2
+      'messaging' => {
+        'sender' => { 'id' => 'PSID_123' },
+        'recipient' => { 'id' => 'PAGE_456' },
+        'timestamp' => 1_458_668_856_463,
+        'message_edit' => {
+          'mid' => 'm_abc123',
+          'text' => 'edited text here'
+        }
       }
     }.to_json
   end
 
-  subject(:parser) { described_class.new(payload) }
-
-  describe '#sender_id' do
-    it { expect(parser.sender_id).to eq('PSID_123') }
+  # Also support the unwrapped shape (direct messaging hash) for robustness.
+  let(:unwrapped_payload) do
+    {
+      'sender' => { 'id' => 'PSID_123' },
+      'recipient' => { 'id' => 'PAGE_456' },
+      'message_edit' => {
+        'mid' => 'm_abc123',
+        'text' => 'edited text here'
+      }
+    }.to_json
   end
 
-  describe '#recipient_id' do
-    it { expect(parser.recipient_id).to eq('PAGE_456') }
+  shared_examples 'parses fields correctly' do
+    it 'extracts sender_id' do
+      expect(parser.sender_id).to eq('PSID_123')
+    end
+
+    it 'extracts recipient_id' do
+      expect(parser.recipient_id).to eq('PAGE_456')
+    end
+
+    it 'extracts identifier (mid)' do
+      expect(parser.identifier).to eq('m_abc123')
+    end
+
+    it 'extracts content (text)' do
+      expect(parser.content).to eq('edited text here')
+    end
   end
 
-  describe '#identifier' do
-    it { expect(parser.identifier).to eq('m_abc123') }
+  context 'with wrapped payload (gem Bot.on serialization shape)' do
+    subject(:parser) { described_class.new(wrapped_payload) }
+
+    include_examples 'parses fields correctly'
   end
 
-  describe '#content' do
-    it { expect(parser.content).to eq('edited text here') }
+  context 'with unwrapped payload' do
+    subject(:parser) { described_class.new(unwrapped_payload) }
+
+    include_examples 'parses fields correctly'
   end
 end
