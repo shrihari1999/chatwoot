@@ -40,25 +40,23 @@ class Api::V1::Accounts::Conversations::MessagesReactionsController < Api::V1::A
   # Attempts to forward the reaction to the upstream platform.
   # Returns true on success, false on failure.  Always safe to call — failures
   # are swallowed so the local reaction is always persisted regardless.
-  # Both Facebook Messenger and Instagram support sender_action=react.
+  #
+  # Channel routing:
+  #   Channel::FacebookPage — uses Facebook::SendReactionService (Facebook Graph API,
+  #     page_access_token).  This covers both regular Messenger inboxes AND Instagram
+  #     DM inboxes that Chatwoot models as Channel::FacebookPage (identified by
+  #     instagram_id being set).  graph.instagram.com rejects page tokens with
+  #     error 190; graph.facebook.com/me/messages accepts them for both channel types.
+  #   Channel::Instagram   — uses Instagram::SendReactionService (Instagram Graph API,
+  #     OAuth access_token from the dedicated Instagram channel setup).
   def try_send_reaction_to_platform(emoji, action)
     channel = @conversation.inbox.channel
-    if channel.is_a?(Channel::Instagram)
-      Instagram::SendReactionService.new(message: message, emoji: emoji, action: action).perform
-    elsif channel.is_a?(Channel::FacebookPage) && instagram_dm?(channel)
-      Instagram::SendReactionService.new(message: message, emoji: emoji, action: action).perform
-    elsif channel.is_a?(Channel::FacebookPage)
+    if channel.is_a?(Channel::FacebookPage)
       Facebook::SendReactionService.new(message: message, emoji: emoji, action: action).perform
+    elsif channel.is_a?(Channel::Instagram)
+      Instagram::SendReactionService.new(message: message, emoji: emoji, action: action).perform
     end
   rescue StandardError
     false
-  end
-
-  # Returns true when a Channel::FacebookPage inbox is actually used for Instagram
-  # Direct Messages.  Chatwoot stores Instagram DM inboxes as Channel::FacebookPage
-  # records with instagram_id populated.  Regular Messenger inboxes have a blank
-  # instagram_id.
-  def instagram_dm?(channel)
-    channel.is_a?(Channel::FacebookPage) && channel.instagram_id.present?
   end
 end
