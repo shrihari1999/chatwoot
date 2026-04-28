@@ -868,4 +868,35 @@ RSpec.describe Message do
       end
     end
   end
+
+  describe '#apply_reaction!' do
+    let(:message) { create(:message) }
+
+    it 'adds sender_id when reacting' do
+      message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'react')
+      expect(message.reload.reactions).to eq('❤️' => ['12345'])
+    end
+
+    it 'is idempotent for duplicate react' do
+      message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'react')
+      message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'react')
+      expect(message.reload.reactions['❤️'].count('12345')).to eq(1)
+    end
+
+    it 'removes sender_id when unreacting' do
+      message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'react')
+      message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'unreact')
+      expect(message.reload.reactions).to eq({})
+    end
+
+    it 'deletes emoji key when last reactor unreacts' do
+      message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'react')
+      message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'unreact')
+      expect(message.reload.reactions.key?('❤️')).to be false
+    end
+
+    it 'is a no-op when unreacting on non-existent emoji' do
+      expect { message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'unreact') }.not_to raise_error
+    end
+  end
 end

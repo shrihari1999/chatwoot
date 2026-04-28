@@ -108,7 +108,7 @@ class Message < ApplicationRecord
   # [:external_created_at] : Can specify if the message was created at a different timestamp externally
   # [:external_error : Can specify if the message creation failed due to an error at external API
   # [:data] : Used for structured content types such as voice_call
-  store :content_attributes, accessors: [:submitted_email, :items, :submitted_values, :email, :in_reply_to, :deleted, :edited,
+  store :content_attributes, accessors: [:submitted_email, :items, :submitted_values, :email, :in_reply_to, :deleted, :edited, :reactions,
                                          :external_created_at, :story_sender, :story_id, :external_error,
                                          :translations, :in_reply_to_external_id, :is_unsupported, :data], coder: JSON
 
@@ -231,6 +231,23 @@ class Message < ApplicationRecord
                                 .where("(additional_attributes->'campaign_id') is null").count > 1
 
     true
+  end
+
+  def apply_reaction!(emoji:, sender_id:, action:)
+    # Work on a copy so the store accessor detects the change
+    current = (reactions || {}).dup
+    current[emoji] ||= []
+    current[emoji] = current[emoji].dup
+
+    if action == 'react'
+      current[emoji] << sender_id unless current[emoji].include?(sender_id)
+    elsif action == 'unreact'
+      current[emoji].delete(sender_id)
+      current.delete(emoji) if current[emoji].empty?
+    end
+
+    self.reactions = current
+    save!
   end
 
   def save_story_info(story_info)
