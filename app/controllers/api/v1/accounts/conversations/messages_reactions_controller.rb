@@ -8,10 +8,10 @@ class Api::V1::Accounts::Conversations::MessagesReactionsController < Api::V1::A
     # Best-effort: attempt to forward the reaction to the upstream platform so
     # the customer sees it on their phone.  We always persist the local reaction
     # regardless of whether the platform send succeeds — the Chatwoot UI must
-    # update even if the outbound API call fails or the channel doesn't support it.
+    # update even if the outbound API call fails.
     #
-    # NOTE: Facebook Messenger does NOT expose a reaction API for pages/bots.
-    #       Only Instagram supports sender_action=react.
+    # Both Facebook Messenger and Instagram support sender_action=react via
+    # POST /PAGE-ID/messages (Graph API).
     try_send_reaction_to_platform(emoji, action)
 
     message.apply_reaction!(emoji: emoji, sender_id: agent_sender_id, action: action)
@@ -40,13 +40,25 @@ class Api::V1::Accounts::Conversations::MessagesReactionsController < Api::V1::A
   # Attempts to forward the reaction to the upstream platform.
   # Returns true on success, false on failure.  Always safe to call — failures
   # are swallowed so the local reaction is always persisted regardless.
-  # Facebook Messenger has no reaction API for pages/bots, so only Instagram is attempted.
+  # Both Facebook Messenger and Instagram support sender_action=react.
   def try_send_reaction_to_platform(emoji, action)
     channel = @conversation.inbox.channel
-    return false unless channel.is_a?(Channel::Instagram)
-
-    Instagram::SendReactionService.new(message: message, emoji: emoji, action: action).perform
+    if channel.is_a?(Channel::Instagram)
+      Instagram::SendReactionService.new(message: message, emoji: emoji, action: action).perform
+    elsif channel.is_a?(Channel::FacebookPage) && instagram_dm?(channel)
+      Instagram::SendReactionService.new(message: message, emoji: emoji, action: action).perform
+    elsif channel.is_a?(Channel::FacebookPage)
+      Facebook::SendReactionService.new(message: message, emoji: emoji, action: action).perform
+    end
   rescue StandardError
     false
+  end
+
+  # Returns true when a Channel::FacebookPage inbox is actually used for Instagram
+  # Direct Messages.  Chatwoot stores Instagram DM inboxes as Channel::FacebookPage
+  # records with instagram_id populated.  Regular Messenger inboxes have a blank
+  # instagram_id.
+  def instagram_dm?(channel)
+    channel.is_a?(Channel::FacebookPage) && channel.instagram_id.present?
   end
 end

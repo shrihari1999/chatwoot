@@ -65,10 +65,22 @@ RSpec.describe 'POST /api/v1/accounts/:account_id/conversations/:conversation_id
         "/api/v1/accounts/#{account.id}/conversations/#{fb_conversation.display_id}/messages/#{fb_message.id}/react"
       end
 
-      it 'persists the reaction locally without calling platform APIs' do
-        # Facebook Messenger has no reaction API for pages/bots.
-        # The Instagram service must not be called for a Facebook inbox either.
-        expect(Instagram::SendReactionService).not_to receive(:new)
+      it 'sends the reaction to Messenger and persists it locally' do
+        service_double = instance_double(Facebook::SendReactionService, perform: true)
+        allow(Facebook::SendReactionService).to receive(:new).and_return(service_double)
+
+        post fb_react_url,
+             params: { emoji: '❤️', reaction_action: 'react' },
+             headers: { 'api_access_token' => agent.access_token.token }
+
+        expect(response).to have_http_status(:ok)
+        expect(fb_message.reload.reactions).to include('❤️')
+        expect(Facebook::SendReactionService).to have_received(:new)
+      end
+
+      it 'still persists the reaction locally if the Messenger platform send fails' do
+        allow(Facebook::SendReactionService).to receive(:new)
+          .and_raise(Facebook::Messenger::FacebookError.new('error' => { 'message' => 'boom' }))
 
         post fb_react_url,
              params: { emoji: '❤️', reaction_action: 'react' },

@@ -6,7 +6,9 @@
 #       https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api/
 #
 # Failures are logged and re-raised so callers can decide how to handle them.
-# NOTE: Facebook Messenger does NOT support sender_action=react — only Instagram does.
+# Supports both Channel::Instagram and Channel::FacebookPage (Instagram DM — identified by
+# instagram_id present on the FacebookPage channel). Both channel types expose
+# #page_access_token for the underlying access token.
 class Instagram::SendReactionService
   pattr_initialize [:message!, :emoji, :action!]
 
@@ -16,7 +18,7 @@ class Instagram::SendReactionService
     response = HTTParty.post(
       "https://graph.instagram.com/#{api_version}/#{instagram_id}/messages",
       body: payload,
-      query: { access_token: channel.access_token }
+      query: { access_token: instagram_access_token }
     )
 
     handle_response(response)
@@ -45,6 +47,12 @@ class Instagram::SendReactionService
 
   def instagram_id
     channel.instagram_id.presence || 'me'
+  end
+
+  # Channel::FacebookPage stores the token as page_access_token; Channel::Instagram
+  # exposes it via access_token (which handles OAuth refresh automatically).
+  def instagram_access_token
+    channel.is_a?(Channel::FacebookPage) ? channel.page_access_token : channel.access_token
   end
 
   def payload
