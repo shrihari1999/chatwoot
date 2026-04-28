@@ -19,6 +19,50 @@ class ChatwootFbProvider < Facebook::Messenger::Configuration::Providers::Base
   end
 end
 
+# Extend the facebook-messenger gem to support the message_edit event type,
+# which is not included in the gem's built-in EVENTS. This must run before
+# the reloader block so the event type is available when hooks are registered.
+#
+# Extends the frozen gem constants once at boot time. The `unless` guard
+# prevents re-initialization warnings on Spring/Zeitwerk reloads.
+unless Facebook::Messenger::Incoming::EVENTS.key?('message_edit')
+  module Facebook
+    module Messenger
+      module Incoming
+        # Minimal incoming class for message_edit webhook events.
+        # Payload structure:
+        #   { "sender" => {"id" => PSID}, "recipient" => {"id" => PAGE_ID},
+        #     "message_edit" => {"mid" => MESSAGE_ID, "text" => NEW_TEXT, "num_edit" => N} }
+        class MessageEdit
+          include Facebook::Messenger::Incoming::Common
+
+          def id
+            @messaging['message_edit']['mid']
+          end
+
+          def text
+            @messaging['message_edit']['text']
+          end
+        end
+
+        # Monkey-patch EVENTS to include message_edit so Incoming.parse can route it.
+        # The gem freezes the original EVENTS hash, so we rebuild and reassign the constant.
+        _new_incoming_events = EVENTS.merge('message_edit' => MessageEdit).freeze
+        remove_const(:EVENTS)
+        const_set(:EVENTS, _new_incoming_events)
+      end
+
+      module Bot
+        # Monkey-patch Bot::EVENTS so Bot.on :message_edit is accepted.
+        # The gem freezes the original EVENTS array, so we rebuild and reassign the constant.
+        _new_bot_events = (EVENTS + %i[message_edit]).freeze
+        remove_const(:EVENTS)
+        const_set(:EVENTS, _new_bot_events)
+      end
+    end
+  end
+end
+
 Rails.application.reloader.to_prepare do
   Facebook::Messenger.configure do |config|
     config.provider = ChatwootFbProvider.new
@@ -42,5 +86,12 @@ Rails.application.reloader.to_prepare do
     # Add delay to prevent race condition where echo arrives before send message API completes
     # This avoids duplicate messages when echo comes early during API processing
     Webhooks::FacebookEventsJob.set(wait: 2.seconds).perform_later(message.to_json)
+  end
+
+  Facebook::Messenger::Bot.on :message_edit do |message_edit|
+    # Wait slightly longer than the 2-second delay used for incoming messages above
+    # to absorb the race where an edit webhook arrives before the original message
+    # has been persisted by FacebookEventsJob.
+    Webhooks::FacebookMessageEditJob.set(wait: 3.seconds).perform_later(message_edit.to_json)
   end
 end
