@@ -6,7 +6,10 @@
 #     "message_edit" => {"mid" => MESSAGE_ID, "text" => NEW_TEXT, "num_edit" => N} }
 class Integrations::Facebook::MessageEditParser
   def initialize(response_json)
-    @messaging = JSON.parse(response_json)
+    @response = JSON.parse(response_json)
+    # The gem's Common#to_json wraps the raw messaging hash under a 'messaging' key.
+    # Mirror the pattern used by MessageParser.
+    @messaging = @response['messaging'] || @response
   end
 
   def sender_id
