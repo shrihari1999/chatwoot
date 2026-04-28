@@ -332,6 +332,15 @@ const actions = {
   },
 
   updateMessage({ commit, rootGetters }, message) {
+    if (message?.content_attributes?.reactions) {
+      // eslint-disable-next-line no-console
+      console.info(
+        '[ReactionDebug][store.updateMessage] dispatching ADD_MESSAGE for message',
+        message.id,
+        'reactions=',
+        message.content_attributes.reactions
+      );
+    }
     commit(types.ADD_MESSAGE, message);
     handleVoiceCallUpdated(commit, message, rootGetters?.getCurrentUserID);
   },

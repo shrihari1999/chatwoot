@@ -10,9 +10,15 @@ class Webhooks::FacebookReactionJob < ApplicationJob
     # both shapes for robustness.
     messaging = parsed[:messaging] || parsed
     page_id = messaging.dig(:recipient, :id)
-    return if page_id.blank?
+    Rails.logger.info "[ReactionDebug][FacebookReactionJob] page_id=#{page_id.inspect} mid=#{messaging.dig(:reaction, :mid).inspect} action=#{messaging.dig(:reaction, :action).inspect} emoji=#{messaging.dig(:reaction, :emoji).inspect} sender=#{messaging.dig(:sender, :id).inspect}"
+    if page_id.blank?
+      Rails.logger.warn '[ReactionDebug][FacebookReactionJob] page_id blank, dropping'
+      return
+    end
 
-    Channel::FacebookPage.where(page_id: page_id).find_each do |page|
+    pages = Channel::FacebookPage.where(page_id: page_id)
+    Rails.logger.info "[ReactionDebug][FacebookReactionJob] matched #{pages.count} channel(s) for page_id=#{page_id}"
+    pages.find_each do |page|
       Facebook::MessageReactionService.new(inbox: page.inbox, messaging: messaging).perform
     end
   end
