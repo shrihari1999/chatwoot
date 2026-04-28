@@ -1,16 +1,15 @@
 # frozen_string_literal: true
 
-# Builds the Instagram Send-API request body for a reaction.
+# Builds the Messenger/Instagram Send-API request body for a reaction.
 #
-# Instagram accepts:
+# Both Facebook Messenger and Instagram accept:
 #   {
-#     recipient:     { id: <IGSID> },
+#     recipient:     { id: <PSID|IGSID> },
 #     sender_action: 'react' | 'unreact',
 #     payload:       { message_id: <MID> [, reaction: <emoji>] }
 #   }
 #
-# Note: Facebook Messenger does NOT support sender_action=react.
-# This builder is used exclusively by Instagram::SendReactionService.
+# Used by both Facebook::SendReactionService and Instagram::SendReactionService.
 class Messaging::ReactionPayloadBuilder
   REACT_ACTION   = 'react'
   UNREACT_ACTION = 'unreact'
