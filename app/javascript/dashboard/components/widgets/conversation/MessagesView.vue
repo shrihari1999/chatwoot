@@ -244,6 +244,9 @@ export default {
 
       return { incoming, outgoing };
     },
+    inboxSupportsReactions() {
+      return this.inboxHasFeature(INBOX_FEATURES.REACTIONS);
+    },
   },
 
   watch: {
@@ -476,6 +479,7 @@ export default {
       :first-unread-id="unReadMessages[0]?.id"
       :is-an-email-channel="isAnEmailChannel"
       :inbox-supports-reply-to="inboxSupportsReplyTo"
+      :inbox-supports-reactions="inboxSupportsReactions"
       :messages="getMessages"
       @retry="handleMessageRetry"
     >

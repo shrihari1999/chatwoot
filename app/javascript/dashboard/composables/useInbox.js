@@ -6,7 +6,6 @@ import { INBOX_TYPES } from 'dashboard/helper/inbox';
 export const INBOX_FEATURES = {
   REPLY_TO: 'replyTo',
   REPLY_TO_OUTGOING: 'replyToOutgoing',
-  REACTIONS: 'reactions',
 };
 
 // This is a single source of truth for inbox features
@@ -32,7 +31,6 @@ export const INBOX_FEATURE_MAP = {
     INBOX_TYPES.LINE,
     INBOX_TYPES.API,
   ],
-  [INBOX_FEATURES.REACTIONS]: [INBOX_TYPES.FB, INBOX_TYPES.INSTAGRAM],
 };
 
 /**

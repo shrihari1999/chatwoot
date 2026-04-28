@@ -45,5 +45,14 @@ RSpec.describe Channel::FacebookPage do
 
       create(:channel_facebook_page)
     end
+
+    it 'subscribes to message_reactions so reaction webhooks are delivered' do
+      expect(Facebook::Messenger::Subscriptions).to receive(:subscribe).with(
+        access_token: an_instance_of(String),
+        subscribed_fields: include('message_reactions')
+      )
+
+      create(:channel_facebook_page)
+    end
   end
 end

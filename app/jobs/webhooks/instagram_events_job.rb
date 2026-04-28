@@ -2,7 +2,7 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   queue_as :default
   retry_on LockAcquisitionError, wait: 1.second, attempts: 8
 
-  # @return [Array] We will support further events like reaction or seen in future
+  # @return [Array] Messaging event keys that are routed to handlers below.
   SUPPORTED_EVENTS = [:message, :read, :reaction].freeze
 
   def perform(entries)
@@ -127,7 +127,7 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   end
 
   def reaction(messaging, channel)
-    ::Instagram::ReactionService.new(params: messaging, channel: channel).perform
+    ::Instagram::MessageReactionService.new(params: messaging, channel: channel).perform
   end
 
   def messages(entry)

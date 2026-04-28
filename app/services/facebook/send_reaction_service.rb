@@ -1,44 +1,42 @@
 # frozen_string_literal: true
 
-module Facebook
-  class SendReactionService
-    def initialize(message:, emoji:, action: 'react')
-      @message = message
-      @emoji   = emoji
-      @action  = action
-    end
+# Sends a reaction (react/unreact) on behalf of an agent via the Messenger Send API.
+# Failures are tracked via ChatwootExceptionTracker and re-raised so callers can
+# surface a non-2xx response and avoid persisting a local reaction that the
+# customer never saw.
+class Facebook::SendReactionService
+  pattr_initialize [:message!, :emoji, :action!]
 
-    def perform
-      return unless psid.present? && mid.present?
+  def perform
+    return false if recipient_id.blank? || message_id.blank?
 
-      payload = {
-        recipient:     { id: psid },
-        sender_action: @action
-      }
+    Facebook::Messenger::Bot.deliver(payload, page_id: channel.page_id)
+    true
+  rescue Facebook::Messenger::FacebookError => e
+    ChatwootExceptionTracker.new(e, account: message.account).capture_exception
+    raise
+  end
 
-      if @action == 'react'
-        payload[:payload] = { message_id: mid, reaction: @emoji }
-      else
-        payload[:payload] = { message_id: mid }
-      end
+  private
 
-      Facebook::Messenger::Bot.deliver(payload, page_id: channel.page_id)
-    rescue Facebook::Messenger::FacebookError => e
-      Rails.logger.warn "[Facebook::SendReactionService] Failed for message #{@message.id}: #{e.message}"
-    end
+  def channel
+    @channel ||= message.conversation.inbox.channel
+  end
 
-    private
+  def recipient_id
+    @recipient_id ||= message.conversation.contact.get_source_id(message.conversation.inbox_id)
+  end
 
-    def channel
-      @channel ||= @message.conversation.inbox.channel
-    end
+  def message_id
+    @message_id ||= message.source_id
+  end
 
-    def psid
-      @psid ||= @message.conversation.contact.get_source_id(@message.conversation.inbox_id)
-    end
-
-    def mid
-      @mid ||= @message.source_id
-    end
+  def payload
+    Messaging::ReactionPayloadBuilder.new(
+      recipient_id: recipient_id,
+      message_id: message_id,
+      emoji: emoji,
+      action: action
+    ).build
   end
 end

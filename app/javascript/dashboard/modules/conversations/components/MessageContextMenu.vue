@@ -16,6 +16,10 @@ import { useTrack } from 'dashboard/composables';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import MessageApi from 'dashboard/api/inbox/message.js';
 
+// Quick-pick reactions shown in the context menu. Hoisted so the array is
+// allocated once per module rather than re-built on every render.
+const REACTION_EMOJIS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
+
 export default {
   components: {
     AddCannedModal,
@@ -57,6 +61,7 @@ export default {
     return {
       isCannedResponseModalOpen: false,
       showDeleteModal: false,
+      reactionEmojis: REACTION_EMOJIS,
     };
   },
   computed: {
@@ -143,7 +148,12 @@ export default {
           'react'
         );
       } catch (error) {
-        // silently ignore
+        // Surface the failure: the platform send failed (e.g. expired token,
+        // network error) so the local reaction was not persisted either.
+        // Silent failure leaves the agent thinking they reacted when they did not.
+        // eslint-disable-next-line no-console
+        console.error('Failed to send reaction', error);
+        useAlert(this.$t('CONVERSATION.FAIL_SEND_REACTION'));
       }
       this.handleClose();
     },
@@ -216,7 +226,7 @@ export default {
           class="flex gap-1 px-2 py-2 border-b border-n-weak"
         >
           <button
-            v-for="emoji in ['❤️', '😂', '😮', '😢', '😡', '👍']"
+            v-for="emoji in reactionEmojis"
             :key="emoji"
             class="text-lg hover:scale-125 transition-transform cursor-pointer bg-transparent border-0 p-0.5"
             @click.stop="handleReaction(emoji)"

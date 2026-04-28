@@ -19,96 +19,70 @@ class ChatwootFbProvider < Facebook::Messenger::Configuration::Providers::Base
   end
 end
 
-# Extend the facebook-messenger gem to support the message_edit event type,
-# which is not included in the gem's built-in EVENTS. This must run before
-# the reloader block so the event type is available when hooks are registered.
-#
-# Extends the frozen gem constants once at boot time. The `unless` guard
-# prevents re-initialization warnings on Spring/Zeitwerk reloads.
-unless Facebook::Messenger::Incoming::EVENTS.key?('message_edit')
-  module Facebook
-    module Messenger
-      module Incoming
-        # Minimal incoming class for message_edit webhook events.
-        # Payload structure:
-        #   { "sender" => {"id" => PSID}, "recipient" => {"id" => PAGE_ID},
-        #     "message_edit" => {"mid" => MESSAGE_ID, "text" => NEW_TEXT, "num_edit" => N} }
-        class MessageEdit
-          include Facebook::Messenger::Incoming::Common
+# Extends the facebook-messenger gem with custom event types not built into the gem
+# (e.g. message_edit, message_reaction). The gem freezes its EVENTS constants, so we
+# rebuild and reassign them once at boot. The `unless` guard prevents re-initialization
+# warnings on Spring/Zeitwerk reloads.
+def register_facebook_messenger_event(name, klass)
+  return if Facebook::Messenger::Incoming::EVENTS.key?(name)
 
-          def id
-            @messaging['message_edit']['mid']
-          end
+  new_incoming = Facebook::Messenger::Incoming::EVENTS.merge(name => klass).freeze
+  Facebook::Messenger::Incoming.send(:remove_const, :EVENTS)
+  Facebook::Messenger::Incoming.const_set(:EVENTS, new_incoming)
 
-          def text
-            @messaging['message_edit']['text']
-          end
-        end
+  new_bot = (Facebook::Messenger::Bot::EVENTS + [name.to_sym]).freeze
+  Facebook::Messenger::Bot.send(:remove_const, :EVENTS)
+  Facebook::Messenger::Bot.const_set(:EVENTS, new_bot)
+end
 
-        # Monkey-patch EVENTS to include message_edit so Incoming.parse can route it.
-        # The gem freezes the original EVENTS hash, so we rebuild and reassign the constant.
-        _new_incoming_events = EVENTS.merge('message_edit' => MessageEdit).freeze
-        remove_const(:EVENTS)
-        const_set(:EVENTS, _new_incoming_events)
-      end
+# rubocop:disable Style/OneClassPerFile
+# Defining two tiny gem-extension classes side-by-side keeps the related
+# monkey-patches together rather than spread across multiple initializer files.
 
-      module Bot
-        # Monkey-patch Bot::EVENTS so Bot.on :message_edit is accepted.
-        # The gem freezes the original EVENTS array, so we rebuild and reassign the constant.
-        _new_bot_events = (EVENTS + %i[message_edit]).freeze
-        remove_const(:EVENTS)
-        const_set(:EVENTS, _new_bot_events)
-      end
-    end
+# Minimal incoming class for message_edit webhook events.
+# Payload structure:
+#   { "sender" => {"id" => PSID}, "recipient" => {"id" => PAGE_ID},
+#     "message_edit" => {"mid" => MESSAGE_ID, "text" => NEW_TEXT, "num_edit" => N} }
+class Facebook::Messenger::Incoming::MessageEdit
+  include Facebook::Messenger::Incoming::Common
+
+  def id
+    @messaging['message_edit']['mid']
+  end
+
+  def text
+    @messaging['message_edit']['text']
   end
 end
 
-unless Facebook::Messenger::Incoming::EVENTS.key?('message_reaction')
-  module Facebook
-    module Messenger
-      module Incoming
-        # Minimal incoming class for message_reaction webhook events.
-        # Payload structure:
-        #   { "sender" => {"id" => PSID}, "recipient" => {"id" => PAGE_ID},
-        #     "reaction" => {"reaction" => REACTION_TYPE, "emoji" => EMOJI,
-        #                     "action" => "react"|"unreact", "mid" => MESSAGE_ID} }
-        class MessageReaction
-          include Facebook::Messenger::Incoming::Common
+# Minimal incoming class for message_reaction webhook events.
+# Payload structure:
+#   { "sender" => {"id" => PSID}, "recipient" => {"id" => PAGE_ID},
+#     "reaction" => {"reaction" => REACTION_TYPE, "emoji" => EMOJI,
+#                     "action" => "react"|"unreact", "mid" => MESSAGE_ID} }
+class Facebook::Messenger::Incoming::MessageReaction
+  include Facebook::Messenger::Incoming::Common
 
-          def reaction
-            @messaging['reaction']['reaction']
-          end
+  def reaction
+    @messaging['reaction']['reaction']
+  end
 
-          def emoji
-            @messaging['reaction']['emoji']
-          end
+  def emoji
+    @messaging['reaction']['emoji']
+  end
 
-          def action
-            @messaging['reaction']['action']
-          end
+  def action
+    @messaging['reaction']['action']
+  end
 
-          def mid
-            @messaging['reaction']['mid']
-          end
-        end
-
-        # Monkey-patch EVENTS to include message_reaction so Incoming.parse can route it.
-        # The gem freezes the original EVENTS hash, so we rebuild and reassign the constant.
-        _new_incoming_events = EVENTS.merge('message_reaction' => MessageReaction).freeze
-        remove_const(:EVENTS)
-        const_set(:EVENTS, _new_incoming_events)
-      end
-
-      module Bot
-        # Monkey-patch Bot::EVENTS so Bot.on :message_reaction is accepted.
-        # The gem freezes the original EVENTS array, so we rebuild and reassign the constant.
-        _new_bot_events = (EVENTS + %i[message_reaction]).freeze
-        remove_const(:EVENTS)
-        const_set(:EVENTS, _new_bot_events)
-      end
-    end
+  def mid
+    @messaging['reaction']['mid']
   end
 end
+# rubocop:enable Style/OneClassPerFile
+
+register_facebook_messenger_event('message_edit', Facebook::Messenger::Incoming::MessageEdit)
+register_facebook_messenger_event('message_reaction', Facebook::Messenger::Incoming::MessageReaction)
 
 Rails.application.reloader.to_prepare do
   Facebook::Messenger.configure do |config|

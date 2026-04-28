@@ -65,6 +65,7 @@
     "EDITED": "(Edited)",
     "SUCCESS_DELETE_MESSAGE": "Message deleted successfully",
     "FAIL_DELETE_MESSSAGE": "Couldn't delete message! Try again",
+    "FAIL_SEND_REACTION": "Couldn't send reaction. Please try again.",
     "NO_RESPONSE": "No response",
     "RESPONSE": "Response",
     "RATING_TITLE": "Rating",

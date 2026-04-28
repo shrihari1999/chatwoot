@@ -12,7 +12,7 @@ const reactionList = computed(() =>
   Object.entries(props.reactions)
     .map(([emoji, senders]) => ({
       emoji,
-      count: Array.isArray(senders) ? senders.length : 0,
+      count: senders?.length ?? 0,
     }))
     .filter(r => r.count > 0)
 );
@@ -23,6 +23,7 @@ const reactionList = computed(() =>
     <span
       v-for="r in reactionList"
       :key="r.emoji"
+      data-testid="reaction-pill"
       class="inline-flex items-center gap-0.5 rounded-full bg-n-alpha-1 px-1.5 py-0.5 text-xs"
     >
       {{ r.emoji }}<span class="text-n-slate-11">{{ r.count }}</span>

@@ -233,21 +233,35 @@ class Message < ApplicationRecord
     true
   end
 
+  # Applies a reaction (react/unreact) to this message and persists the change.
+  #
+  # Data shape stored under content_attributes[:reactions]:
+  #   { "<emoji>" => ["<sender_id>", ...] }
+  #
+  # sender_id is an opaque string identifier, namespaced to avoid collisions:
+  #   - inbound webhooks store the raw PSID/IGSID (e.g. "1234567890")
+  #   - outbound (agent) reactions store "agent:<user_id>" via the API controller
+  #
+  # @param emoji [String] the emoji character
+  # @param sender_id [String] namespaced identifier of the reactor
+  # @param action [String] either 'react' or 'unreact'
+  # @raise [ArgumentError] when action is not one of 'react' or 'unreact'
   def apply_reaction!(emoji:, sender_id:, action:)
-    # Work on a copy so the store accessor detects the change
-    current = (reactions || {}).dup
-    current[emoji] ||= []
-    current[emoji] = current[emoji].dup
+    data = (reactions || {}).deep_dup
+    senders = data[emoji] ||= []
 
-    if action == 'react'
-      current[emoji] << sender_id unless current[emoji].include?(sender_id)
-    elsif action == 'unreact'
-      current[emoji].delete(sender_id)
-      current.delete(emoji) if current[emoji].empty?
+    case action
+    when 'react'
+      senders << sender_id unless senders.include?(sender_id)
+    when 'unreact'
+      senders.delete(sender_id)
+    else
+      raise ArgumentError, "Unknown reaction action: #{action}"
     end
 
-    self.reactions = current
-    save!
+    data.delete(emoji) if data[emoji].blank?
+
+    update!(reactions: data)
   end
 
   def save_story_info(story_info)

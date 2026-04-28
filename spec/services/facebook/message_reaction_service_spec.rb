@@ -50,5 +50,12 @@ RSpec.describe Facebook::MessageReactionService do
         described_class.new(inbox: inbox, messaging: react_messaging).perform
       end.not_to raise_error
     end
+
+    it 'is a no-op when reaction payload is missing mid' do
+      messaging = { sender: { id: '12345' }, reaction: { emoji: '❤️', action: 'react' } }
+      expect(inbox.messages).not_to receive(:find_by)
+
+      described_class.new(inbox: inbox, messaging: messaging).perform
+    end
   end
 end

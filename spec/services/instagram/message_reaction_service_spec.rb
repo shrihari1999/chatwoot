@@ -2,9 +2,9 @@
 
 require 'rails_helper'
 
-RSpec.describe Instagram::ReactionService do
+RSpec.describe Instagram::MessageReactionService do
   let(:inbox)   { create(:inbox) }
-  let(:channel) { instance_double('Channel::Instagram', inbox: inbox) }
+  let(:channel) { instance_double(Channel::Instagram, inbox: inbox) }
   let(:message) { create(:message, source_id: 'mid.456', inbox: inbox) }
 
   let(:react_params) do
@@ -50,6 +50,13 @@ RSpec.describe Instagram::ReactionService do
       expect do
         described_class.new(params: react_params, channel: channel).perform
       end.not_to raise_error
+    end
+
+    it 'is a no-op when reaction payload is missing mid' do
+      params = { sender: { id: 'igsid_abc' }, reaction: { emoji: '😂', action: 'react' } }
+      expect(inbox.messages).not_to receive(:find_by)
+
+      described_class.new(params: params, channel: channel).perform
     end
   end
 end

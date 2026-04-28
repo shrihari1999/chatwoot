@@ -898,5 +898,10 @@ RSpec.describe Message do
     it 'is a no-op when unreacting on non-existent emoji' do
       expect { message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'unreact') }.not_to raise_error
     end
+
+    it 'raises ArgumentError for an unknown action so silent typos are caught' do
+      expect { message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'wat') }
+        .to raise_error(ArgumentError, /Unknown reaction action/)
+    end
   end
 end

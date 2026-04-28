@@ -33,6 +33,10 @@ const props = defineProps({
     type: Object,
     default: () => ({ incoming: false, outgoing: false }),
   },
+  inboxSupportsReactions: {
+    type: Boolean,
+    default: false,
+  },
   messages: {
     type: Array,
     default: () => [],
@@ -176,6 +180,7 @@ const getInReplyToMessage = parentMessage => {
         :in-reply-to="getInReplyToMessage(message)"
         :group-with-next="shouldGroupWithNext(index, allMessages)"
         :inbox-supports-reply-to="inboxSupportsReplyTo"
+        :inbox-supports-reactions="inboxSupportsReactions"
         :current-user-id="currentUserId"
         data-clarity-mask="True"
         @retry="emit('retry', message)"
