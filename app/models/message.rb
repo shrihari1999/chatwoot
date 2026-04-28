@@ -108,7 +108,7 @@ class Message < ApplicationRecord
   # [:external_created_at] : Can specify if the message was created at a different timestamp externally
   # [:external_error : Can specify if the message creation failed due to an error at external API
   # [:data] : Used for structured content types such as voice_call
-  store :content_attributes, accessors: [:submitted_email, :items, :submitted_values, :email, :in_reply_to, :deleted, :edited,
+  store :content_attributes, accessors: [:submitted_email, :items, :submitted_values, :email, :in_reply_to, :deleted, :edited, :reactions,
                                          :external_created_at, :story_sender, :story_id, :external_error,
                                          :translations, :in_reply_to_external_id, :is_unsupported, :data], coder: JSON
 
@@ -231,6 +231,37 @@ class Message < ApplicationRecord
                                 .where("(additional_attributes->'campaign_id') is null").count > 1
 
     true
+  end
+
+  # Applies a reaction (react/unreact) to this message and persists the change.
+  #
+  # Data shape stored under content_attributes[:reactions]:
+  #   { "<emoji>" => ["<sender_id>", ...] }
+  #
+  # sender_id is an opaque string identifier, namespaced to avoid collisions:
+  #   - inbound webhooks store the raw PSID/IGSID (e.g. "1234567890")
+  #   - outbound (agent) reactions store "agent:<user_id>" via the API controller
+  #
+  # @param emoji [String] the emoji character
+  # @param sender_id [String] namespaced identifier of the reactor
+  # @param action [String] either 'react' or 'unreact'
+  # @raise [ArgumentError] when action is not one of 'react' or 'unreact'
+  def apply_reaction!(emoji:, sender_id:, action:)
+    data = (reactions || {}).deep_dup
+    senders = data[emoji] ||= []
+
+    case action
+    when 'react'
+      senders << sender_id unless senders.include?(sender_id)
+    when 'unreact'
+      senders.delete(sender_id)
+    else
+      raise ArgumentError, "Unknown reaction action: #{action}"
+    end
+
+    data.delete(emoji) if data[emoji].blank?
+
+    update!(reactions: data)
   end
 
   def save_story_info(story_info)

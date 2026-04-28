@@ -202,6 +202,37 @@ describe Webhooks::InstagramEventsJob do
         instagram_webhook.perform_now(messaging_seen_event[:entry])
       end
 
+      it 'routes reaction event to Instagram::MessageReactionService' do
+        reaction_event = {
+          entry: [
+            {
+              id: SecureRandom.uuid,
+              time: '2021-09-08T06:34:04+0000',
+              messaging: [
+                {
+                  sender: { id: 'Sender-id-1' },
+                  recipient: { id: 'chatwoot-app-user-id-1' },
+                  timestamp: '2021-09-08T06:34:04+0000',
+                  reaction: { mid: 'mid.test123', action: 'react', emoji: '❤️' }
+                }
+              ]
+            }
+          ]
+        }.with_indifferent_access
+
+        service = instance_double(Instagram::MessageReactionService)
+        allow(Instagram::MessageReactionService).to receive(:new).and_return(service)
+        allow(service).to receive(:perform)
+
+        instagram_webhook.perform_now(reaction_event[:entry])
+
+        expect(Instagram::MessageReactionService).to have_received(:new).with(
+          params: reaction_event[:entry][0][:messaging][0],
+          channel: instagram_messenger_inbox.channel
+        )
+        expect(service).to have_received(:perform)
+      end
+
       it 'handles unsupported message' do
         unsupported_event = build(:instagram_message_unsupported_event).with_indifferent_access
         sender_id = unsupported_event[:entry][0][:messaging][0][:sender][:id]
@@ -363,6 +394,37 @@ describe Webhooks::InstagramEventsJob do
         expect(Instagram::ReadStatusService).to receive(:new).with(params: messaging_seen_event[:entry][0][:messaging][0],
                                                                    channel: instagram_inbox.channel).and_call_original
         instagram_webhook.perform_now(messaging_seen_event[:entry])
+      end
+
+      it 'routes reaction event to Instagram::MessageReactionService' do
+        reaction_event = {
+          entry: [
+            {
+              id: SecureRandom.uuid,
+              time: '2021-09-08T06:34:04+0000',
+              messaging: [
+                {
+                  sender: { id: 'Sender-id-1' },
+                  recipient: { id: 'chatwoot-app-user-id-1' },
+                  timestamp: '2021-09-08T06:34:04+0000',
+                  reaction: { mid: 'mid.test123', action: 'react', emoji: '❤️' }
+                }
+              ]
+            }
+          ]
+        }.with_indifferent_access
+
+        service = instance_double(Instagram::MessageReactionService)
+        allow(Instagram::MessageReactionService).to receive(:new).and_return(service)
+        allow(service).to receive(:perform)
+
+        instagram_webhook.perform_now(reaction_event[:entry])
+
+        expect(Instagram::MessageReactionService).to have_received(:new).with(
+          params: reaction_event[:entry][0][:messaging][0],
+          channel: instagram_inbox.channel
+        )
+        expect(service).to have_received(:perform)
       end
 
       it 'creates contact when Instagram API call returns `No matching Instagram user` (9010 error code)' do

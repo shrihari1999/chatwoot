@@ -234,6 +234,28 @@ describe('inboxMixin', () => {
       expect(wrapper.vm.inboxHasFeature('replyTo')).toBe(false);
       expect(wrapper.vm.inboxHasFeature('feature-does-not-exist')).toBe(false);
     });
+
+    it('reactions feature is enabled for Facebook and Instagram channels', () => {
+      const Facebook = getComponentConfigForInbox('Channel::FacebookPage');
+      expect(shallowMount(Facebook).vm.inboxHasFeature('reactions')).toBe(true);
+
+      const Instagram = getComponentConfigForInbox('Channel::Instagram');
+      expect(shallowMount(Instagram).vm.inboxHasFeature('reactions')).toBe(
+        true
+      );
+    });
+
+    it('reactions feature is disabled for unsupported channels', () => {
+      const WebWidget = getComponentConfigForInbox('Channel::WebWidget');
+      expect(shallowMount(WebWidget).vm.inboxHasFeature('reactions')).toBe(
+        false
+      );
+
+      const Whatsapp = getComponentConfigForInbox('Channel::Whatsapp');
+      expect(shallowMount(Whatsapp).vm.inboxHasFeature('reactions')).toBe(
+        false
+      );
+    });
   });
 
   describe('WhatsApp channel', () => {
