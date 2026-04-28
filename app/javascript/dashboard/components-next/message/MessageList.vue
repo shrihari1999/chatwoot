@@ -46,10 +46,22 @@ const props = defineProps({
 const emit = defineEmits(['retry']);
 
 const allMessages = computed(() => {
-  return useCamelCase(props.messages, {
+  const camelCased = useCamelCase(props.messages, {
     deep: true,
     stopPaths: ['content_attributes.translations'],
   });
+  const withReactions = camelCased.filter(m => m.contentAttributes?.reactions);
+  if (withReactions.length > 0) {
+    // eslint-disable-next-line no-console
+    console.info(
+      '[ReactionDebug][MessageList.allMessages] messages with reactions:',
+      withReactions.map(m => ({
+        id: m.id,
+        reactions: m.contentAttributes.reactions,
+      }))
+    );
+  }
+  return camelCased;
 });
 
 const currentChat = useMapGetter('getSelectedChat');

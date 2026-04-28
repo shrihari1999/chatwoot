@@ -8,14 +8,24 @@ const props = defineProps({
   },
 });
 
-const reactionList = computed(() =>
-  Object.entries(props.reactions)
+const reactionList = computed(() => {
+  const list = Object.entries(props.reactions)
     .map(([emoji, senders]) => ({
       emoji,
       count: senders?.length ?? 0,
     }))
-    .filter(r => r.count > 0)
-);
+    .filter(r => r.count > 0);
+  if (Object.keys(props.reactions || {}).length > 0) {
+    // eslint-disable-next-line no-console
+    console.info(
+      '[ReactionDebug][MessageReactions.reactionList] reactions=',
+      props.reactions,
+      'rendering pills:',
+      list
+    );
+  }
+  return list;
+});
 </script>
 
 <template>
