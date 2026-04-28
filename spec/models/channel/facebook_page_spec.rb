@@ -35,4 +35,15 @@ RSpec.describe Channel::FacebookPage do
   it 'has a valid name' do
     expect(channel.name).to eq('Facebook')
   end
+
+  describe '#subscribe' do
+    it 'subscribes to message_edits along with the other webhook fields' do
+      expect(Facebook::Messenger::Subscriptions).to receive(:subscribe).with(
+        access_token: an_instance_of(String),
+        subscribed_fields: include('message_edits')
+      )
+
+      create(:channel_facebook_page)
+    end
+  end
 end
