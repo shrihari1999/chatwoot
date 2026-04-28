@@ -9,9 +9,7 @@ class Integrations::Facebook::MessageCreator
 
   def perform
     # begin
-    if response.deleted?
-      handle_delete_event
-    elsif agent_message_via_echo?
+    if agent_message_via_echo?
       create_agent_message
     else
       create_contact_message
@@ -30,10 +28,6 @@ class Integrations::Facebook::MessageCreator
     # User can send from fb page directly on mobile / web messenger, so this case should be handled as agent message
   end
 
-  def each_recipient_inbox
-    Channel::FacebookPage.where(page_id: response.recipient_id).each { |page| yield page.inbox }
-  end
-
   def create_agent_message
     Channel::FacebookPage.where(page_id: response.sender_id).each do |page|
       mb = Messages::Facebook::MessageBuilder.new(response, page.inbox, outgoing_echo: true)
@@ -42,14 +36,9 @@ class Integrations::Facebook::MessageCreator
   end
 
   def create_contact_message
-    each_recipient_inbox do |inbox|
-      Messages::Facebook::MessageBuilder.new(response, inbox).perform
-    end
-  end
-
-  def handle_delete_event
-    each_recipient_inbox do |inbox|
-      Facebook::IncomingDeleteService.new(inbox: inbox, response: response).perform
+    Channel::FacebookPage.where(page_id: response.recipient_id).each do |page|
+      mb = Messages::Facebook::MessageBuilder.new(response, page.inbox)
+      mb.perform
     end
   end
 end
