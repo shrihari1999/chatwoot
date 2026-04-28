@@ -36,7 +36,7 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
     messages(entry).each do |messaging|
       Rails.logger.info("Instagram Events Job Messaging: #{messaging}")
 
-      instagram_id = instagram_id(messaging)
+      instagram_id = instagram_id(messaging, entry[:id])
       channel = find_channel(instagram_id)
 
       next if channel.blank?
@@ -65,11 +65,13 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
     entry[:changes].first&.dig(:value) if entry[:changes].present?
   end
 
-  def instagram_id(messaging)
+  def instagram_id(messaging, entry_id = ig_account_id)
     if agent_message_via_echo?(messaging)
-      messaging[:sender][:id]
+      messaging.dig(:sender, :id) || entry_id
     else
-      messaging[:recipient][:id]
+      # Reaction payloads sometimes omit sender/recipient at the messaging level;
+      # fall back to the entry's own Instagram account ID for channel lookup.
+      messaging.dig(:recipient, :id) || entry_id
     end
   end
 

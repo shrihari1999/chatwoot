@@ -50,12 +50,8 @@ RSpec.describe 'POST /api/v1/accounts/:account_id/conversations/:conversation_id
 
     context 'when on a Facebook inbox' do
       let(:fb_channel) do
-        Channel::FacebookPage.create!(
-          account: account,
-          page_id: SecureRandom.uuid,
-          page_access_token: SecureRandom.uuid,
-          user_access_token: SecureRandom.uuid
-        )
+        stub_request(:post, /graph\.facebook\.com/).to_return(status: 200, body: '', headers: {})
+        create(:channel_facebook_page, account: account)
       end
       let(:fb_inbox)        { create(:inbox, account: account, channel: fb_channel) }
       let(:fb_conversation) { create(:conversation, account: account, inbox: fb_inbox, contact: contact) }
@@ -70,7 +66,9 @@ RSpec.describe 'POST /api/v1/accounts/:account_id/conversations/:conversation_id
       end
 
       it 'persists the reaction locally without calling platform APIs' do
-        expect(Facebook::SendReactionService).not_to receive(:new)
+        # Facebook Messenger has no reaction API for pages/bots.
+        # The Instagram service must not be called for a Facebook inbox either.
+        expect(Instagram::SendReactionService).not_to receive(:new)
 
         post fb_react_url,
              params: { emoji: '❤️', reaction_action: 'react' },
@@ -107,8 +105,23 @@ RSpec.describe 'POST /api/v1/accounts/:account_id/conversations/:conversation_id
         "/api/v1/accounts/#{account.id}/conversations/#{ig_conversation.display_id}/messages/#{ig_message.id}/react"
       end
 
-      it 'persists the reaction locally without calling platform APIs' do
-        expect(Instagram::SendReactionService).not_to receive(:new)
+      it 'attempts to send the reaction to Instagram and persists it locally' do
+        # Instagram supports sender_action=react — the service should be called
+        service_double = instance_double(Instagram::SendReactionService, perform: true)
+        allow(Instagram::SendReactionService).to receive(:new).and_return(service_double)
+
+        post ig_react_url,
+             params: { emoji: '😂', reaction_action: 'react' },
+             headers: { 'api_access_token' => agent.access_token.token }
+
+        expect(response).to have_http_status(:ok)
+        expect(ig_message.reload.reactions).to include('😂')
+        expect(Instagram::SendReactionService).to have_received(:new)
+      end
+
+      it 'still persists the reaction locally if the Instagram platform send fails' do
+        allow(Instagram::SendReactionService).to receive(:new)
+          .and_raise(StandardError, 'platform error')
 
         post ig_react_url,
              params: { emoji: '😂', reaction_action: 'react' },
