@@ -63,6 +63,53 @@ unless Facebook::Messenger::Incoming::EVENTS.key?('message_edit')
   end
 end
 
+unless Facebook::Messenger::Incoming::EVENTS.key?('message_reaction')
+  module Facebook
+    module Messenger
+      module Incoming
+        # Minimal incoming class for message_reaction webhook events.
+        # Payload structure:
+        #   { "sender" => {"id" => PSID}, "recipient" => {"id" => PAGE_ID},
+        #     "reaction" => {"reaction" => REACTION_TYPE, "emoji" => EMOJI,
+        #                     "action" => "react"|"unreact", "mid" => MESSAGE_ID} }
+        class MessageReaction
+          include Facebook::Messenger::Incoming::Common
+
+          def reaction
+            @messaging['reaction']['reaction']
+          end
+
+          def emoji
+            @messaging['reaction']['emoji']
+          end
+
+          def action
+            @messaging['reaction']['action']
+          end
+
+          def mid
+            @messaging['reaction']['mid']
+          end
+        end
+
+        # Monkey-patch EVENTS to include message_reaction so Incoming.parse can route it.
+        # The gem freezes the original EVENTS hash, so we rebuild and reassign the constant.
+        _new_incoming_events = EVENTS.merge('message_reaction' => MessageReaction).freeze
+        remove_const(:EVENTS)
+        const_set(:EVENTS, _new_incoming_events)
+      end
+
+      module Bot
+        # Monkey-patch Bot::EVENTS so Bot.on :message_reaction is accepted.
+        # The gem freezes the original EVENTS array, so we rebuild and reassign the constant.
+        _new_bot_events = (EVENTS + %i[message_reaction]).freeze
+        remove_const(:EVENTS)
+        const_set(:EVENTS, _new_bot_events)
+      end
+    end
+  end
+end
+
 Rails.application.reloader.to_prepare do
   Facebook::Messenger.configure do |config|
     config.provider = ChatwootFbProvider.new
@@ -93,5 +140,9 @@ Rails.application.reloader.to_prepare do
     # to absorb the race where an edit webhook arrives before the original message
     # has been persisted by FacebookEventsJob.
     Webhooks::FacebookMessageEditJob.set(wait: 3.seconds).perform_later(message_edit.to_json)
+  end
+
+  Facebook::Messenger::Bot.on :message_reaction do |reaction|
+    Webhooks::FacebookReactionJob.set(wait: 3.seconds).perform_later(reaction.to_json)
   end
 end
