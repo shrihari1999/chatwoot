@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import MessageMeta from '../MessageMeta.vue';
+import MessageReactions from '../MessageReactions.vue';
 
 import { emitter } from 'shared/helpers/mitt';
 import { useMessageContext } from '../provider.js';
@@ -15,8 +16,13 @@ const props = defineProps({
   hideMeta: { type: Boolean, default: false },
 });
 
-const { variant, orientation, inReplyTo, shouldGroupWithNext } =
-  useMessageContext();
+const {
+  variant,
+  orientation,
+  inReplyTo,
+  shouldGroupWithNext,
+  contentAttributes,
+} = useMessageContext();
 const { t } = useI18n();
 
 const varaintBaseMap = {
@@ -114,6 +120,12 @@ const replyToPreview = computed(() => {
       />
     </div>
     <slot />
+    <MessageReactions
+      v-if="contentAttributes?.reactions"
+      :reactions="contentAttributes.reactions"
+      :class="flexOrientationClass"
+      class="px-1"
+    />
     <MessageMeta
       v-if="shouldShowMeta"
       :class="[
