@@ -67,6 +67,10 @@ class Integrations::Facebook::MessageParser
   def in_reply_to_external_id
     @messaging.dig('message', 'reply_to', 'mid')
   end
+
+  def deleted?
+    @messaging.dig('message', 'is_deleted').present?
+  end
 end
 
 # Sample Response
