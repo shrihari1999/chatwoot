@@ -133,7 +133,9 @@ const statusToShow = computed(() => {
   return MESSAGE_STATUS.PROGRESS;
 });
 
-const isMessageEdited = computed(() => contentAttributes.value?.edited);
+const isMessageEdited = computed(() =>
+  Boolean(contentAttributes.value?.edited)
+);
 </script>
 
 <template>
