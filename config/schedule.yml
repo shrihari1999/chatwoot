@@ -2,12 +2,12 @@
 # use https://crontab.guru/ to validate
 # validations for this file exist in /spec/configs/schedule_spec.rb
 
-# executed daily at 0000 UTC
-# schedules daily deferred jobs at stable times for each installation
-internal_check_new_versions_job:
-  cron: '0 0 * * *'
-  class: 'Internal::TriggerDailyScheduledItemsJob'
-  queue: scheduled_jobs
+# NOTE: internal_check_new_versions_job is intentionally NOT scheduled here.
+# It pings hub.2.chatwoot.com daily and the enterprise extension would
+# overwrite locally-managed InstallationConfig values (INSTALLATION_PRICING_PLAN
+# and INSTALLATION_PRICING_PLAN_QUANTITY) with whatever the hub returns,
+# which can silently regress a self-hosted enterprise install back to community.
+
 # # executed At every 5th minute..
 trigger_scheduled_items_job:
   cron: '*/5 * * * *'
