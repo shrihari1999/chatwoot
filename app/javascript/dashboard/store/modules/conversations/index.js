@@ -211,33 +211,10 @@ export const mutations = {
       allConversations,
       selectedChatId: conversationId,
     });
-    if (!chat) {
-      if (message?.content_attributes?.reactions) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          '[ReactionDebug][ADD_MESSAGE] no chat found for conversation_id',
-          conversationId,
-          '— reaction broadcast for message',
-          message.id,
-          'will not be applied to UI'
-        );
-      }
-      return;
-    }
+    if (!chat) return;
 
     const pendingMessageIndex = findPendingMessageIndex(chat, message);
     if (pendingMessageIndex !== -1) {
-      if (message?.content_attributes?.reactions) {
-        // eslint-disable-next-line no-console
-        console.info(
-          '[ReactionDebug][ADD_MESSAGE] replacing message at index',
-          pendingMessageIndex,
-          'in conversation',
-          conversationId,
-          'with reactions=',
-          message.content_attributes.reactions
-        );
-      }
       chat.messages[pendingMessageIndex] = message;
     } else {
       chat.messages.push(message);

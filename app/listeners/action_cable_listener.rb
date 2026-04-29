@@ -51,10 +51,6 @@ class ActionCableListener < BaseListener
     conversation = message.conversation
     tokens = user_tokens(account, conversation.inbox.members) + contact_tokens(conversation.contact_inbox, message)
 
-    if message.reactions.present?
-      Rails.logger.info "[ReactionDebug][ActionCableListener] broadcasting message.updated for message id=#{message.id} reactions=#{message.reactions.inspect} tokens=#{tokens.inspect}"
-    end
-
     broadcast(account, tokens, MESSAGE_UPDATED, message.push_event_data.merge(previous_changes: event.data[:previous_changes]))
   end
 

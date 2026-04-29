@@ -52,15 +52,6 @@ class ActionCableConnector extends BaseActionCableConnector {
   };
 
   onMessageUpdated = data => {
-    if (data?.content_attributes?.reactions) {
-      // eslint-disable-next-line no-console
-      console.info(
-        '[ReactionDebug][actionCable.onMessageUpdated] message',
-        data.id,
-        'content_attributes.reactions=',
-        data.content_attributes.reactions
-      );
-    }
     this.app.$store.dispatch('updateMessage', data);
   };
 
