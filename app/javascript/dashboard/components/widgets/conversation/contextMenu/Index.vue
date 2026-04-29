@@ -75,7 +75,6 @@ export default {
     'removeLabel',
     'close',
   ],
-
   data() {
     return {
       MENU,
@@ -152,7 +151,6 @@ export default {
         icon: 'people-team-add',
         label: this.$t('CONVERSATION.CARD_CONTEXT_MENU.ASSIGN_TEAM'),
       },
-
       openInNewTabOption: {
         key: MENU.OPEN_NEW_TAB,
         icon: 'open',
@@ -224,7 +222,6 @@ export default {
     assignPriority(priority) {
       this.$emit('assignPriority', priority);
     },
-
     openInNewTab() {
       if (!this.conversationUrl) return;
 
