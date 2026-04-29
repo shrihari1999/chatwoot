@@ -903,5 +903,28 @@ RSpec.describe Message do
       expect { message.apply_reaction!(emoji: '❤️', sender_id: '12345', action: 'wat') }
         .to raise_error(ArgumentError, /Unknown reaction action/)
     end
+
+    it 'clears the sender across every emoji bucket when unreacting with a nil emoji' do
+      # Facebook's message_reactions webhook sends `action: unreact` without an
+      # emoji field, so apply_reaction! has to figure out which bucket to clear.
+      message.apply_reaction!(emoji: '❤️', sender_id: 'psid-1', action: 'react')
+      message.apply_reaction!(emoji: '😂', sender_id: 'psid-1', action: 'react')
+      message.apply_reaction!(emoji: '❤️', sender_id: 'agent:7', action: 'react')
+
+      message.apply_reaction!(emoji: nil, sender_id: 'psid-1', action: 'unreact')
+
+      expect(message.reload.reactions).to eq('❤️' => ['agent:7'])
+    end
+
+    it 'raises ArgumentError when reacting without an emoji' do
+      expect { message.apply_reaction!(emoji: nil, sender_id: 'psid-1', action: 'react') }
+        .to raise_error(ArgumentError, /emoji is required/)
+    end
+
+    it 'is a no-op when nil-emoji unreact has no matching sender' do
+      message.apply_reaction!(emoji: '❤️', sender_id: 'psid-1', action: 'react')
+      message.apply_reaction!(emoji: nil, sender_id: 'psid-other', action: 'unreact')
+      expect(message.reload.reactions).to eq('❤️' => ['psid-1'])
+    end
   end
 end
