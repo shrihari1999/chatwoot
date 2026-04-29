@@ -243,6 +243,22 @@ RSpec.describe 'Enterprise Billing APIs', type: :request do
         end
       end
     end
+
+    # Regression: previously /limits had a `before_action :check_cloud_env`
+    # that returned 404 for any non-cloud install. Self-hosted enterprise
+    # admins need this endpoint to populate the billing/SLA limits panel.
+    context 'when running on a self-hosted enterprise install' do
+      it 'serves the limits payload to admins (not blocked by check_cloud_env)' do
+        InstallationConfig.where(name: 'DEPLOYMENT_ENV').first_or_initialize.update!(value: 'self_hosted')
+
+        get "/enterprise/api/v1/accounts/#{account.id}/limits",
+            headers: admin.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(JSON.parse(response.body)).to have_key('limits')
+      end
+    end
   end
 
   describe 'POST /enterprise/api/v1/accounts/{account.id}/topup_checkout' do
