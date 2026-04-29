@@ -1,6 +1,5 @@
 <script>
 import { mapGetters } from 'vuex';
-import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useAlert } from 'dashboard/composables';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import {
@@ -21,7 +20,6 @@ const MENU = {
   AGENT: 'agent',
   TEAM: 'team',
   LABEL: 'label',
-  DELETE: 'delete',
   OPEN_NEW_TAB: 'open-new-tab',
   COPY_LINK: 'copy-link',
 };
@@ -75,15 +73,8 @@ export default {
     'assignTeam',
     'assignLabel',
     'removeLabel',
-    'deleteConversation',
     'close',
   ],
-  setup() {
-    const { isAdmin } = useAdmin();
-    return {
-      isAdmin,
-    };
-  },
   data() {
     return {
       MENU,
@@ -160,11 +151,6 @@ export default {
         icon: 'people-team-add',
         label: this.$t('CONVERSATION.CARD_CONTEXT_MENU.ASSIGN_TEAM'),
       },
-      deleteOption: {
-        key: MENU.DELETE,
-        icon: 'delete',
-        label: this.$t('CONVERSATION.CARD_CONTEXT_MENU.DELETE'),
-      },
       openInNewTabOption: {
         key: MENU.OPEN_NEW_TAB,
         icon: 'open',
@@ -235,9 +221,6 @@ export default {
     },
     assignPriority(priority) {
       this.$emit('assignPriority', priority);
-    },
-    deleteConversation() {
-      this.$emit('deleteConversation', this.chatId);
     },
     openInNewTab() {
       if (!this.conversationUrl) return;
@@ -393,14 +376,6 @@ export default {
         :option="copyLinkOption"
         variant="icon"
         @click.stop="copyConversationLink"
-      />
-    </template>
-    <template v-if="isAdmin && isAllowed([MENU.DELETE])">
-      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
-      <MenuItem
-        :option="deleteOption"
-        variant="icon"
-        @click.stop="deleteConversation"
       />
     </template>
   </div>

@@ -40,7 +40,6 @@ const emit = defineEmits([
   'markAsRead',
   'assignPriority',
   'updateConversationStatus',
-  'deleteConversation',
   'selectConversation',
   'deSelectConversation',
 ]);
@@ -240,11 +239,6 @@ const assignPriority = priority => {
   emit('assignPriority', priority, props.chat.id);
   closeContextMenu();
 };
-
-const deleteConversation = () => {
-  emit('deleteConversation', props.chat.id);
-  closeContextMenu();
-};
 </script>
 
 <template>
@@ -409,7 +403,6 @@ const deleteConversation = () => {
         @mark-as-unread="markAsUnread"
         @mark-as-read="markAsRead"
         @assign-priority="assignPriority"
-        @delete-conversation="deleteConversation"
         @close="closeContextMenu"
       />
     </ContextMenu>
