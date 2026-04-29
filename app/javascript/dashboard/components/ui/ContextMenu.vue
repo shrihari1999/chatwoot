@@ -77,6 +77,44 @@ const handleClose = () => {
   emit('close');
 };
 
+// Close on blur EXCEPT when focus is moving to a focusable descendant of
+// the menu (e.g. a real <button> like the reaction emoji buttons). Without
+// this guard, mousedown on a child button shifts focus off the wrapper,
+// blur fires, the menu unmounts, and the button's @click never fires —
+// see the reaction row in MessageContextMenu.vue.
+//
+// Note: `event.relatedTarget` can be null in Safari/older WebKit when
+// clicking certain non-form elements, so we ALSO call preventDefault on
+// the wrapper's mousedown (see template) to keep focus on the wrapper
+// during clicks on descendants. The blur guard remains as a belt-and-
+// suspenders fallback for keyboard focus shifts.
+const handleBlur = event => {
+  if (event.relatedTarget && menuRef.value?.contains(event.relatedTarget)) {
+    return;
+  }
+  handleClose();
+};
+
+// Prevent mousedown on descendants from shifting focus off the wrapper.
+// This is the primary defense against the blur-before-click bug; it works
+// uniformly across browsers (including Safari) where `relatedTarget` may
+// be null. We skip text inputs / contenteditable so callers can still
+// embed inputs inside the menu and have caret placement work normally.
+const handleMouseDown = event => {
+  const target = event.target;
+  if (!menuRef.value?.contains(target)) return;
+  const tag = target.tagName;
+  if (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target.isContentEditable
+  ) {
+    return;
+  }
+  event.preventDefault();
+};
+
 onUnmounted(() => {
   isLocked.value = false;
 });
@@ -89,7 +127,8 @@ onUnmounted(() => {
       class="fixed outline-none z-[9999] cursor-pointer"
       :style="position"
       tabindex="0"
-      @blur="handleClose"
+      @mousedown="handleMouseDown"
+      @blur="handleBlur"
     >
       <slot />
     </div>

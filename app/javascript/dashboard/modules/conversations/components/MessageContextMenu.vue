@@ -68,8 +68,23 @@ export default {
     ...mapGetters({
       getAccount: 'accounts/getAccount',
       currentAccountId: 'getCurrentAccountId',
+      currentUser: 'getCurrentUser',
       getUISettings: 'getUISettings',
     }),
+    // Existing reactions on this message keyed by emoji. Drops the U+FE0F
+    // variation selector when comparing so an agent reacting with "❤️"
+    // (\u2764\uFE0F) toggles the same bucket the customer's "❤" (\u2764)
+    // produced — Facebook can deliver either form.
+    messageReactions() {
+      return (
+        this.message.content_attributes?.reactions ??
+        this.message.contentAttributes?.reactions ??
+        {}
+      );
+    },
+    agentSenderId() {
+      return this.currentUser?.id ? `agent:${this.currentUser.id}` : 'agent';
+    },
     plainTextContent() {
       return this.getPlainText(this.messageContent);
     },
@@ -139,20 +154,45 @@ export default {
       this.$emit('replyTo', this.message);
       this.handleClose();
     },
+    // Returns true when the current agent has already reacted with `emoji`
+    // (compared with U+FE0F variation selectors stripped, so "❤" and "❤️"
+    // are treated as the same reaction). Used by the template to highlight
+    // the emoji the agent already chose.
+    isReactedByAgent(emoji) {
+      const target = emoji.replace(/\uFE0F/g, '');
+      return Object.keys(this.messageReactions).some(
+        key =>
+          key.replace(/\uFE0F/g, '') === target &&
+          (this.messageReactions[key] || []).includes(this.agentSenderId)
+      );
+    },
     async handleReaction(emoji) {
+      // Toggle: if the agent already reacted with this emoji (matched on
+      // the variation-selector-stripped form), send `unreact`; otherwise
+      // `react`. Keeps Chatwoot in sync with Messenger's "one reaction
+      // per emoji per user" semantics.
+      const normalizedTarget = emoji.replace(/\uFE0F/g, '');
+      const matchedKey = Object.keys(this.messageReactions).find(
+        key =>
+          key.replace(/\uFE0F/g, '') === normalizedTarget &&
+          (this.messageReactions[key] || []).includes(this.agentSenderId)
+      );
+      const action = matchedKey ? 'unreact' : 'react';
+      // Send the existing key on unreact so we clear the same bucket the
+      // backend stored under (whether or not it has the variation selector).
+      const emojiToSend = matchedKey || emoji;
+
       try {
         await MessageApi.sendReaction(
           this.conversationId,
           this.messageId,
-          emoji,
-          'react'
+          emojiToSend,
+          action
         );
       } catch (error) {
         // Surface the failure: the platform send failed (e.g. expired token,
         // network error) so the local reaction was not persisted either.
         // Silent failure leaves the agent thinking they reacted when they did not.
-        // eslint-disable-next-line no-console
-        console.error('Failed to send reaction', error);
         useAlert(this.$t('CONVERSATION.FAIL_SEND_REACTION'));
       }
       this.handleClose();
@@ -228,7 +268,13 @@ export default {
           <button
             v-for="emoji in reactionEmojis"
             :key="emoji"
-            class="text-lg hover:scale-125 transition-transform cursor-pointer bg-transparent border-0 p-0.5"
+            class="text-lg hover:scale-125 transition-transform cursor-pointer bg-transparent border-0 p-0.5 rounded"
+            :class="{ 'bg-n-alpha-2': isReactedByAgent(emoji) }"
+            :title="
+              isReactedByAgent(emoji)
+                ? $t('CONVERSATION.CONTEXT_MENU.REMOVE_REACTION')
+                : ''
+            "
             @click.stop="handleReaction(emoji)"
           >
             {{ emoji }}

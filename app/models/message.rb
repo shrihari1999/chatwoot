@@ -242,24 +242,35 @@ class Message < ApplicationRecord
   #   - inbound webhooks store the raw PSID/IGSID (e.g. "1234567890")
   #   - outbound (agent) reactions store "agent:<user_id>" via the API controller
   #
-  # @param emoji [String] the emoji character
+  # @param emoji [String, nil] the emoji character. May be nil for unreact —
+  #   Facebook's message_reactions webhook only sends `mid` + `action: unreact`
+  #   without echoing the previous emoji, so we have to clear all of this
+  #   sender's reactions across every emoji.
   # @param sender_id [String] namespaced identifier of the reactor
   # @param action [String] either 'react' or 'unreact'
-  # @raise [ArgumentError] when action is not one of 'react' or 'unreact'
+  # @raise [ArgumentError] when action is not one of 'react' or 'unreact', or
+  #   when action is 'react' and emoji is blank
   def apply_reaction!(emoji:, sender_id:, action:)
     data = (reactions || {}).deep_dup
-    senders = data[emoji] ||= []
 
     case action
     when 'react'
+      raise ArgumentError, 'emoji is required when action=react' if emoji.blank?
+
+      senders = data[emoji] ||= []
       senders << sender_id unless senders.include?(sender_id)
     when 'unreact'
-      senders.delete(sender_id)
+      # Facebook sends unreact without an emoji. Strip this sender from every
+      # emoji bucket so the original reaction is actually cleared. When the
+      # caller does pass an emoji (e.g. Instagram or our own agent UI), only
+      # that bucket is touched.
+      buckets = emoji.present? ? [emoji] : data.keys
+      buckets.each { |key| data[key]&.delete(sender_id) }
     else
       raise ArgumentError, "Unknown reaction action: #{action}"
     end
 
-    data.delete(emoji) if data[emoji].blank?
+    data.delete_if { |_, senders| senders.blank? }
 
     update!(reactions: data)
   end
