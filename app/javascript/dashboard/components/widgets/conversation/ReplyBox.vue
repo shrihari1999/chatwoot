@@ -449,7 +449,7 @@ export default {
         this.copilot.reset();
       }
 
-      if (this.isOnPrivateNote) {
+      if (this.isOnPrivateNote && oldConversation?.id === conversation.id) {
         return;
       }
 
