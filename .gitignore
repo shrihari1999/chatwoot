@@ -94,6 +94,7 @@ yarn-debug.log*
 .vscode
 .claude/settings.local.json
 .claude.local/
+.claude/
 .cursor
 .codex/
 CLAUDE.local.md
