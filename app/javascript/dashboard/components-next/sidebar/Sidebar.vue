@@ -321,7 +321,8 @@ const menuItems = computed(() => {
         },
       ],
     },
-    {
+    // Hidden in this fork — Captain is unused.
+    /* {
       name: 'Captain',
       icon: 'i-woot-captain',
       label: t('SIDEBAR.CAPTAIN'),
@@ -391,7 +392,7 @@ const menuItems = computed(() => {
           }),
         },
       ],
-    },
+    }, */
     {
       name: 'Contacts',
       label: t('SIDEBAR.CONTACTS'),
@@ -505,7 +506,8 @@ const menuItems = computed(() => {
         },
       ],
     },
-    {
+    // Hidden in this fork — Campaigns and Help Center are unused.
+    /* {
       name: 'Campaigns',
       label: t('SIDEBAR.CAMPAIGNS'),
       icon: 'i-lucide-megaphone',
@@ -573,7 +575,7 @@ const menuItems = computed(() => {
           }),
         },
       ],
-    },
+    }, */
     {
       name: 'Settings',
       label: t('SIDEBAR.SETTINGS'),
