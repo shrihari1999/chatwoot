@@ -84,6 +84,23 @@ RSpec.describe Sla::EvaluateAppliedSlaService do
       end
     end
 
+    context 'when a threshold is set to zero' do
+      before do
+        applied_sla.sla_policy.update(
+          first_response_time_threshold: 0,
+          next_response_time_threshold: 0,
+          resolution_time_threshold: 0
+        )
+      end
+
+      it 'treats zero as not configured and records no misses' do
+        described_class.new(applied_sla: applied_sla).perform
+
+        expect(SlaEvent.where(applied_sla: applied_sla).count).to eq(0)
+        expect(applied_sla.reload.sla_status).to eq('active')
+      end
+    end
+
     # We will mark resolved miss only if while processing the SLA
     # if the conversation is resolved and the resolution time is missed by small margins then we will not mark it as missed
     context 'when resolved conversation with resolution time SLA is missed' do

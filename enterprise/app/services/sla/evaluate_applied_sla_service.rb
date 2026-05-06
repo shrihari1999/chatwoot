@@ -15,7 +15,8 @@ class Sla::EvaluateAppliedSlaService
 
   def check_sla_thresholds
     [:first_response_time_threshold, :next_response_time_threshold, :resolution_time_threshold].each do |threshold|
-      next if applied_sla.sla_policy.send(threshold).blank?
+      value = applied_sla.sla_policy.send(threshold)
+      next if value.blank? || value.to_f.zero?
 
       send("check_#{threshold}", applied_sla, applied_sla.conversation, applied_sla.sla_policy)
     end
