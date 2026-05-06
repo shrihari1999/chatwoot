@@ -82,6 +82,8 @@ const setInitialRange = () => {
 onMounted(() => {
   if (!route.query.from || !route.query.to) {
     setInitialRange();
+  } else {
+    emitChange();
   }
 });
 </script>
