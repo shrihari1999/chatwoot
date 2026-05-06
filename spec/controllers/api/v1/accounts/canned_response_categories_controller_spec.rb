@@ -67,12 +67,22 @@ RSpec.describe 'Canned Response Categories API', type: :request do
 
   describe 'DELETE /api/v1/accounts/:account_id/canned_response_categories/:id' do
     context 'when it is an authenticated user' do
-      it 'deletes the category' do
+      it 'deletes the category when empty' do
         expect do
           delete "/api/v1/accounts/#{account.id}/canned_response_categories/#{category.id}",
                  headers: agent.create_new_auth_token
         end.to change(CannedResponseCategory, :count).by(-1)
         expect(response).to have_http_status(:ok)
+      end
+
+      it 'rejects deletion when canned responses still belong to the category' do
+        create(:canned_response, account: account, category: category, content: 'Hi', short_code: 'hi')
+
+        expect do
+          delete "/api/v1/accounts/#{account.id}/canned_response_categories/#{category.id}",
+                 headers: agent.create_new_auth_token
+        end.not_to change(CannedResponseCategory, :count)
+        expect(response).to have_http_status(:unprocessable_entity)
       end
     end
   end

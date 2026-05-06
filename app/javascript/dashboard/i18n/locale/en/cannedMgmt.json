@@ -86,12 +86,12 @@
     "CATEGORY": {
       "LABEL": "Category",
       "PLACEHOLDER": "Select category",
-      "NO_CATEGORY": "No category",
+      "EMPTY_HINT": "Create a category before adding a canned response.",
       "MANAGE": "Manage Categories",
       "ADD": "Add Category",
       "EDIT_LABEL": "Edit category {name}",
       "EDIT_CANCEL": "Cancel edit",
-      "DELETE_CONFIRM": "Are you sure you want to delete this category? Canned responses in this category will become uncategorised."
+      "DELETE_CONFIRM": "Are you sure you want to delete this category? It can only be removed once it has no canned responses."
     },
     "TABLE_HEADER": {
       "CATEGORY": "Category"

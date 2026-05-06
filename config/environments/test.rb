@@ -37,6 +37,13 @@ Rails.application.configure do
   # Store uploaded files on the local file system in a temporary directory.
   config.active_storage.service = :test
 
+  # Skip schema.rb regeneration after `db:migrate` in test. The hairtrigger gem's
+  # schema dumper writes the `accounts_conv_dpid_seq_tr` trigger before its
+  # backing function, which breaks `db:schema:load` from a clean DB. Migrations
+  # are the source of truth in CI/local; schema.rb is dumped manually when we
+  # really want to refresh it.
+  config.active_record.dump_schema_after_migration = false
+
   config.action_mailer.perform_caching = false
 
   # Tell Action Mailer not to deliver emails to the real world.

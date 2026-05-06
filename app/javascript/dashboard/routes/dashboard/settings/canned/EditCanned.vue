@@ -49,6 +49,9 @@ export default {
         required,
         minLength: minLength(2),
       },
+      localCategoryId: {
+        required,
+      },
       content: {
         required: requiredIf(() => this.attachedFiles.length === 0),
       },
@@ -68,6 +71,7 @@ export default {
       return (
         (this.v$.content.$invalid && this.attachedFiles.length === 0) ||
         this.v$.shortCode.$invalid ||
+        this.v$.localCategoryId.$invalid ||
         this.editCanned.showLoading ||
         this.isUploading
       );
@@ -160,9 +164,6 @@ export default {
           <label>
             {{ $t('CANNED_MGMT.CATEGORY.LABEL') }}
             <select v-model="localCategoryId">
-              <option :value="null">
-                {{ $t('CANNED_MGMT.CATEGORY.NO_CATEGORY') }}
-              </option>
               <option
                 v-for="category in categories"
                 :key="category.id"

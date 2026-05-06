@@ -13,7 +13,7 @@ RSpec.describe 'Canned Responses API', type: :request do
       # Use deep_stringify_keys so comparisons against response.parsed_body (all
       # string keys) work correctly.
       cr.as_json.merge(
-        'category' => cr.category ? cr.category.as_json(only: [:id, :name]) : nil
+        'category' => cr.category.as_json(only: [:id, :name])
       ).deep_stringify_keys
     end
   end
@@ -79,7 +79,7 @@ RSpec.describe 'Canned Responses API', type: :request do
           expect(body.first['category']).to eq({ 'id' => category.id, 'name' => category.name })
         end
 
-        it 'includes the category object in the response when category is set' do
+        it 'includes the category object in the response' do
           get "/api/v1/accounts/#{account.id}/canned_responses",
               headers: agent.create_new_auth_token,
               as: :json
@@ -88,9 +88,6 @@ RSpec.describe 'Canned Responses API', type: :request do
           body = response.parsed_body
           categorized = body.find { |cr| cr['id'] == categorized_response.id }
           expect(categorized['category']).to eq({ 'id' => category.id, 'name' => category.name })
-
-          uncategorized = body.find { |cr| cr['id'] == account.canned_responses.find_by(short_code: 'name-short-code').id }
-          expect(uncategorized['category']).to be_nil
         end
       end
     end
@@ -109,7 +106,8 @@ RSpec.describe 'Canned Responses API', type: :request do
       let(:agent) { create(:user, account: account, role: :agent) }
 
       it 'creates a new canned response' do
-        params = { short_code: 'short', content: 'content' }
+        category = create(:canned_response_category, account: account, name: 'Default')
+        params = { short_code: 'short', content: 'content', category_id: category.id }
 
         post "/api/v1/accounts/#{account.id}/canned_responses",
              params: params,
@@ -118,6 +116,19 @@ RSpec.describe 'Canned Responses API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(account.canned_responses.count).to eq(2)
+      end
+
+      it 'rejects creating a canned response without a category' do
+        params = { short_code: 'no-cat', content: 'content' }
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/canned_responses",
+               params: params,
+               headers: agent.create_new_auth_token,
+               as: :json
+        end.not_to change(account.canned_responses, :count)
+
+        expect(response).to have_http_status(:unprocessable_entity)
       end
 
       it 'creates a new canned response with a category' do
@@ -153,7 +164,8 @@ RSpec.describe 'Canned Responses API', type: :request do
       it 'rolls back the created record when attaching files raises' do
         # An invalid signed blob ID makes `attach_files` raise inside the create
         # transaction; the canned response must not be persisted and a 422 is returned.
-        params = { short_code: 'bad-blob', content: '', file_ids: ['not-a-real-signed-id'] }
+        category = create(:canned_response_category, account: account, name: 'Default')
+        params = { short_code: 'bad-blob', content: '', category_id: category.id, file_ids: ['not-a-real-signed-id'] }
 
         expect do
           post "/api/v1/accounts/#{account.id}/canned_responses",

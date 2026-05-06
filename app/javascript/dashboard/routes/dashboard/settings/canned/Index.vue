@@ -301,10 +301,7 @@ const tableHeaders = computed(() => {
 
               <BaseTableCell>
                 <span class="text-body-main text-n-slate-11">
-                  {{
-                    cannedItem.category?.name ||
-                    $t('CANNED_MGMT.CATEGORY.NO_CATEGORY')
-                  }}
+                  {{ cannedItem.category?.name }}
                 </span>
               </BaseTableCell>
 
