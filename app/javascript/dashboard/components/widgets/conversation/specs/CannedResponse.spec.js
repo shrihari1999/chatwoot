@@ -21,48 +21,27 @@ const mountWithMessages = cannedMessages => {
 };
 
 describe('CannedResponse', () => {
-  it('returns flat items with no headers when all responses are uncategorised', () => {
-    const wrapper = mountWithMessages([
-      { short_code: 'hi', content: 'Hello', files: [], category: null },
-      { short_code: 'bye', content: 'Goodbye', files: [] },
-    ]);
-
-    expect(wrapper.vm.items).toEqual([
-      {
-        label: 'hi',
-        key: 'hi',
-        description: 'Hello',
-        files: [],
-        category: null,
-      },
-      {
-        label: 'bye',
-        key: 'bye',
-        description: 'Goodbye',
-        files: [],
-        category: null,
-      },
-    ]);
-  });
-
-  it('groups categorised responses with headers sorted alphabetically by category name', () => {
+  it('groups responses with headers sorted alphabetically by category name', () => {
     const support = { id: 1, name: 'Support' };
     const billing = { id: 2, name: 'Billing' };
 
     const wrapper = mountWithMessages([
       {
+        id: 10,
         short_code: 'ticket',
         content: 'Ticket created',
         files: [],
         category: support,
       },
       {
+        id: 20,
         short_code: 'refund',
         content: 'Refund initiated',
         files: [],
         category: billing,
       },
       {
+        id: 30,
         short_code: 'close',
         content: 'Closing ticket',
         files: [],
@@ -74,7 +53,7 @@ describe('CannedResponse', () => {
       { type: 'header', label: 'Billing' },
       {
         label: 'refund',
-        key: 'refund',
+        key: 20,
         description: 'Refund initiated',
         files: [],
         category: billing,
@@ -82,14 +61,14 @@ describe('CannedResponse', () => {
       { type: 'header', label: 'Support' },
       {
         label: 'ticket',
-        key: 'ticket',
+        key: 10,
         description: 'Ticket created',
         files: [],
         category: support,
       },
       {
         label: 'close',
-        key: 'close',
+        key: 30,
         description: 'Closing ticket',
         files: [],
         category: support,
@@ -97,48 +76,45 @@ describe('CannedResponse', () => {
     ]);
   });
 
-  it('appends an "Other" header with uncategorised responses when mixed with categorised ones', () => {
-    const support = { id: 1, name: 'Support' };
-
+  it('keeps keys unique when the same short_code exists in multiple categories', () => {
+    const a = { id: 1, name: 'A' };
+    const b = { id: 2, name: 'B' };
     const wrapper = mountWithMessages([
       {
-        short_code: 'hi',
-        content: 'Hello',
+        id: 100,
+        short_code: 'dup',
+        content: 'A version',
         files: [],
-        category: null,
+        category: a,
       },
       {
-        short_code: 'ticket',
-        content: 'Ticket created',
+        id: 200,
+        short_code: 'dup',
+        content: 'B version',
         files: [],
-        category: support,
+        category: b,
       },
     ]);
 
-    expect(wrapper.vm.items).toEqual([
-      { type: 'header', label: 'Support' },
-      {
-        label: 'ticket',
-        key: 'ticket',
-        description: 'Ticket created',
-        files: [],
-        category: support,
-      },
-      { type: 'header', label: 'Other' },
-      {
-        label: 'hi',
-        key: 'hi',
-        description: 'Hello',
-        files: [],
-        category: null,
-      },
-    ]);
+    const keys = wrapper.vm.items
+      .filter(i => i.type !== 'header')
+      .map(i => i.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).toEqual([100, 200]);
   });
 
   it('defaults files to an empty array when not provided', () => {
-    const wrapper = mountWithMessages([{ short_code: 'hi', content: 'Hello' }]);
+    const wrapper = mountWithMessages([
+      {
+        id: 1,
+        short_code: 'hi',
+        content: 'Hello',
+        category: { id: 1, name: 'X' },
+      },
+    ]);
 
-    expect(wrapper.vm.items[0].files).toEqual([]);
+    const itemRow = wrapper.vm.items.find(i => i.type !== 'header');
+    expect(itemRow.files).toEqual([]);
   });
 
   it('returns an empty array when there are no canned responses', () => {

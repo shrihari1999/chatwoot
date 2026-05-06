@@ -21,31 +21,18 @@ export default {
       cannedMessages: 'getCannedResponses',
     }),
     items() {
+      // `key` must be unique across the list, but the same `short_code` can now
+      // appear in multiple categories — so we key by id, not short_code.
       const toItem = cannedMessage => ({
         label: cannedMessage.short_code,
-        key: cannedMessage.short_code,
+        key: cannedMessage.id,
         description: cannedMessage.content,
         files: cannedMessage.files || [],
-        category: cannedMessage.category || null,
+        category: cannedMessage.category,
       });
 
-      const categorized = [];
-      const uncategorized = [];
-      this.cannedMessages.forEach(cannedMessage => {
-        if (cannedMessage.category) {
-          categorized.push(cannedMessage);
-        } else {
-          uncategorized.push(cannedMessage);
-        }
-      });
-
-      // If all responses are uncategorised, return them flat without headers
-      if (categorized.length === 0) {
-        return uncategorized.map(toItem);
-      }
-
-      // Group categorized records by category name
-      const groupsByName = categorized.reduce((acc, cannedMessage) => {
+      // Every canned response has a category (DB-enforced).
+      const groupsByName = this.cannedMessages.reduce((acc, cannedMessage) => {
         const name = cannedMessage.category.name;
         if (!acc[name]) acc[name] = [];
         acc[name].push(cannedMessage);
@@ -63,13 +50,6 @@ export default {
           result.push(toItem(cannedMessage));
         });
       });
-
-      if (uncategorized.length) {
-        result.push({ type: 'header', label: 'Other' });
-        uncategorized.forEach(cannedMessage => {
-          result.push(toItem(cannedMessage));
-        });
-      }
 
       return result;
     },

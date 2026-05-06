@@ -21,12 +21,12 @@ class CannedResponse < ApplicationRecord
 
   validates :short_code, presence: true
   validates :account, presence: true
-  validates :short_code, uniqueness: { scope: :account_id }
+  validates :short_code, uniqueness: { scope: [:account_id, :category_id] }
   validate :content_or_files_present
   validate :category_belongs_to_account, if: -> { category_id.present? }
 
   belongs_to :account
-  belongs_to :category, class_name: 'CannedResponseCategory', optional: true
+  belongs_to :category, class_name: 'CannedResponseCategory'
   has_many_attached :files
 
   def file_base_data

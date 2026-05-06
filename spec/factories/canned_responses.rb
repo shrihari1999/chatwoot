@@ -5,6 +5,7 @@ FactoryBot.define do
     content { 'Content' }
     sequence(:short_code) { |n| "CODE#{n}" }
     account
+    category { association :canned_response_category, account: account }
   end
 
   factory :canned_response_category do

@@ -104,8 +104,13 @@ class Seeders::AccountSeeder
   end
 
   def seed_canned_responses(count: 50)
+    category = @account.canned_response_categories.find_or_create_by!(name: 'General')
     count.times do
-      @account.canned_responses.create(content: Faker::Quote.fortune_cookie, short_code: Faker::Alphanumeric.alpha(number: 10))
+      @account.canned_responses.create(
+        content: Faker::Quote.fortune_cookie,
+        short_code: Faker::Alphanumeric.alpha(number: 10),
+        category: category
+      )
     end
   end
 

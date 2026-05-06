@@ -26,8 +26,13 @@ class Api::V1::Accounts::CannedResponseCategoriesController < Api::V1::Accounts:
   end
 
   def destroy
-    @category.destroy!
-    head :ok
+    if @category.destroy
+      head :ok
+    else
+      # `dependent: :restrict_with_error` blocks deletion when the category still
+      # has canned responses; surface that as a 422 with the model's error message.
+      render json: { errors: @category.errors.full_messages }, status: :unprocessable_entity
+    end
   end
 
   private

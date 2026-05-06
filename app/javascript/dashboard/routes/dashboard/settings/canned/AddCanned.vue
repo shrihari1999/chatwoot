@@ -47,6 +47,9 @@ export default {
     ...mapGetters({
       categories: 'cannedResponseCategory/getCannedResponseCategories',
     }),
+    hasNoCategories() {
+      return this.categories.length === 0;
+    },
     contentHasError() {
       return this.v$.content.$error && this.attachedFiles.length === 0;
     },
@@ -54,9 +57,23 @@ export default {
       return (
         (this.v$.content.$invalid && this.attachedFiles.length === 0) ||
         this.v$.shortCode.$invalid ||
+        this.v$.categoryId.$invalid ||
         this.addCanned.showLoading ||
         this.isUploading
       );
+    },
+  },
+  watch: {
+    // Default to the first category as soon as the list arrives. The parent
+    // (Index.vue) dispatches `getCannedResponseCategories` on mount, so this
+    // typically fires once shortly after the modal opens.
+    categories: {
+      immediate: true,
+      handler(list) {
+        if (this.categoryId == null && list.length) {
+          this.categoryId = list[0].id;
+        }
+      },
     },
   },
   validations() {
@@ -64,6 +81,9 @@ export default {
       shortCode: {
         required,
         minLength: minLength(2),
+      },
+      categoryId: {
+        required,
       },
       content: {
         required: requiredIf(() => this.attachedFiles.length === 0),
@@ -74,7 +94,9 @@ export default {
     resetForm() {
       this.shortCode = '';
       this.content = '';
-      this.categoryId = null;
+      // Restore the default selection rather than null; the form re-validates
+      // immediately and an empty selection would surface a noisy error.
+      this.categoryId = this.categories.length ? this.categories[0].id : null;
       this.attachedFiles = [];
       this.v$.shortCode.$reset();
       this.v$.content.$reset();
@@ -154,10 +176,7 @@ export default {
         <div class="w-full">
           <label>
             {{ $t('CANNED_MGMT.CATEGORY.LABEL') }}
-            <select v-model="categoryId">
-              <option :value="null">
-                {{ $t('CANNED_MGMT.CATEGORY.NO_CATEGORY') }}
-              </option>
+            <select v-model="categoryId" :disabled="hasNoCategories">
               <option
                 v-for="category in categories"
                 :key="category.id"
@@ -167,6 +186,9 @@ export default {
               </option>
             </select>
           </label>
+          <p v-if="hasNoCategories" class="text-xs text-n-ruby-9 mt-1">
+            {{ $t('CANNED_MGMT.CATEGORY.EMPTY_HINT') }}
+          </p>
         </div>
 
         <div class="w-full">

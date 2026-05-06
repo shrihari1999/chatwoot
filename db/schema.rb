@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_29_111600) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_06_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -325,7 +325,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_29_111600) do
     t.text "content"
     t.datetime "created_at", precision: nil, null: false
     t.datetime "updated_at", precision: nil, null: false
-    t.integer "category_id"
+    t.integer "category_id", null: false
+    t.index ["account_id", "category_id", "short_code"], name: "idx_canned_responses_unique_per_category", unique: true
     t.index ["category_id"], name: "index_canned_responses_on_category_id"
   end
 
@@ -1354,7 +1355,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_29_111600) do
     t.index ["inbox_id"], name: "index_working_hours_on_inbox_id"
   end
 
-  # no candidate create_trigger statement could be found, creating an adapter-specific one
+  add_foreign_key "canned_responses", "canned_response_categories", column: "category_id", on_delete: :restrict
+
+  # Function must be defined before the trigger that references it. The
+  # hairtrigger gem's schema dumper emits these in the wrong order; manually
+  # corrected here so `db:schema:load` works from a clean DB.
   execute(<<-SQL)
 CREATE OR REPLACE FUNCTION public.chatwoot_account_dpid_create_seq()
  RETURNS trigger
@@ -1367,7 +1372,6 @@ END;
 $function$
   SQL
 
-  # no candidate create_trigger statement could be found, creating an adapter-specific one
   execute("CREATE TRIGGER accounts_conv_dpid_seq_tr AFTER INSERT ON \"accounts\" FOR EACH ROW EXECUTE FUNCTION chatwoot_account_dpid_create_seq()")
 
   # no candidate create_trigger statement could be found, creating an adapter-specific one
