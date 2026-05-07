@@ -67,5 +67,48 @@ RSpec.describe AgentBuilder, type: :model do
         expect(user.encrypted_password).not_to be_empty
       end
     end
+
+    context 'when the account already has inboxes' do
+      let!(:inbox_one) { create(:inbox, account: account) }
+      let!(:inbox_two) { create(:inbox, account: account) }
+      let!(:inbox_three) { create(:inbox, account: account) }
+
+      it 'attaches a new agent to every inbox' do
+        user = agent_builder.perform
+
+        expect(inbox_one.members).to include(user)
+        expect(inbox_two.members).to include(user)
+        expect(inbox_three.members).to include(user)
+      end
+
+      context 'when the role is administrator' do
+        let(:role) { 'administrator' }
+
+        it 'does not create inbox_members rows' do
+          expect { agent_builder.perform }.not_to change(InboxMember, :count)
+        end
+      end
+
+      context 'when the user has a stale inbox_member row from a prior membership' do
+        before do
+          orphan_user = create(:user, email: email)
+          inbox_two.inbox_members.create!(user_id: orphan_user.id)
+        end
+
+        it 'does not raise on the duplicate and still attaches the rest' do
+          expect { agent_builder.perform }.not_to raise_error
+          user = User.from_email(email)
+          expect(inbox_one.members).to include(user)
+          expect(inbox_two.members).to include(user)
+          expect(inbox_three.members).to include(user)
+        end
+      end
+    end
+
+    context 'when the account has no inboxes' do
+      it 'does not raise and creates no inbox_members rows' do
+        expect { agent_builder.perform }.not_to change(InboxMember, :count)
+      end
+    end
   end
 end
