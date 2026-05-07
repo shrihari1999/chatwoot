@@ -25,11 +25,7 @@ class Team < ApplicationRecord
 
   validates :name,
             presence: { message: I18n.t('errors.validations.presence') },
-            uniqueness: { scope: :account_id }
-
-  before_validation do
-    self.name = name.downcase if attribute_present?('name')
-  end
+            uniqueness: { scope: :account_id, case_sensitive: false }
 
   # Adds multiple members to the team
   # @param user_ids [Array<Integer>] Array of user IDs to add as members

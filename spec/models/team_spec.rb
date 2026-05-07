@@ -7,6 +7,28 @@ RSpec.describe Team do
     it { is_expected.to have_many(:team_members) }
   end
 
+  describe 'name casing' do
+    let(:account) { create(:account) }
+
+    it 'preserves the casing of the supplied name' do
+      team = described_class.create!(account: account, name: 'Sales Team')
+      expect(team.reload.name).to eq('Sales Team')
+    end
+
+    it 'rejects a case-variant duplicate within the same account' do
+      described_class.create!(account: account, name: 'Sales Team')
+      duplicate = described_class.new(account: account, name: 'sales team')
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:name]).to be_present
+    end
+
+    it 'allows the same name in a different account' do
+      described_class.create!(account: account, name: 'Sales Team')
+      other_account = create(:account)
+      expect(described_class.new(account: other_account, name: 'Sales Team')).to be_valid
+    end
+  end
+
   describe '#add_members' do
     let(:team) { FactoryBot.create(:team) }
 
