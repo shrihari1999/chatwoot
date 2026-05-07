@@ -13,6 +13,7 @@ import { useWindowSize, useEventListener } from '@vueuse/core';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 
+// eslint-disable-next-line no-unused-vars -- compose pencil hidden in this fork
 import Button from 'dashboard/components-next/button/Button.vue';
 import SidebarGroup from './SidebarGroup.vue';
 import SidebarProfileMenu from './SidebarProfileMenu.vue';
@@ -22,6 +23,7 @@ import ChannelLeaf from './ChannelLeaf.vue';
 import ChannelIcon from 'next/icon/ChannelIcon.vue';
 import SidebarAccountSwitcher from './SidebarAccountSwitcher.vue';
 import Logo from 'next/icon/Logo.vue';
+// eslint-disable-next-line no-unused-vars -- compose pencil hidden in this fork
 import ComposeConversation from 'dashboard/components-next/NewConversation/ComposeConversation.vue';
 
 const props = defineProps({
@@ -184,11 +186,14 @@ const closeMobileSidebar = () => {
   emit('closeMobileSidebar');
 };
 
+// Compose pencil hidden in this fork — handlers preserved for clarity.
+// eslint-disable-next-line no-unused-vars
 const onComposeOpen = toggleFn => {
   toggleFn();
   emitter.emit(BUS_EVENTS.NEW_CONVERSATION_MODAL, true);
 };
 
+// eslint-disable-next-line no-unused-vars
 const onComposeClose = () => {
   emitter.emit(BUS_EVENTS.NEW_CONVERSATION_MODAL, false);
 };
@@ -804,7 +809,8 @@ const menuItems = computed(() => {
         >
           <span class="i-lucide-search size-4 text-n-slate-11" />
         </RouterLink>
-        <ComposeConversation align-position="right" @close="onComposeClose">
+        <!-- Hidden in this fork — new-conversation compose pencil is unused. -->
+        <!-- <ComposeConversation align-position="right" @close="onComposeClose">
           <template #trigger="{ toggle, isOpen }">
             <Button
               icon="i-lucide-pen-line"
@@ -820,7 +826,7 @@ const menuItems = computed(() => {
               @click="onComposeOpen(toggle)"
             />
           </template>
-        </ComposeConversation>
+        </ComposeConversation> -->
       </div>
     </section>
     <nav
