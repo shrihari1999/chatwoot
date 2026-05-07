@@ -5,6 +5,7 @@ import { useStore } from 'vuex';
 import { useElementSize } from '@vueuse/core';
 import BackButton from '../BackButton.vue';
 import InboxName from '../InboxName.vue';
+import TeamName from '../TeamName.vue';
 import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
@@ -90,6 +91,8 @@ const hasMultipleInboxes = computed(
   () => store.getters['inboxes/getInboxes'].length > 1
 );
 
+const team = computed(() => chatMetadata.value?.team || {});
+
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
 </script>
 
@@ -136,6 +139,7 @@ const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
           class="flex items-center gap-2 overflow-hidden text-xs conversation--header--actions text-ellipsis whitespace-nowrap"
         >
           <InboxName v-if="hasMultipleInboxes" :inbox="inbox" class="!mx-0" />
+          <TeamName v-if="team.id" :team="team" class="!mx-0" />
           <span v-if="isSnoozed" class="font-medium text-n-amber-10">
             {{ snoozedDisplayText }}
           </span>

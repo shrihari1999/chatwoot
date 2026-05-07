@@ -7,6 +7,7 @@ import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import Avatar from 'next/avatar/Avatar.vue';
 import MessagePreview from './MessagePreview.vue';
 import InboxName from '../InboxName.vue';
+import TeamName from '../TeamName.vue';
 import ConversationContextMenu from './contextMenu/Index.vue';
 import TimeAgo from 'dashboard/components/ui/TimeAgo.vue';
 import CardLabels from './conversationCardComponents/CardLabels.vue';
@@ -113,9 +114,14 @@ const showInboxName = computed(() => {
   );
 });
 
+const team = computed(() => chatMetadata.value.team || {});
+
+const showTeamName = computed(() => !props.teamId && team.value?.id);
+
 const showMetaSection = computed(() => {
   return (
     showInboxName.value ||
+    showTeamName.value ||
     (props.showAssignee && assignee.value.name) ||
     props.chat.priority
   );
@@ -220,8 +226,8 @@ const onRemoveLabel = label => {
   emit('removeLabel', [label.title], [props.chat.id]);
 };
 
-const onAssignTeam = team => {
-  emit('assignTeam', team, props.chat.id);
+const onAssignTeam = assignedTeam => {
+  emit('assignTeam', assignedTeam, props.chat.id);
   closeContextMenu();
 };
 
@@ -264,7 +270,7 @@ const assignPriority = priority => {
         :src="currentContact.thumbnail"
         :size="32"
         :status="currentContact.availability_status"
-        :class="!showInboxName ? 'mt-4' : 'mt-8'"
+        :class="showInboxName || showTeamName ? 'mt-8' : 'mt-4'"
         hide-offline-status
         rounded-full
       >
@@ -297,11 +303,17 @@ const assignPriority = priority => {
           'mx-2': compact,
         }"
       >
-        <InboxName v-if="showInboxName" :inbox="inbox" class="flex-1 min-w-0" />
+        <div
+          v-if="showInboxName || showTeamName"
+          class="flex items-center gap-2 flex-1 min-w-0"
+        >
+          <InboxName v-if="showInboxName" :inbox="inbox" class="min-w-0" />
+          <TeamName v-if="showTeamName" :team="team" class="min-w-0" />
+        </div>
         <div
           class="flex items-baseline gap-2 flex-shrink-0"
           :class="{
-            'flex-1 justify-between': !showInboxName,
+            'flex-1 justify-between': !showInboxName && !showTeamName,
           }"
         >
           <span
