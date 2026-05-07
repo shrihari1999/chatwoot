@@ -28,21 +28,23 @@ const currentChat = computed(() => store.getters.getSelectedChat);
 const actionMenuItems = computed(() => {
   const items = [];
 
-  if (!currentChat.value.muted) {
-    items.push({
-      icon: 'i-lucide-volume-off',
-      label: t('CONTACT_PANEL.MUTE_CONTACT'),
-      action: 'mute',
-      value: 'mute',
-    });
-  } else {
-    items.push({
-      icon: 'i-lucide-volume-1',
-      label: t('CONTACT_PANEL.UNMUTE_CONTACT'),
-      action: 'unmute',
-      value: 'unmute',
-    });
-  }
+  // Hidden in this fork — upstream's English locale labels this as "Block Contact" / "Unblock Contact",
+  // which is misleading: it only mutes the conversation's notifications, it does not block the contact.
+  // if (!currentChat.value.muted) {
+  //   items.push({
+  //     icon: 'i-lucide-volume-off',
+  //     label: t('CONTACT_PANEL.MUTE_CONTACT'),
+  //     action: 'mute',
+  //     value: 'mute',
+  //   });
+  // } else {
+  //   items.push({
+  //     icon: 'i-lucide-volume-1',
+  //     label: t('CONTACT_PANEL.UNMUTE_CONTACT'),
+  //     action: 'unmute',
+  //     value: 'unmute',
+  //   });
+  // }
 
   items.push({
     icon: 'i-lucide-share',
