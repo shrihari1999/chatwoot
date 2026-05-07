@@ -17,6 +17,7 @@ class AgentBuilder
     ActiveRecord::Base.transaction do
       @user = find_or_create_user
       create_account_user
+      attach_to_all_inboxes
     end
     @user
   end
@@ -50,6 +51,17 @@ class AgentBuilder
       availability: availability,
       auto_offline: auto_offline
     }.compact))
+  end
+
+  # Attach the new agent to every inbox in the account so they are
+  # immediately assignable. Administrators are already returned by
+  # Inbox#assignable_agents without an inbox_members row, so we skip them.
+  def attach_to_all_inboxes
+    return unless role.to_s == 'agent'
+
+    account.inboxes.find_each do |inbox|
+      inbox.inbox_members.find_or_create_by!(user_id: @user.id)
+    end
   end
 end
 
