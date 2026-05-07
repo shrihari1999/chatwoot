@@ -185,7 +185,13 @@ export default {
       );
       return filteredAgents;
     },
+    canUnassign() {
+      return this.currentUser?.role === 'administrator';
+    },
     assignableAgents() {
+      if (!this.canUnassign) {
+        return this.filteredAgentOnAvailability;
+      }
       return [
         {
           confirmed: true,
