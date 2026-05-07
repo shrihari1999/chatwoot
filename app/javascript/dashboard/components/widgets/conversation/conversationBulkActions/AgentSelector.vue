@@ -30,14 +30,21 @@ export default {
   },
   computed: {
     ...mapGetters({
+      currentUser: 'getCurrentUser',
       uiFlags: 'bulkActions/getUIFlags',
       assignableAgentsUiFlags: 'inboxAssignableAgents/getUIFlags',
     }),
+    canUnassign() {
+      return this.currentUser?.role === 'administrator';
+    },
     filteredAgents() {
       if (this.query) {
         return this.assignableAgents.filter(agent =>
           agent.name.toLowerCase().includes(this.query.toLowerCase())
         );
+      }
+      if (!this.canUnassign) {
+        return this.assignableAgents;
       }
       return [
         {

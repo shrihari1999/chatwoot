@@ -21,6 +21,9 @@ export function useAgentsList(includeNoneAgent = true) {
 
   const inboxId = computed(() => currentChat.value?.inbox_id);
   const isAgentSelected = computed(() => currentChat.value?.meta?.assignee);
+  const canUnassign = computed(
+    () => currentUser.value?.role === 'administrator'
+  );
 
   /**
    * Creates a 'None' agent object
@@ -57,8 +60,11 @@ export function useAgentsList(includeNoneAgent = true) {
       agentsByUpdatedPresence
     );
 
+    const showNone =
+      includeNoneAgent && isAgentSelected.value && canUnassign.value;
+
     return [
-      ...(includeNoneAgent && isAgentSelected.value ? [createNoneAgent()] : []),
+      ...(showNone ? [createNoneAgent()] : []),
       ...filteredAgentsByAvailability,
     ];
   });

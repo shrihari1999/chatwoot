@@ -25,9 +25,12 @@ const mockNoneAgent = {
   email: 'None',
 };
 
+const adminUser = allAgentsData[0];
+const agentUser = allAgentsData[1];
+
 const mockUseMapGetter = (overrides = {}) => {
   const defaultGetters = {
-    getCurrentUser: ref(allAgentsData[0]),
+    getCurrentUser: ref(adminUser),
     getSelectedChat: ref({ inbox_id: 1, meta: { assignee: true } }),
     getCurrentAccountId: ref(1),
     'inboxAssignableAgents/getAssignableAgents': ref(() => allAgentsData),
@@ -98,5 +101,14 @@ describe('useAgentsList', () => {
 
     expect(assignableAgents.value).toEqual([]);
     expect(agentsList.value).toEqual([mockNoneAgent]);
+  });
+
+  it('hides None agent for non-administrator users even when assigned', () => {
+    mockUseMapGetter({ getCurrentUser: ref(agentUser) });
+
+    const { agentsList } = useAgentsList();
+
+    expect(agentsList.value.find(a => a.id === 0)).toBeUndefined();
+    expect(agentsList.value.length).toBe(formattedAgentsData.slice(1).length);
   });
 });

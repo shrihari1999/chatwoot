@@ -157,6 +157,9 @@ export default {
       }
       return false;
     },
+    canUnassign() {
+      return this.currentUser?.role === 'administrator';
+    },
   },
   methods: {
     onSelfAssign() {
@@ -184,6 +187,9 @@ export default {
     },
     onClickAssignAgent(selectedItem) {
       if (this.assignedAgent && this.assignedAgent.id === selectedItem.id) {
+        if (!this.canUnassign) {
+          return;
+        }
         this.assignedAgent = null;
       } else {
         this.assignedAgent = selectedItem;
