@@ -228,7 +228,8 @@ const reportRoutes = computed(() => newReportRoutes());
 
 const menuItems = computed(() => {
   return [
-    {
+    // Hidden in this fork — "My Inbox" notifications view is unused.
+    /* {
       name: 'Inbox',
       label: t('SIDEBAR.INBOX'),
       icon: 'i-lucide-inbox',
@@ -237,7 +238,7 @@ const menuItems = computed(() => {
       getterKeys: {
         count: 'notifications/getUnreadCount',
       },
-    },
+    }, */
     {
       name: 'Conversation',
       label: t('SIDEBAR.CONVERSATIONS'),
