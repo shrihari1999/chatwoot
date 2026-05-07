@@ -15,6 +15,7 @@ import { useAccount } from 'dashboard/composables/useAccount';
 import { useFontSize } from 'dashboard/composables/useFontSize';
 import {
   registerSubscription,
+  requestPushPermissions,
   verifyServiceWorkerExistence,
 } from './helper/pushHelper';
 import ReconnectService from 'dashboard/helper/ReconnectService';
@@ -121,6 +122,11 @@ export default {
         registration.pushManager.getSubscription().then(subscription => {
           if (subscription) {
             registerSubscription();
+          } else if (
+            'Notification' in window &&
+            Notification.permission === 'default'
+          ) {
+            requestPushPermissions({ onSuccess: () => {} });
           }
         })
       );
