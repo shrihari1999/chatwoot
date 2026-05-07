@@ -14,13 +14,18 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
-  isUpdating: {
-    type: Boolean,
-    default: false,
-  },
+  // Hidden in this fork — block/unblock contact action is unused.
+  // isUpdating: {
+  //   type: Boolean,
+  //   default: false,
+  // },
 });
 
-const emit = defineEmits(['goToContactsList', 'toggleBlock']);
+const emit = defineEmits([
+  'goToContactsList',
+  // Hidden in this fork — block/unblock contact action is unused.
+  // 'toggleBlock',
+]);
 
 const { t } = useI18n();
 const slots = useSlots();
@@ -49,17 +54,19 @@ const breadcrumbItems = computed(() => {
   return items;
 });
 
-const isContactBlocked = computed(() => {
-  return props.selectedContact?.blocked;
-});
+// Hidden in this fork — block/unblock contact action is unused.
+// const isContactBlocked = computed(() => {
+//   return props.selectedContact?.blocked;
+// });
 
 const handleBreadcrumbClick = () => {
   emit('goToContactsList');
 };
 
-const toggleBlock = () => {
-  emit('toggleBlock', isContactBlocked.value);
-};
+// Hidden in this fork — block/unblock contact action is unused.
+// const toggleBlock = () => {
+//   emit('toggleBlock', isContactBlocked.value);
+// };
 
 const handleConversationSidebarToggle = () => {
   isContactSidebarOpen.value = !isContactSidebarOpen.value;
@@ -88,7 +95,8 @@ const closeMobileSidebar = () => {
               @click="handleBreadcrumbClick"
             />
             <div class="flex items-center gap-2">
-              <Button
+              <!-- Hidden in this fork — block/unblock contact action is unused. -->
+              <!-- <Button
                 :label="
                   !isContactBlocked
                     ? $t('CONTACTS_LAYOUT.HEADER.BLOCK_CONTACT')
@@ -99,7 +107,7 @@ const closeMobileSidebar = () => {
                 :is-loading="isUpdating"
                 :disabled="isUpdating"
                 @click="toggleBlock"
-              />
+              /> -->
               <VoiceCallButton
                 :phone="selectedContact?.phoneNumber"
                 :contact-id="contactId"

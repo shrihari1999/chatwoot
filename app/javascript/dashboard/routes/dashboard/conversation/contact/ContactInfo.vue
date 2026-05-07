@@ -396,7 +396,8 @@ export default {
           :disabled="uiFlags.isMerging"
           @click="openMergeModal"
         />
-        <NextButton
+        <!-- Hidden in this fork — delete contact action is unused. -->
+        <!-- <NextButton
           v-if="isAdmin"
           v-tooltip.top-end="$t('DELETE_CONTACT.BUTTON_LABEL')"
           icon="i-ph-trash"
@@ -406,7 +407,7 @@ export default {
           ruby
           :disabled="uiFlags.isDeleting"
           @click="toggleDeleteModal"
-        />
+        /> -->
       </div>
       <EditContact
         v-if="showEditModal"
