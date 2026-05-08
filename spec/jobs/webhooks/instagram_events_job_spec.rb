@@ -233,6 +233,20 @@ describe Webhooks::InstagramEventsJob do
         expect(service).to have_received(:perform)
       end
 
+      it 'updates message content on message_edit event' do
+        original = create(:message, inbox: instagram_messenger_inbox, account: account,
+                                    source_id: 'message-id-to-edit', content: 'original text')
+
+        edit_event = build(:instagram_message_edit_event,
+                           text: 'edited via instagram').with_indifferent_access
+
+        instagram_webhook.perform_now(edit_event[:entry])
+
+        original.reload
+        expect(original.content).to eq('edited via instagram')
+        expect(original.edited).to be true
+      end
+
       it 'handles unsupported message' do
         unsupported_event = build(:instagram_message_unsupported_event).with_indifferent_access
         sender_id = unsupported_event[:entry][0][:messaging][0][:sender][:id]
@@ -425,6 +439,20 @@ describe Webhooks::InstagramEventsJob do
           channel: instagram_inbox.channel
         )
         expect(service).to have_received(:perform)
+      end
+
+      it 'updates message content on message_edit event' do
+        original = create(:message, inbox: instagram_inbox, account: account,
+                                    source_id: 'message-id-to-edit', content: 'original text')
+
+        edit_event = build(:instagram_message_edit_event,
+                           text: 'edited via instagram direct').with_indifferent_access
+
+        instagram_webhook.perform_now(edit_event[:entry])
+
+        original.reload
+        expect(original.content).to eq('edited via instagram direct')
+        expect(original.edited).to be true
       end
 
       it 'creates contact when Instagram API call returns `No matching Instagram user` (9010 error code)' do
