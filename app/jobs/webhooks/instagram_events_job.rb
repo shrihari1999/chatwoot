@@ -3,7 +3,7 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   retry_on LockAcquisitionError, wait: 1.second, attempts: 8
 
   # @return [Array] Messaging event keys that are routed to handlers below.
-  SUPPORTED_EVENTS = [:message, :read, :reaction].freeze
+  SUPPORTED_EVENTS = [:message, :read, :reaction, :message_edit].freeze
 
   def perform(entries)
     @entries = entries
@@ -130,6 +130,10 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
 
   def reaction(messaging, channel)
     ::Instagram::MessageReactionService.new(params: messaging, channel: channel).perform
+  end
+
+  def message_edit(messaging, channel)
+    ::Instagram::UpdateMessageService.new(inbox: channel.inbox, messaging: messaging).perform
   end
 
   def messages(entry)

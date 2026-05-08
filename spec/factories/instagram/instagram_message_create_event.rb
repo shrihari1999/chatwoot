@@ -458,6 +458,40 @@ FactoryBot.define do
     initialize_with { attributes }
   end
 
+  factory :instagram_message_edit_event, class: Hash do
+    transient do
+      ig_entry_id { SecureRandom.uuid }
+      sender_id { "Sender-id-#{SecureRandom.hex(4)}" }
+      mid { 'message-id-to-edit' }
+      text { 'edited text' }
+    end
+    entry do
+      [
+        {
+          'id': ig_entry_id,
+          'time': '2021-09-08T06:34:04+0000',
+          'messaging': [
+            {
+              'sender': {
+                'id': sender_id
+              },
+              'recipient': {
+                'id': 'chatwoot-app-user-id-1'
+              },
+              'timestamp': '2021-09-08T06:34:04+0000',
+              'message_edit': {
+                'mid': mid,
+                'text': text,
+                'num_edit': 1
+              }
+            }
+          ]
+        }
+      ]
+    end
+    initialize_with { attributes }
+  end
+
   factory :messaging_seen_event, class: Hash do
     transient do
       ig_entry_id { SecureRandom.uuid }
