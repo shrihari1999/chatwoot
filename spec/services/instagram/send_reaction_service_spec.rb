@@ -37,16 +37,25 @@ RSpec.describe Instagram::SendReactionService do
       )
     end
 
-    it 'omits reaction key on unreact' do
+    # Meta's IG-direct unreact returns 200 and clears /me/conversations even
+    # for non-heart reactions, but the customer's Instagram client only
+    # honours the unreact when the active reaction is heart.  Workaround:
+    # edit the active reaction to heart first, then send the unreact.
+    it 'first edits the active reaction to heart, then sends unreact' do
       allow(HTTParty).to receive(:post).and_return(success_response)
 
-      described_class.new(message: message, emoji: '❤️', action: 'unreact').perform
+      described_class.new(message: message, emoji: '😂', action: 'unreact').perform
 
+      expect(HTTParty).to have_received(:post).with(
+        expected_url,
+        body: { recipient: { id: 'igsid_xyz' }, sender_action: 'react', payload: { message_id: 'mid.abc', reaction: '❤️' } }.to_json,
+        headers: hash_including('Content-Type' => 'application/json', 'Authorization' => 'Bearer IG_TOKEN_xyz')
+      ).ordered
       expect(HTTParty).to have_received(:post).with(
         expected_url,
         body: { recipient: { id: 'igsid_xyz' }, sender_action: 'unreact', payload: { message_id: 'mid.abc' } }.to_json,
         headers: hash_including('Content-Type' => 'application/json', 'Authorization' => 'Bearer IG_TOKEN_xyz')
-      )
+      ).ordered
     end
 
     it 'is a no-op when igsid is blank' do
