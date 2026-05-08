@@ -15,10 +15,17 @@ class Instagram::SendReactionService
   def perform
     return false if recipient_id.blank? || message_id.blank?
 
+    # Form-encoded body fails for sender_action=react with subcode 2534015
+    # ("Invalid message data") — the nested payload[message_id]/payload[reaction]
+    # form Meta's reaction parser doesn't accept. Send as JSON with the
+    # Authorization Bearer header per Meta's documented sample.
     response = HTTParty.post(
       "https://graph.instagram.com/#{api_version}/#{instagram_id}/messages",
-      body: payload,
-      query: { access_token: instagram_access_token }
+      body: payload.to_json,
+      headers: {
+        'Content-Type' => 'application/json',
+        'Authorization' => "Bearer #{instagram_access_token}"
+      }
     )
 
     handle_response(response)
