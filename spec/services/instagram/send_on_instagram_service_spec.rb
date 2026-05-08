@@ -219,10 +219,8 @@ describe Instagram::SendOnInstagramService do
           anything,
           hash_including(
             body: hash_including(
-              message: hash_including(
-                text: message.content,
-                reply_to: { mid: reply_to_mid }
-              )
+              message: hash_including(text: message.content),
+              reply_to: { mid: reply_to_mid }
             )
           )
         )
@@ -242,9 +240,7 @@ describe Instagram::SendOnInstagramService do
         expect(HTTParty).to have_received(:post).with(
           anything,
           hash_including(
-            body: hash_including(
-              message: hash_excluding(:reply_to)
-            )
+            body: hash_excluding(:reply_to)
           )
         )
       end
@@ -273,10 +269,8 @@ describe Instagram::SendOnInstagramService do
           anything,
           hash_including(
             body: hash_including(
-              message: hash_including(
-                attachment: hash_including(type: 'image'),
-                reply_to: { mid: reply_to_mid }
-              )
+              message: hash_including(attachment: hash_including(type: 'image')),
+              reply_to: { mid: reply_to_mid }
             )
           )
         )

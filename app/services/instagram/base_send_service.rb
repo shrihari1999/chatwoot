@@ -31,8 +31,8 @@ class Instagram::BaseSendService < Base::SendOnChannelService
       recipient: { id: contact.get_source_id(inbox.id) },
       message: {
         text: message.outgoing_content
-      }.merge(reply_to_payload)
-    }
+      }
+    }.merge(reply_to_payload)
 
     merge_human_agent_tag(params)
   end
@@ -47,8 +47,8 @@ class Instagram::BaseSendService < Base::SendOnChannelService
             url: attachment.download_url
           }
         }
-      }.merge(reply_to_payload)
-    }
+      }
+    }.merge(reply_to_payload)
 
     merge_human_agent_tag(params)
   end

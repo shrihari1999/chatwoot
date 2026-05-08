@@ -236,12 +236,10 @@ describe Facebook::SendOnFacebookService do
         expect(bot).to have_received(:deliver).with(
           {
             recipient: { id: contact_inbox.source_id },
-            message: {
-              text: message.content,
-              reply_to: { mid: reply_to_mid }
-            },
+            message: { text: message.content },
             messaging_type: 'MESSAGE_TAG',
-            tag: 'ACCOUNT_UPDATE'
+            tag: 'ACCOUNT_UPDATE',
+            reply_to: { mid: reply_to_mid }
           },
           { page_id: facebook_channel.page_id }
         )
@@ -323,11 +321,11 @@ describe Facebook::SendOnFacebookService do
               attachment: {
                 type: 'image',
                 payload: { url: anything }
-              },
-              reply_to: { mid: reply_to_mid }
+              }
             },
             messaging_type: 'MESSAGE_TAG',
-            tag: 'ACCOUNT_UPDATE'
+            tag: 'ACCOUNT_UPDATE',
+            reply_to: { mid: reply_to_mid }
           },
           { page_id: facebook_channel.page_id }
         )
@@ -390,11 +388,11 @@ describe Facebook::SendOnFacebookService do
             recipient: { id: contact_inbox.source_id },
             message: {
               text: message.content,
-              quick_replies: [{ content_type: 'text', payload: 'Yes', title: 'Yes' }],
-              reply_to: { mid: reply_to_mid }
+              quick_replies: [{ content_type: 'text', payload: 'Yes', title: 'Yes' }]
             },
             messaging_type: 'MESSAGE_TAG',
-            tag: 'ACCOUNT_UPDATE'
+            tag: 'ACCOUNT_UPDATE',
+            reply_to: { mid: reply_to_mid }
           },
           { page_id: facebook_channel.page_id }
         )
