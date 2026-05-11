@@ -64,4 +64,23 @@ class AutomationRules::ActionService < ActionService
       @account.increment_email_sent_count
     end
   end
+
+  def change_custom_attribute(params)
+    allowed_keys = @account.custom_attribute_definitions
+                           .where(attribute_model: :conversation_attribute)
+                           .pluck(:attribute_key)
+                           .to_set
+
+    updates = Array.wrap(params).each_with_object({}) do |param, acc|
+      param = param.with_indifferent_access
+      key = param[:attribute_key].to_s
+      next unless allowed_keys.include?(key)
+
+      acc[key] = param[:value]
+    end
+
+    return if updates.empty?
+
+    @conversation.update!(custom_attributes: @conversation.custom_attributes.merge(updates))
+  end
 end

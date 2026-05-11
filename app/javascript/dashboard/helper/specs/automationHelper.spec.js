@@ -158,6 +158,42 @@ describe('getActionOptions', () => {
       })
     ).toEqual(agents);
   });
+
+  it('returns conversation custom attribute options for change_custom_attribute', () => {
+    const conversationCustomAttributes = [
+      {
+        attributeKey: 'order_status',
+        attributeDisplayName: 'Order Status',
+        attributeDisplayType: 'list',
+        attributeValues: ['pending', 'shipped'],
+      },
+      {
+        attributeKey: 'is_vip',
+        attributeDisplayName: 'VIP',
+        attributeDisplayType: 'checkbox',
+      },
+      {
+        attributeKey: 'priority_score',
+        attributeDisplayName: 'Priority Score',
+        attributeDisplayType: 'number',
+      },
+    ];
+
+    const result = helpers.getActionOptions({
+      type: 'change_custom_attribute',
+      conversationCustomAttributes,
+    });
+
+    expect(result).toEqual([
+      {
+        id: 'order_status',
+        name: 'Order Status',
+        type: 'list',
+        values: ['pending', 'shipped'],
+      },
+      { id: 'is_vip', name: 'VIP', type: 'checkbox', values: [] },
+    ]);
+  });
 });
 
 describe('getConditionOptions', () => {

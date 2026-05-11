@@ -131,10 +131,26 @@ const validateSingleAction = action => {
     'pending_conversation',
   ];
 
-  if (
-    !noParamActions.includes(action.action_name) &&
-    (!action.action_params || action.action_params.length === 0)
-  ) {
+  if (noParamActions.includes(action.action_name)) return null;
+
+  if (action.action_name === 'change_custom_attribute') {
+    const params = Array.isArray(action.action_params)
+      ? action.action_params[0]
+      : action.action_params;
+    if (
+      !params ||
+      typeof params !== 'object' ||
+      !params.attribute_key ||
+      params.value === null ||
+      params.value === undefined ||
+      params.value === ''
+    ) {
+      return ACTION_PARAMETERS_REQUIRED;
+    }
+    return null;
+  }
+
+  if (!action.action_params || action.action_params.length === 0) {
     return ACTION_PARAMETERS_REQUIRED;
   }
 

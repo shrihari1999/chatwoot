@@ -99,7 +99,12 @@
       "TEAM_MESSAGE_INPUT_PLACEHOLDER": "Enter your message here",
       "TEAM_DROPDOWN_PLACEHOLDER": "Select teams",
       "EMAIL_INPUT_PLACEHOLDER": "Enter email",
-      "URL_INPUT_PLACEHOLDER": "Enter URL"
+      "URL_INPUT_PLACEHOLDER": "Enter URL",
+      "CUSTOM_ATTRIBUTE_PLACEHOLDER": "Select an attribute",
+      "CUSTOM_ATTRIBUTE_VALUE_PLACEHOLDER": "Enter a value",
+      "CUSTOM_ATTRIBUTE_VALUE_SELECT_PLACEHOLDER": "Select a value",
+      "BOOLEAN_TRUE": "True",
+      "BOOLEAN_FALSE": "False"
     },
     "TOGGLE": {
       "ACTIVATION_TITLE": "Activate Automation Rule",
@@ -157,7 +162,8 @@
       "CHANGE_PRIORITY": "Change Priority",
       "ADD_SLA": "Add SLA",
       "OPEN_CONVERSATION": "Open conversation",
-      "PENDING_CONVERSATION": "Mark conversation as pending"
+      "PENDING_CONVERSATION": "Mark conversation as pending",
+      "CHANGE_CUSTOM_ATTRIBUTE": "Change Custom Attribute"
     },
     "MESSAGE_TYPES": {
       "INCOMING": "Incoming Message",

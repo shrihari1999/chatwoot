@@ -29,6 +29,7 @@ describe('useAutomation', () => {
   beforeEach(() => {
     useStoreGetters.mockReturnValue({
       'attributes/getAttributes': { value: customAttributes },
+      'attributes/getConversationAttributes': { value: [] },
       'attributes/getAttributesByModel': {
         value: model => {
           return model === 'conversation_attribute'
