@@ -228,5 +228,6 @@ messages:
       - "not_equal_to"
       - "contains"
       - "does_not_contain"
+      - "starts_with"
 
 ### ----- End of Message Filters ----- ###
