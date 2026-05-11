@@ -22,9 +22,9 @@ export const AUTOMATIONS = {
       },
       {
         key: 'content',
-        name: 'MESSAGE_CONTAINS',
+        name: 'MESSAGE',
         inputType: 'comma_separated_plain_text',
-        filterOperators: OPERATOR_TYPES_2,
+        filterOperators: OPERATOR_TYPES_6,
       },
       {
         key: 'email',
@@ -155,6 +155,12 @@ export const AUTOMATIONS = {
         name: 'STATUS',
         inputType: 'multi_select',
         filterOperators: OPERATOR_TYPES_1,
+      },
+      {
+        key: 'content',
+        name: 'MESSAGE',
+        inputType: 'plain_text',
+        filterOperators: OPERATOR_TYPES_6,
       },
       {
         key: 'browser_language',
