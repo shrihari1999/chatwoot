@@ -51,6 +51,7 @@ class FilterService
     return conversation_priority_values(values) if attribute_key == 'priority'
     return message_type_values(values) if attribute_key == 'message_type'
     return downcase_array_values(values) if attribute_key == 'content'
+    return applied_sla_status_values(values) if attribute_key == 'sla_status'
 
     case_insensitive_values(query_hash)
   end

@@ -215,6 +215,23 @@ describe('getConditionOptions', () => {
     ).toEqual(testOptions);
   });
 
+  it('returns sla status options for sla_status', () => {
+    const slaStatusOptions = [
+      { id: 'active', name: 'Active' },
+      { id: 'active_with_misses', name: 'Active with Misses' },
+      { id: 'hit', name: 'Hit' },
+      { id: 'missed', name: 'Missed' },
+    ];
+    expect(
+      helpers.getConditionOptions({
+        customAttributes,
+        campaigns: [],
+        slaStatusOptions,
+        type: 'sla_status',
+      })
+    ).toEqual(slaStatusOptions);
+  });
+
   it('returns boolean options for private_note', () => {
     const booleanOptions = [
       { id: true, name: 'True' },

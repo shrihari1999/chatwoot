@@ -78,6 +78,16 @@ export default function useAutomationValues() {
     }))
   );
 
+  const slaStatusOptions = computed(() => [
+    { id: 'active', name: t('AUTOMATION.SLA_STATUS_VALUES.ACTIVE') },
+    {
+      id: 'active_with_misses',
+      name: t('AUTOMATION.SLA_STATUS_VALUES.ACTIVE_WITH_MISSES'),
+    },
+    { id: 'hit', name: t('AUTOMATION.SLA_STATUS_VALUES.HIT') },
+    { id: 'missed', name: t('AUTOMATION.SLA_STATUS_VALUES.MISSED') },
+  ]);
+
   /**
    * Adds a translated "None" option to the beginning of a list
    * @param {Array} list - The list to add "None" to
@@ -108,6 +118,7 @@ export default function useAutomationValues() {
       statusFilterOptions: statusFilterOptions.value,
       priorityOptions: priorityOptions.value,
       messageTypeOptions: messageTypeOptions.value,
+      slaStatusOptions: slaStatusOptions.value,
       teams: teams.value,
       languages,
       countries,

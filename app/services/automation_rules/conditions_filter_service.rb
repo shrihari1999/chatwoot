@@ -150,6 +150,8 @@ class AutomationRules::ConditionsFilterService < FilterService
     case current_filter['attribute_type']
     when 'additional_attributes'
       " #{table_name}.additional_attributes ->> '#{attribute_key}' #{filter_operator_value} #{query_operator} "
+    when 'applied_sla'
+      " applied_slas.#{attribute_key} #{filter_operator_value} #{query_operator} "
     when 'standard'
       if attribute_key == 'labels'
         build_label_query_string(query_hash, current_index, query_operator)
@@ -200,11 +202,22 @@ class AutomationRules::ConditionsFilterService < FilterService
       )
     end
 
+    if applied_sla_conditions?
+      records = records.joins(
+        'LEFT OUTER JOIN applied_slas ON applied_slas.conversation_id = conversations.id'
+      )
+    end
+
     records = records.where(messages: { id: @options[:message].id }) if @options[:message].present?
     records
   end
 
   def label_conditions?
     @rule.conditions.any? { |condition| condition['attribute_key'] == 'labels' }
+  end
+
+  def applied_sla_conditions?
+    sla_keys = @conversation_filters.select { |_, cfg| cfg['attribute_type'] == 'applied_sla' }.keys
+    @rule.conditions.any? { |condition| sla_keys.include?(condition['attribute_key']) }
   end
 end
