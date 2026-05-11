@@ -1,40 +1,41 @@
 # frozen_string_literal: true
 
-# Handles Instagram `comments` webhook events — a user commented on one of
-# the business's posts. We surface each comment as an incoming message in
-# a per-contact conversation, alongside the contact's DMs. The agent can
-# reply via the existing DM path; replying as a public comment on the post
-# itself is a separate, currently-unimplemented endpoint
-# (`POST /<COMMENT_ID>/replies`).
+# Handles Instagram `comments` webhook events.  Mirrors how
+# Instagram::MessageText coordinates inbound DMs: resolve the inbox,
+# ensure the contact exists, then hand the actual message persistence to
+# Messages::Instagram::CommentMessageBuilder (which inherits the
+# conversation-finding, transaction, idempotency and error-handling
+# behaviour from Messages::Instagram::BaseMessageBuilder — same path
+# story replies and plain DMs go through).
 #
-# Webhook value shape:
+# Webhook value shape (`entry.changes[0].value`):
 #   { "id" => "<COMMENT_ID>",
 #     "from" => { "id" => "<COMMENTER_IGSID>", "username" => "<USERNAME>" },
 #     "media" => { "id" => "<MEDIA_ID>", "media_product_type" => "FEED" },
 #     "text" => "<COMMENT_TEXT>",
-#     "parent_id" => "<PARENT_COMMENT_ID>"  # optional, only when reply-to-comment
+#     "parent_id" => "<PARENT_COMMENT_ID>"  # optional, only when replying to a comment
 #   }
 class Instagram::CommentService < Instagram::WebhooksBaseService
   pattr_initialize [:value!, :channel!, :ig_account_id!]
 
   def perform
     return if commenter_id.blank? || comment_text.blank?
-    # Echo guard: Meta also delivers a `comments` webhook when the business
-    # itself posts a comment from the IG app. Skip — it's not an inbound
-    # event from the customer's side.
+    # Meta also delivers the `comments` webhook when the business itself
+    # posts/replies to a comment from the IG app; skip — not an inbound
+    # signal from the customer's side.
     return if commenter_id == ig_account_id
 
     inbox_channel(ig_account_id)
     return if @inbox.blank?
     return if @inbox.channel.reauthorization_required?
 
+    # No profile fetch — commenters often haven't DMed, so the
+    # user-profile endpoint errors 230 "User consent required".  The
+    # webhook gives us enough (id + username) to bootstrap a contact.
     find_or_create_contact(commenter_user_hash)
     return if @contact_inbox.blank?
 
-    return if message_already_exists?
-
-    conversation = find_or_build_conversation
-    conversation.messages.create!(message_params(conversation))
+    Messages::Instagram::CommentMessageBuilder.new(synthetic_messaging, @inbox).perform
   end
 
   private
@@ -63,11 +64,6 @@ class Instagram::CommentService < Instagram::WebhooksBaseService
     value.dig(:media, :id)
   end
 
-  # `find_or_create_contact` in WebhooksBaseService expects an `id`/`name`/
-  # `username` hash. The comments webhook only carries `from.id` and
-  # `from.username`; we don't fetch the IG profile here because comments
-  # arrive from people who may have never DMed and thus often error
-  # with "User consent is required" (code 230).
   def commenter_user_hash
     {
       'id' => commenter_id,
@@ -76,44 +72,17 @@ class Instagram::CommentService < Instagram::WebhooksBaseService
     }
   end
 
-  def find_or_build_conversation
-    scope = Conversation.where(account_id: @inbox.account_id, inbox_id: @inbox.id, contact_id: @contact.id)
-    if @inbox.lock_to_single_conversation
-      scope.order(created_at: :desc).first || build_conversation
-    else
-      scope.where.not(status: :resolved).order(created_at: :desc).first || build_conversation
-    end
-  end
-
-  def build_conversation
-    Conversation.create!(
-      account_id: @inbox.account_id,
-      inbox_id: @inbox.id,
-      contact_id: @contact.id,
-      contact_inbox_id: @contact_inbox.id,
-      additional_attributes: { type: 'instagram_post_comment' }
-    )
-  end
-
-  def message_params(conversation)
+  # Shape the comment payload so BaseMessageBuilder can consume it
+  # unchanged: it reads sender/recipient/message.mid/message.text and
+  # ignores the rest (echoes, attachments, story replies, etc).  We
+  # add a top-level :comment key carrying parent_id + media_id so the
+  # subclass can fold them into content_attributes without re-parsing.
+  def synthetic_messaging
     {
-      account_id: conversation.account_id,
-      inbox_id: conversation.inbox_id,
-      message_type: :incoming,
-      status: :sent,
-      source_id: comment_id,
-      content: comment_text,
-      sender: @contact,
-      content_attributes: {
-        source_type: 'instagram_comment',
-        comment_id: comment_id,
-        parent_comment_id: parent_comment_id,
-        post_id: media_id
-      }.compact
-    }
-  end
-
-  def message_already_exists?
-    Message.exists?(inbox_id: @inbox.id, source_id: comment_id)
+      sender: { id: commenter_id },
+      recipient: { id: ig_account_id },
+      message: { mid: comment_id, text: comment_text },
+      comment: { parent_id: parent_comment_id, media_id: media_id }
+    }.with_indifferent_access
   end
 end
