@@ -482,6 +482,15 @@ describe Webhooks::InstagramEventsJob do
       let!(:instagram_channel) { create(:channel_instagram, account: account, instagram_id: 'BUSINESS_IGSID') }
       let!(:instagram_inbox)   { instagram_channel.inbox }
 
+      before do
+        # CommentService does a best-effort permalink lookup; stub so the
+        # event-routing tests don't depend on real network.
+        stub_request(:get, %r{graph\.instagram\.com/v\d+\.\d+/POST_MEDIA_ID})
+          .with(query: hash_including('fields' => 'permalink'))
+          .to_return(status: 200, body: { permalink: 'https://www.instagram.com/p/CeVsUJlBsHN/' }.to_json,
+                     headers: { 'Content-Type' => 'application/json' })
+      end
+
       it 'routes field=comments to Instagram::CommentService' do
         comment_entry = [
           {

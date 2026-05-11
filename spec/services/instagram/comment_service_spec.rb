@@ -16,6 +16,18 @@ RSpec.describe Instagram::CommentService do
     }.with_indifferent_access
   end
 
+  before do
+    # Best-effort permalink fetch — stub by default; individual examples
+    # can override when asserting the link surfaces in content_attributes.
+    # Match any /<MEDIA_ID> permalink lookup on graph.instagram.com (the
+    # query string includes both fields=permalink and access_token, so we
+    # match loosely on the path + method).
+    stub_request(:get, %r{graph\.instagram\.com/v\d+\.\d+/17841443698384602})
+      .with(query: hash_including('fields' => 'permalink'))
+      .to_return(status: 200, body: { permalink: 'https://www.instagram.com/p/CeVsUJlBsHN/' }.to_json,
+                 headers: { 'Content-Type' => 'application/json' })
+  end
+
   describe '#perform' do
     it 'creates an incoming message with comment metadata when a new commenter comments' do
       described_class.new(value: value, channel: channel, ig_account_id: 'BUSINESS_IGSID').perform
@@ -33,9 +45,22 @@ RSpec.describe Instagram::CommentService do
       expect(message.content_attributes['source_type']).to eq 'instagram_comment'
       expect(message.content_attributes['comment_id']).to eq '18094947671518722'
       expect(message.content_attributes['post_id']).to eq '17841443698384602'
+      expect(message.content_attributes['post_permalink']).to eq 'https://www.instagram.com/p/CeVsUJlBsHN/'
       expect(message.content_attributes).not_to have_key('parent_comment_id')
 
       expect(conversation.additional_attributes['type']).to eq 'instagram_post_comment'
+    end
+
+    it 'still creates the message when the permalink Graph API call fails' do
+      stub_request(:get, %r{graph\.instagram\.com/v\d+\.\d+/17841443698384602})
+        .with(query: hash_including('fields' => 'permalink'))
+        .to_return(status: 500, body: '', headers: {})
+
+      described_class.new(value: value, channel: channel, ig_account_id: 'BUSINESS_IGSID').perform
+
+      message = inbox.messages.last
+      expect(message.content).to eq 'Test comment'
+      expect(message.content_attributes).not_to have_key('post_permalink')
     end
 
     it 'reuses the existing conversation when the commenter already has one (per-contact UX)' do

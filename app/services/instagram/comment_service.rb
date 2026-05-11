@@ -75,14 +75,33 @@ class Instagram::CommentService < Instagram::WebhooksBaseService
   # Shape the comment payload so BaseMessageBuilder can consume it
   # unchanged: it reads sender/recipient/message.mid/message.text and
   # ignores the rest (echoes, attachments, story replies, etc).  We
-  # add a top-level :comment key carrying parent_id + media_id so the
-  # subclass can fold them into content_attributes without re-parsing.
+  # add a top-level :comment key carrying parent_id, media_id and the
+  # post's public permalink so the subclass can fold them into
+  # content_attributes without re-parsing.
   def synthetic_messaging
     {
       sender: { id: commenter_id },
       recipient: { id: ig_account_id },
       message: { mid: comment_id, text: comment_text },
-      comment: { parent_id: parent_comment_id, media_id: media_id }
+      comment: { parent_id: parent_comment_id, media_id: media_id, permalink: fetch_post_permalink }
     }.with_indifferent_access
+  end
+
+  # Best-effort permalink fetch.  Comment webhook payload doesn't include
+  # it; the post's media id needs an additional Graph API lookup.  If the
+  # call fails (network, scope) we still create the message — agents
+  # just won't get a clickable link.
+  def fetch_post_permalink
+    return if media_id.blank?
+
+    api_version = GlobalConfigService.load('INSTAGRAM_API_VERSION', 'v22.0')
+    response = HTTParty.get(
+      "https://graph.instagram.com/#{api_version}/#{media_id}",
+      query: { fields: 'permalink', access_token: channel.access_token }
+    )
+    response.parsed_response.is_a?(Hash) ? response.parsed_response['permalink'] : nil
+  rescue StandardError => e
+    Rails.logger.warn("Instagram::CommentService permalink fetch failed for media #{media_id}: #{e.message}")
+    nil
   end
 end
