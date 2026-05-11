@@ -192,7 +192,14 @@
       "ASSIGNEE_NAME": "Assignee",
       "TEAM_NAME": "Team",
       "PRIORITY": "Priority",
-      "LABELS": "Labels"
+      "LABELS": "Labels",
+      "SLA_STATUS": "SLA Status"
+    },
+    "SLA_STATUS_VALUES": {
+      "ACTIVE": "Active",
+      "ACTIVE_WITH_MISSES": "Active with Misses",
+      "HIT": "Hit",
+      "MISSED": "Missed"
     }
   }
 }

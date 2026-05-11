@@ -158,6 +158,7 @@ export const getConditionOptions = ({
   type,
   priorityOptions,
   messageTypeOptions,
+  slaStatusOptions,
 }) => {
   if (isCustomAttributeCheckbox(customAttributes, type)) {
     return booleanFilterOptions;
@@ -181,6 +182,7 @@ export const getConditionOptions = ({
     private_note: booleanFilterOptions,
     priority: priorityOptions,
     labels: generateConditionOptions(labels, 'title'),
+    sla_status: slaStatusOptions,
   };
 
   return conditionFilterMaps[type];

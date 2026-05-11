@@ -107,4 +107,8 @@ module Filters::FilterHelper
   def message_type_values(values)
     values.map { |x| Message.message_types[x.to_sym] }
   end
+
+  def applied_sla_status_values(values)
+    values.map { |x| AppliedSla.sla_statuses[x.to_sym] }
+  end
 end

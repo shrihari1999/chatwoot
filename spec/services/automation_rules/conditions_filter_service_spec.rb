@@ -256,5 +256,48 @@ RSpec.describe AutomationRules::ConditionsFilterService do
         expect(described_class.new(rule, conversation, { changed_attributes: {} }).perform).to be(false)
       end
     end
+
+    context 'when conditions based on sla_status' do
+      let(:sla_policy) { create(:sla_policy, account: account) }
+
+      it 'returns true when applied_sla matches the requested status' do
+        AppliedSla.create!(account: account, conversation: conversation, sla_policy: sla_policy,
+                           sla_status: 'active_with_misses')
+        rule.update!(conditions: [{ 'values': ['active_with_misses'], 'attribute_key': 'sla_status',
+                                    'query_operator': nil, 'filter_operator': 'equal_to' }])
+
+        expect(described_class.new(rule, conversation, { changed_attributes: {} }).perform).to be(true)
+      end
+
+      it 'returns false when applied_sla is in a different status' do
+        AppliedSla.create!(account: account, conversation: conversation, sla_policy: sla_policy, sla_status: 'active')
+        rule.update!(conditions: [{ 'values': ['active_with_misses'], 'attribute_key': 'sla_status',
+                                    'query_operator': nil, 'filter_operator': 'equal_to' }])
+
+        expect(described_class.new(rule, conversation, { changed_attributes: {} }).perform).to be(false)
+      end
+
+      it 'returns false when conversation has no applied_sla' do
+        rule.update!(conditions: [{ 'values': ['active_with_misses'], 'attribute_key': 'sla_status',
+                                    'query_operator': nil, 'filter_operator': 'equal_to' }])
+
+        expect(described_class.new(rule, conversation, { changed_attributes: {} }).perform).to be(false)
+      end
+
+      it 'supports is_present when applied_sla exists' do
+        AppliedSla.create!(account: account, conversation: conversation, sla_policy: sla_policy, sla_status: 'active')
+        rule.update!(conditions: [{ 'values': [], 'attribute_key': 'sla_status',
+                                    'query_operator': nil, 'filter_operator': 'is_present' }])
+
+        expect(described_class.new(rule, conversation, { changed_attributes: {} }).perform).to be(true)
+      end
+
+      it 'supports is_not_present when applied_sla is absent' do
+        rule.update!(conditions: [{ 'values': [], 'attribute_key': 'sla_status',
+                                    'query_operator': nil, 'filter_operator': 'is_not_present' }])
+
+        expect(described_class.new(rule, conversation, { changed_attributes: {} }).perform).to be(true)
+      end
+    end
   end
 end
