@@ -473,5 +473,78 @@ describe Webhooks::InstagramEventsJob do
         expect(instagram_inbox.messages.last.content_attributes['is_unsupported']).to be_nil
       end
     end
+
+    context 'when routing `changes:` payloads (test events vs comments)' do
+      # Meta delivers BOTH dev-dashboard test events AND real post-comment
+      # webhooks under the same `changes:` payload shape. The job must
+      # distinguish them by the `field` value — only "messages" is the
+      # dev-dashboard test event; "comments" is a real post comment.
+      let!(:instagram_channel) { create(:channel_instagram, account: account, instagram_id: 'BUSINESS_IGSID') }
+      let!(:instagram_inbox)   { instagram_channel.inbox }
+
+      it 'routes field=comments to Instagram::CommentService' do
+        comment_entry = [
+          {
+            id: 'BUSINESS_IGSID',
+            time: 1_778_500_000,
+            changes: [
+              {
+                field: 'comments',
+                value: {
+                  id: '18094947671518722',
+                  from: { id: 'COMMENTER_IGSID', username: 'shrihari.12' },
+                  media: { id: 'POST_MEDIA_ID', media_product_type: 'FEED' },
+                  text: 'Test comment'
+                }
+              }
+            ]
+          }
+        ].as_json
+
+        instagram_webhook.perform_now(comment_entry)
+
+        msg = instagram_inbox.messages.last
+        expect(msg).to be_present
+        expect(msg.content).to eq 'Test comment'
+        expect(msg.content_attributes['source_type']).to eq 'instagram_comment'
+        expect(msg.content_attributes['comment_id']).to eq '18094947671518722'
+      end
+
+      it 'still routes field=messages to TestEventService (dev-dashboard test event)' do
+        test_event = [
+          {
+            id: '0',
+            time: 1_778_500_000,
+            changes: [
+              {
+                field: 'messages',
+                value: {
+                  sender: { id: '12334' },
+                  recipient: { id: '23245' },
+                  timestamp: '1527459824',
+                  message: { mid: 'random_mid', text: 'random_text' }
+                }
+              }
+            ]
+          }
+        ].as_json
+
+        expect(Instagram::TestEventService).to receive(:new).and_call_original
+        instagram_webhook.perform_now(test_event)
+      end
+
+      it 'ignores unknown changes.field values without erroring' do
+        unknown_entry = [
+          {
+            id: 'BUSINESS_IGSID',
+            time: 1_778_500_000,
+            changes: [{ field: 'mentions', value: { id: 'whatever' } }]
+          }
+        ].as_json
+
+        expect { instagram_webhook.perform_now(unknown_entry) }.not_to raise_error
+        expect(instagram_inbox.messages).to be_empty
+      end
+    end
   end
 end

@@ -48,7 +48,7 @@ class Channel::Instagram < ApplicationRecord
     response = HTTParty.post(
       "https://graph.instagram.com/#{api_version}/#{instagram_id}/subscribed_apps",
       query: {
-        subscribed_fields: %w[messages message_reactions messaging_seen message_edit],
+        subscribed_fields: %w[messages message_reactions messaging_seen message_edit comments],
         access_token: access_token
       }
     )
