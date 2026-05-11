@@ -24,8 +24,20 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   private
 
   def process_single_entry(entry)
-    if test_event?(entry)
-      process_test_event(entry)
+    # Meta delivers both real comment webhooks AND dev-dashboard "test"
+    # events under the same `changes:` payload shape. Distinguish by the
+    # `field` value — only "messages" is the dev-dashboard test event.
+    # See `.claude/80-meta-webhooks.md`.
+    if entry[:changes].present?
+      change_field = entry[:changes].first&.dig(:field)
+      case change_field
+      when 'comments'
+        process_comment_event(entry)
+      when 'messages'
+        process_test_event(entry)
+      else
+        Rails.logger.info("Instagram Events Job: ignoring unknown changes.field=#{change_field.inspect}")
+      end
       return
     end
 
@@ -51,10 +63,6 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
     messaging[:message].present? && messaging[:message][:is_echo].present?
   end
 
-  def test_event?(entry)
-    entry[:changes].present?
-  end
-
   def process_test_event(entry)
     messaging = extract_messaging_from_test_event(entry)
 
@@ -63,6 +71,17 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
 
   def extract_messaging_from_test_event(entry)
     entry[:changes].first&.dig(:value) if entry[:changes].present?
+  end
+
+  def process_comment_event(entry)
+    value = entry[:changes].first&.dig(:value)
+    return if value.blank?
+
+    ig_account_id = entry[:id]
+    channel = find_channel(ig_account_id)
+    return if channel.blank?
+
+    ::Instagram::CommentService.new(value: value, channel: channel, ig_account_id: ig_account_id).perform
   end
 
   def instagram_id(messaging, entry_id = ig_account_id)
