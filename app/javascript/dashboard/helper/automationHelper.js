@@ -94,6 +94,30 @@ export const generateConditionOptions = (options, key = 'id') => {
   });
 };
 
+export const SUPPORTED_CUSTOM_ATTRIBUTE_ACTION_TYPES = [
+  'text',
+  'link',
+  'list',
+  'checkbox',
+];
+
+export const getConversationCustomAttributeActionOptions = (
+  conversationCustomAttributes = []
+) => {
+  return conversationCustomAttributes
+    .filter(attr =>
+      SUPPORTED_CUSTOM_ATTRIBUTE_ACTION_TYPES.includes(
+        attr.attributeDisplayType
+      )
+    )
+    .map(attr => ({
+      id: attr.attributeKey,
+      name: attr.attributeDisplayName || attr.attributeKey,
+      type: attr.attributeDisplayType,
+      values: attr.attributeValues || [],
+    }));
+};
+
 export const getActionOptions = ({
   agents,
   teams,
@@ -102,6 +126,7 @@ export const getActionOptions = ({
   type,
   addNoneToListFn,
   priorityOptions,
+  conversationCustomAttributes,
 }) => {
   const actionsMap = {
     assign_agent: addNoneToListFn ? addNoneToListFn(agents) : agents,
@@ -111,6 +136,9 @@ export const getActionOptions = ({
     remove_label: generateConditionOptions(labels, 'title'),
     change_priority: priorityOptions,
     add_sla: slaPolicies,
+    change_custom_attribute: getConversationCustomAttributeActionOptions(
+      conversationCustomAttributes
+    ),
   };
   return actionsMap[type];
 };

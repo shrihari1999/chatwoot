@@ -217,5 +217,73 @@ RSpec.describe AutomationRules::ActionService do
         expect(conversation.reload.assignee).to eq(agent)
       end
     end
+
+    describe '#perform with change_custom_attribute action' do
+      let!(:status_attr) do
+        create(:custom_attribute_definition, account: account, attribute_model: :conversation_attribute,
+                                             attribute_key: 'order_status', attribute_display_type: 'list',
+                                             attribute_values: %w[pending shipped delivered])
+      end
+      let!(:vip_attr) do
+        create(:custom_attribute_definition, account: account, attribute_model: :conversation_attribute,
+                                             attribute_key: 'is_vip', attribute_display_type: 'checkbox')
+      end
+
+      before do
+        rule.actions = [
+          { action_name: 'change_custom_attribute',
+            action_params: [{ attribute_key: 'order_status', value: 'shipped' }] }
+        ]
+        rule.save!
+      end
+
+      it 'sets a list custom attribute on the conversation' do
+        described_class.new(rule, account, conversation).perform
+
+        expect(conversation.reload.custom_attributes['order_status']).to eq('shipped')
+      end
+
+      it 'overwrites an existing custom attribute value' do
+        conversation.update!(custom_attributes: { 'order_status' => 'pending', 'unrelated' => 'keep' })
+
+        described_class.new(rule, account, conversation).perform
+
+        expect(conversation.reload.custom_attributes).to include('order_status' => 'shipped', 'unrelated' => 'keep')
+      end
+
+      it 'sets a boolean custom attribute' do
+        rule.update!(actions: [
+                       { action_name: 'change_custom_attribute',
+                         action_params: [{ attribute_key: 'is_vip', value: true }] }
+                     ])
+
+        described_class.new(rule, account, conversation).perform
+
+        expect(conversation.reload.custom_attributes['is_vip']).to be true
+      end
+
+      it 'silently skips unknown attribute keys' do
+        rule.update!(actions: [
+                       { action_name: 'change_custom_attribute',
+                         action_params: [{ attribute_key: 'not_a_real_key', value: 'x' }] }
+                     ])
+
+        expect { described_class.new(rule, account, conversation).perform }.not_to raise_error
+        expect(conversation.reload.custom_attributes).not_to have_key('not_a_real_key')
+      end
+
+      it 'silently skips contact-scoped custom attribute keys' do
+        create(:custom_attribute_definition, account: account, attribute_model: :contact_attribute,
+                                             attribute_key: 'contact_only')
+        rule.update!(actions: [
+                       { action_name: 'change_custom_attribute',
+                         action_params: [{ attribute_key: 'contact_only', value: 'x' }] }
+                     ])
+
+        described_class.new(rule, account, conversation).perform
+
+        expect(conversation.reload.custom_attributes).not_to have_key('contact_only')
+      end
+    end
   end
 end

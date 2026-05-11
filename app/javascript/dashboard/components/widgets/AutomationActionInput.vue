@@ -1,6 +1,7 @@
 <script>
 import AutomationActionTeamMessageInput from './AutomationActionTeamMessageInput.vue';
 import AutomationActionFileInput from './AutomationFileInput.vue';
+import AutomationCustomAttributeInput from './AutomationCustomAttributeInput.vue';
 import WootMessageEditor from 'dashboard/components/widgets/WootWriter/Editor.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import SingleSelect from 'dashboard/components-next/filter/inputs/SingleSelect.vue';
@@ -11,6 +12,7 @@ export default {
   components: {
     AutomationActionTeamMessageInput,
     AutomationActionFileInput,
+    AutomationCustomAttributeInput,
     WootMessageEditor,
     NextButton,
     SingleSelect,
@@ -168,6 +170,12 @@ export default {
             v-else-if="inputType === 'attachment'"
             v-model="action_params"
             :initial-file-name="initialFileName"
+          />
+          <AutomationCustomAttributeInput
+            v-else-if="inputType === 'custom_attribute_select'"
+            v-model="action_params"
+            :attributes="dropdownValues"
+            :dropdown-max-height="dropdownMaxHeight"
           />
         </template>
         <NextButton

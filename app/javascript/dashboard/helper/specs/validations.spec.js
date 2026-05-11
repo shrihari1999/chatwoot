@@ -83,4 +83,81 @@ describe('validateAutomation', () => {
     const errors = validateAutomation(automationWithNoParamAction);
     expect(errors).toEqual({});
   });
+
+  describe('change_custom_attribute action validation', () => {
+    const baseAutomation = {
+      name: 'Test',
+      description: 'Test',
+      event_name: 'conversation_created',
+      conditions: [
+        {
+          attribute_key: 'status',
+          filter_operator: 'equal_to',
+          values: 'open',
+        },
+      ],
+    };
+
+    it('passes when attribute_key and value are set (object form)', () => {
+      const automation = {
+        ...baseAutomation,
+        actions: [
+          {
+            action_name: 'change_custom_attribute',
+            action_params: { attribute_key: 'order_status', value: 'shipped' },
+          },
+        ],
+      };
+      expect(validateAutomation(automation)).toEqual({});
+    });
+
+    it('passes when params are wrapped in an array (saved form)', () => {
+      const automation = {
+        ...baseAutomation,
+        actions: [
+          {
+            action_name: 'change_custom_attribute',
+            action_params: [{ attribute_key: 'is_vip', value: true }],
+          },
+        ],
+      };
+      expect(validateAutomation(automation)).toEqual({});
+    });
+
+    it('fails when attribute_key is missing', () => {
+      const automation = {
+        ...baseAutomation,
+        actions: [
+          {
+            action_name: 'change_custom_attribute',
+            action_params: { attribute_key: null, value: 'shipped' },
+          },
+        ],
+      };
+      expect(validateAutomation(automation)).toHaveProperty('action_0');
+    });
+
+    it('fails when value is empty', () => {
+      const automation = {
+        ...baseAutomation,
+        actions: [
+          {
+            action_name: 'change_custom_attribute',
+            action_params: { attribute_key: 'order_status', value: '' },
+          },
+        ],
+      };
+      expect(validateAutomation(automation)).toHaveProperty('action_0');
+    });
+
+    it('fails when action_params is an empty array', () => {
+      const automation = {
+        ...baseAutomation,
+        actions: [
+          { action_name: 'change_custom_attribute', action_params: [] },
+        ],
+      };
+      expect(validateAutomation(automation)).toHaveProperty('action_0');
+    });
+  });
 });

@@ -146,6 +146,10 @@ export const AUTOMATIONS = {
         key: 'send_attachment',
         name: 'SEND_ATTACHMENT',
       },
+      {
+        key: 'change_custom_attribute',
+        name: 'CHANGE_CUSTOM_ATTRIBUTE',
+      },
     ],
   },
   conversation_created: {
@@ -279,6 +283,10 @@ export const AUTOMATIONS = {
       {
         key: 'send_attachment',
         name: 'SEND_ATTACHMENT',
+      },
+      {
+        key: 'change_custom_attribute',
+        name: 'CHANGE_CUSTOM_ATTRIBUTE',
       },
     ],
   },
@@ -420,6 +428,10 @@ export const AUTOMATIONS = {
         key: 'send_attachment',
         name: 'SEND_ATTACHMENT',
       },
+      {
+        key: 'change_custom_attribute',
+        name: 'CHANGE_CUSTOM_ATTRIBUTE',
+      },
     ],
   },
   conversation_opened: {
@@ -550,6 +562,10 @@ export const AUTOMATIONS = {
         key: 'send_attachment',
         name: 'SEND_ATTACHMENT',
       },
+      {
+        key: 'change_custom_attribute',
+        name: 'CHANGE_CUSTOM_ATTRIBUTE',
+      },
     ],
   },
   conversation_resolved: {
@@ -657,6 +673,10 @@ export const AUTOMATIONS = {
       {
         key: 'send_attachment',
         name: 'SEND_ATTACHMENT',
+      },
+      {
+        key: 'change_custom_attribute',
+        name: 'CHANGE_CUSTOM_ATTRIBUTE',
       },
     ],
   },
@@ -780,5 +800,10 @@ export const AUTOMATION_ACTION_TYPES = [
     key: 'add_sla',
     label: 'ADD_SLA',
     inputType: 'search_select',
+  },
+  {
+    key: 'change_custom_attribute',
+    label: 'CHANGE_CUSTOM_ATTRIBUTE',
+    inputType: 'custom_attribute_select',
   },
 ];

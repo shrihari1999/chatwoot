@@ -141,6 +141,8 @@ export default function useAutomationValues() {
       type,
       addNoneToListFn: addNoneToList,
       priorityOptions: priorityOptions.value,
+      conversationCustomAttributes:
+        getters['attributes/getConversationAttributes'].value,
     });
   };
 
