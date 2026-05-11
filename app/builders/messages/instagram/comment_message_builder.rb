@@ -37,7 +37,8 @@ class Messages::Instagram::CommentMessageBuilder < Messages::Instagram::BaseMess
         source_type: 'instagram_comment',
         comment_id: @messaging[:message][:mid],
         parent_comment_id: @messaging.dig(:comment, :parent_id),
-        post_id: @messaging.dig(:comment, :media_id)
+        post_id: @messaging.dig(:comment, :media_id),
+        post_permalink: @messaging.dig(:comment, :permalink)
       }.compact
     )
     params

@@ -32,6 +32,7 @@ import AudioBubble from './bubbles/Audio.vue';
 import VideoBubble from './bubbles/Video.vue';
 import EmbedBubble from './bubbles/Embed.vue';
 import InstagramStoryBubble from './bubbles/InstagramStory.vue';
+import InstagramCommentBubble from './bubbles/InstagramComment.vue';
 import EmailBubble from './bubbles/Email/Index.vue';
 import UnsupportedBubble from './bubbles/Unsupported.vue';
 import ContactBubble from './bubbles/Contact.vue';
@@ -323,6 +324,14 @@ const componentToRender = computed(() => {
   ];
   if (instagramSharedTypes.includes(props.contentAttributes.imageType)) {
     return InstagramStoryBubble;
+  }
+
+  // Post-comment inbound messages carry source_type:"instagram_comment"
+  // in content_attributes (set by Messages::Instagram::CommentMessageBuilder).
+  // Route to a distinct bubble so agents can tell comments apart from DMs
+  // at a glance — same intent as the story-reply routing above.
+  if (props.contentAttributes.sourceType === 'instagram_comment') {
+    return InstagramCommentBubble;
   }
 
   if (Array.isArray(props.attachments) && props.attachments.length === 1) {
