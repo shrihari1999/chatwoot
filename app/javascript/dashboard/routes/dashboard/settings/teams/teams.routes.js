@@ -30,7 +30,7 @@ export default {
           component: TeamsIndex,
           meta: {
             featureFlag: FEATURE_FLAGS.TEAM_MANAGEMENT,
-            permissions: ['administrator'],
+            permissions: ['administrator', 'settings_manage'],
           },
         },
       ],

@@ -19,3 +19,5 @@ class UserPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 end
+
+UserPolicy.prepend_mod_with('UserPolicy')

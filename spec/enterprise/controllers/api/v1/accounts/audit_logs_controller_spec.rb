@@ -25,6 +25,25 @@ RSpec.describe 'Enterprise Audit API', type: :request do
       end
     end
 
+    context 'when it is an agent with settings_manage custom role' do
+      let(:custom_role) { create(:custom_role, account: account, permissions: ['settings_manage']) }
+      let(:settings_agent) { create(:user) }
+
+      before do
+        create(:account_user, user: settings_agent, account: account, role: :agent, custom_role: custom_role)
+        account.enable_features(:audit_logs)
+        account.save!
+      end
+
+      it 'fetches audit logs associated with the account' do
+        get "/api/v1/accounts/#{account.id}/audit_logs",
+            headers: settings_agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+      end
+    end
+
     # check for response in parse
     context 'when it is an authenticated admin user' do
       it 'returns empty array if feature is not enabled' do
