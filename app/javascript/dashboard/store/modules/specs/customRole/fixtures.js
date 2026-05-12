@@ -10,6 +10,7 @@ export const customRoleList = [
       'contact_manage',
       'report_manage',
       'knowledge_base_manage',
+      'settings_manage',
     ],
     created_at: '2024-09-04T05:30:22.282Z',
     updated_at: '2024-09-05T09:21:02.844Z',
@@ -73,5 +74,13 @@ export const customRoleList = [
     permissions: ['conversation_manage'],
     created_at: '2024-09-06T09:55:19.519Z',
     updated_at: '2024-09-06T09:55:19.519Z',
+  },
+  {
+    id: 9,
+    name: 'Settings Manager Role',
+    description: 'Role for managing settings — agents, teams, labels, etc.',
+    permissions: ['settings_manage'],
+    created_at: '2026-05-12T00:00:00.000Z',
+    updated_at: '2026-05-12T00:00:00.000Z',
   },
 ];

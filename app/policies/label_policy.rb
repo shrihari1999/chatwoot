@@ -19,3 +19,5 @@ class LabelPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 end
+
+LabelPolicy.prepend_mod_with('LabelPolicy')

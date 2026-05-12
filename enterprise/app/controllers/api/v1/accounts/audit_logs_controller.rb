@@ -1,5 +1,5 @@
 class Api::V1::Accounts::AuditLogsController < Api::V1::Accounts::EnterpriseAccountsController
-  before_action :check_admin_authorization?
+  before_action :check_admin_or_settings_manager_authorization
   before_action :fetch_audit
 
   RESULTS_PER_PAGE = 15
@@ -12,6 +12,13 @@ class Api::V1::Accounts::AuditLogsController < Api::V1::Accounts::EnterpriseAcco
   end
 
   private
+
+  def check_admin_or_settings_manager_authorization
+    return if Current.account_user.administrator?
+    return if Current.account_user.custom_role&.permissions&.include?('settings_manage')
+
+    raise Pundit::NotAuthorizedError
+  end
 
   def fetch_audit
     @audit_logs = if audit_logs_enabled?

@@ -7,7 +7,7 @@ import Index from './Index.vue';
 
 const meta = {
   featureFlag: FEATURE_FLAGS.SLA,
-  permissions: ['administrator'],
+  permissions: ['administrator', 'settings_manage'],
   installationTypes: [INSTALLATION_TYPES.CLOUD, INSTALLATION_TYPES.ENTERPRISE],
 };
 

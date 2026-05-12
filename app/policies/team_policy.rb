@@ -19,3 +19,5 @@ class TeamPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 end
+
+TeamPolicy.prepend_mod_with('TeamPolicy')
