@@ -5,6 +5,7 @@ import { required, minLength } from '@vuelidate/validators';
 import { useStore, useMapGetter } from 'dashboard/composables/store';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Auth from '../../../../api/auth';
 import wootConstants from 'dashboard/constants/globals';
@@ -70,14 +71,19 @@ const pageTitle = computed(
 
 const uiFlags = useMapGetter('agents/getUIFlags');
 const getCustomRoles = useMapGetter('customRole/getCustomRoles');
+const { isAdmin } = useAdmin();
 
 const roles = computed(() => {
   const defaultRoles = [
-    {
-      id: 'administrator',
-      name: 'administrator',
-      label: t('AGENT_MGMT.AGENT_TYPES.ADMINISTRATOR'),
-    },
+    ...(isAdmin.value
+      ? [
+          {
+            id: 'administrator',
+            name: 'administrator',
+            label: t('AGENT_MGMT.AGENT_TYPES.ADMINISTRATOR'),
+          },
+        ]
+      : []),
     {
       id: 'agent',
       name: 'agent',

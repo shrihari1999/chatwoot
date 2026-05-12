@@ -9,6 +9,7 @@ import {
   useStore,
   useMapGetter,
 } from 'dashboard/composables/store';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 
 import AddAgent from './AddAgent.vue';
 import EditAgent from './EditAgent.vue';
@@ -19,6 +20,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 const getters = useStoreGetters();
 const store = useStore();
 const { t } = useI18n();
+const { isAdmin } = useAdmin();
 
 const loading = ref({});
 const showAddPopup = ref(false);
@@ -81,11 +83,17 @@ const verifiedAdministrators = computed(() => {
 });
 
 const showEditAction = agent => {
-  return currentUserId.value !== agent.id;
+  if (currentUserId.value === agent.id) return false;
+  if (!isAdmin.value && agent.role === 'administrator') return false;
+  return true;
 };
 
 const showDeleteAction = agent => {
   if (currentUserId.value === agent.id) {
+    return false;
+  }
+
+  if (!isAdmin.value && agent.role === 'administrator') {
     return false;
   }
 
