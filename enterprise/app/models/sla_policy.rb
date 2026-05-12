@@ -34,3 +34,5 @@ class SlaPolicy < ApplicationRecord
     }
   end
 end
+
+SlaPolicy.include_mod_with('Audit::SlaPolicy')
