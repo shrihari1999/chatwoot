@@ -31,30 +31,15 @@ export const OPEN_CONVERSATION_ACTIONS = [
   },
 ];
 
-export const createSnoozeHandlers = (busEventName, parentId, section) => {
-  return Object.values(SNOOZE_OPTIONS).map(option => ({
-    id: option,
-    title: `COMMAND_BAR.COMMANDS.${option.toUpperCase()}`,
-    parent: parentId,
-    section: section,
-    icon: ICON_SNOOZE_CONVERSATION,
-    handler: () => emitter.emit(busEventName, option),
-  }));
-};
-
 export const SNOOZE_CONVERSATION_ACTIONS = [
   {
     id: 'snooze_conversation',
     title: 'COMMAND_BAR.COMMANDS.SNOOZE_CONVERSATION',
     section: 'COMMAND_BAR.SECTIONS.CONVERSATION',
     icon: ICON_SNOOZE_CONVERSATION,
-    children: Object.values(SNOOZE_OPTIONS),
+    handler: () =>
+      emitter.emit(CMD_SNOOZE_CONVERSATION, SNOOZE_OPTIONS.UNTIL_NEXT_REPLY),
   },
-  ...createSnoozeHandlers(
-    CMD_SNOOZE_CONVERSATION,
-    'snooze_conversation',
-    'COMMAND_BAR.SECTIONS.SNOOZE_CONVERSATION'
-  ),
 ];
 
 export const RESOLVED_CONVERSATION_ACTIONS = [

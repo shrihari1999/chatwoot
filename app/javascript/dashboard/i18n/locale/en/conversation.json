@@ -94,10 +94,10 @@
       "OPEN": "More",
       "CLOSE": "Close",
       "DETAILS": "details",
-      "SNOOZED_UNTIL": "Snoozed until",
-      "SNOOZED_UNTIL_TOMORROW": "Snoozed until tomorrow",
-      "SNOOZED_UNTIL_NEXT_WEEK": "Snoozed until next week",
-      "SNOOZED_UNTIL_NEXT_REPLY": "Snoozed until next reply",
+      "SNOOZED_UNTIL": "Waiting on customer until",
+      "SNOOZED_UNTIL_TOMORROW": "Waiting on customer until tomorrow",
+      "SNOOZED_UNTIL_NEXT_WEEK": "Waiting on customer until next week",
+      "SNOOZED_UNTIL_NEXT_REPLY": "Waiting on customer reply",
       "SLA_STATUS": {
         "FRT": "FRT {status}",
         "NRT": "NRT {status}",
@@ -108,9 +108,9 @@
     },
     "RESOLVE_DROPDOWN": {
       "MARK_PENDING": "Mark as pending",
-      "SNOOZE_UNTIL": "Snooze",
+      "SNOOZE_UNTIL": "Waiting on customer",
       "SNOOZE": {
-        "TITLE": "Snooze until",
+        "TITLE": "Waiting on customer",
         "NEXT_REPLY": "Next reply",
         "TOMORROW": "Tomorrow",
         "NEXT_WEEK": "Next week"
@@ -121,8 +121,8 @@
       "TEAMS": "Teams"
     },
     "CUSTOM_SNOOZE": {
-      "TITLE": "Snooze until",
-      "APPLY": "Snooze",
+      "TITLE": "Waiting on customer",
+      "APPLY": "Apply",
       "CANCEL": "Cancel"
     },
     "PRIORITY": {
@@ -154,7 +154,7 @@
       "MARK_AS_READ": "Mark as read",
       "REOPEN": "Reopen conversation",
       "SNOOZE": {
-        "TITLE": "Snooze",
+        "TITLE": "Waiting on customer",
         "NEXT_REPLY": "Until next reply",
         "TOMORROW": "Until tomorrow",
         "NEXT_WEEK": "Until next week"

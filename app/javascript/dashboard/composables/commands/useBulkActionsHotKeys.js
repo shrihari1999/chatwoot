@@ -15,8 +15,6 @@ import {
 } from 'dashboard/helper/commandbar/icons';
 import { emitter } from 'shared/helpers/mitt';
 
-import { createSnoozeHandlers } from 'dashboard/helper/commandbar/actions';
-
 const SNOOZE_OPTIONS = wootConstants.SNOOZE_OPTIONS;
 
 const createEmitHandler = event => () => emitter.emit(event);
@@ -27,13 +25,12 @@ const SNOOZE_CONVERSATION_BULK_ACTIONS = [
     title: 'COMMAND_BAR.COMMANDS.SNOOZE_CONVERSATION',
     section: 'COMMAND_BAR.SECTIONS.BULK_ACTIONS',
     icon: ICON_SNOOZE_CONVERSATION,
-    children: Object.values(SNOOZE_OPTIONS),
+    handler: () =>
+      emitter.emit(
+        CMD_BULK_ACTION_SNOOZE_CONVERSATION,
+        SNOOZE_OPTIONS.UNTIL_NEXT_REPLY
+      ),
   },
-  ...createSnoozeHandlers(
-    CMD_BULK_ACTION_SNOOZE_CONVERSATION,
-    'bulk_action_snooze_conversation',
-    'COMMAND_BAR.SECTIONS.BULK_ACTIONS'
-  ),
 ];
 
 const RESOLVED_CONVERSATION_BULK_ACTIONS = [

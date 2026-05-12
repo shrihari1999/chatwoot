@@ -402,7 +402,6 @@ const assignPriority = priority => {
         :status="chat.status"
         :inbox-id="inbox.id"
         :priority="chat.priority"
-        :chat-id="chat.id"
         :has-unread-messages="hasUnread"
         :conversation-labels="chat.labels"
         :conversation-url="conversationPath"

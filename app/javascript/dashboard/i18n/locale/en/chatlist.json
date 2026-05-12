@@ -30,7 +30,7 @@
         "TEXT": "Pending"
       },
       "snoozed": {
-        "TEXT": "Snoozed"
+        "TEXT": "Waiting on customer"
       },
       "all": {
         "TEXT": "All"
