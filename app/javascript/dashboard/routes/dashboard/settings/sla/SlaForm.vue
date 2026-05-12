@@ -135,7 +135,12 @@ export default {
     },
     convertToSeconds(index) {
       const { threshold, unit } = this.slaTimeInputs[index];
-      if (threshold === null || threshold === 0) return null;
+      // `convertSecondsToTimeUnit` returns '' for a null/zero stored value, so
+      // an unchanged empty field arrives here as '' (not null). Treat empty,
+      // null, and zero as "not configured" so the payload sends `null`.
+      if (threshold === null || threshold === '' || Number(threshold) === 0) {
+        return null;
+      }
       const unitsToSeconds = { Minutes: 60, Hours: 3600, Days: 86400 };
       return Number(threshold * (unitsToSeconds[unit] || 1));
     },
