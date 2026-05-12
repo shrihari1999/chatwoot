@@ -55,7 +55,7 @@ describe('useBulkActionsHotKeys', () => {
     );
   });
 
-  it('should include snooze options in bulk actions', () => {
+  it('bulk snooze action snoozes until next reply directly without a submenu', () => {
     store.getters['bulkActions/getSelectedConversationIds'] = [1, 2, 3];
     const { bulkActionsHotKeys } = useBulkActionsHotKeys();
 
@@ -63,8 +63,13 @@ describe('useBulkActionsHotKeys', () => {
       action => action.id === 'bulk_action_snooze_conversation'
     );
     expect(snoozeAction).toBeDefined();
-    expect(snoozeAction.children).toEqual(
-      Object.values(wootConstants.SNOOZE_OPTIONS)
+    expect(snoozeAction.children).toBeUndefined();
+    expect(snoozeAction.handler).toBeDefined();
+
+    snoozeAction.handler();
+    expect(emitter.emit).toHaveBeenCalledWith(
+      'CMD_BULK_ACTION_SNOOZE_CONVERSATION',
+      wootConstants.SNOOZE_OPTIONS.UNTIL_NEXT_REPLY
     );
   });
 

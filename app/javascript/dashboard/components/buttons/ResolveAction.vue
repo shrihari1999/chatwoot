@@ -76,11 +76,6 @@ const getConversationParams = () => {
   };
 };
 
-const openSnoozeModal = () => {
-  const ninja = document.querySelector('ninja-keys');
-  ninja.open({ parent: 'snooze_conversation' });
-};
-
 const toggleStatus = (status, snoozedUntil, customAttributes = null) => {
   closeDropdown();
   isLoading.value = true;
@@ -99,6 +94,10 @@ const toggleStatus = (status, snoozedUntil, customAttributes = null) => {
     useAlert(t('CONVERSATION.CHANGE_STATUS'));
     isLoading.value = false;
   });
+};
+
+const markAsWaitingOnCustomer = () => {
+  toggleStatus(wootConstants.STATUS_TYPE.SNOOZED, null);
 };
 
 const handleResolveWithAttributes = ({ attributes, context }) => {
@@ -233,7 +232,7 @@ useEmitter(CMD_RESOLVE_CONVERSATION, onCmdResolveConversation);
             start
             icon="i-lucide-alarm-clock-minus"
             class="w-full"
-            @click="() => openSnoozeModal()"
+            @click="() => markAsWaitingOnCustomer()"
           />
         </WootDropdownItem>
         <WootDropdownItem v-if="!isPending">

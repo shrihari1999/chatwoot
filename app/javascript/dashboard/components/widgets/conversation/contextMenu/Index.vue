@@ -31,10 +31,6 @@ export default {
     AgentLoadingPlaceholder,
   },
   props: {
-    chatId: {
-      type: Number,
-      default: null,
-    },
     status: {
       type: String,
       default: '',
@@ -220,10 +216,8 @@ export default {
     toggleStatus(status, snoozedUntil) {
       this.$emit('updateConversation', status, snoozedUntil);
     },
-    async snoozeConversation() {
-      await this.$store.dispatch('setContextMenuChatId', this.chatId);
-      const ninja = document.querySelector('ninja-keys');
-      ninja.open({ parent: 'snooze_conversation' });
+    snoozeConversation() {
+      this.$emit('updateConversation', wootConstants.STATUS_TYPE.SNOOZED, null);
     },
     assignPriority(priority) {
       this.$emit('assignPriority', priority);

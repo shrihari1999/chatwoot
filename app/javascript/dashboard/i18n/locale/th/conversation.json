@@ -92,10 +92,10 @@
       "OPEN": "เพิ่มเติม",
       "CLOSE": "ปิด",
       "DETAILS": "รายละเอียด",
-      "SNOOZED_UNTIL": "Snoozed until",
-      "SNOOZED_UNTIL_TOMORROW": "พักการสนทนาจนถึงพรุ่งนี้",
-      "SNOOZED_UNTIL_NEXT_WEEK": "พักการสนทนาจนถึงสัปดาห์หน้า",
-      "SNOOZED_UNTIL_NEXT_REPLY": "พักการสนทนาจนกว่าจะมีการตอบกลับถัดไป",
+      "SNOOZED_UNTIL": "รอลูกค้าตอบจนถึง",
+      "SNOOZED_UNTIL_TOMORROW": "รอลูกค้าตอบจนถึงพรุ่งนี้",
+      "SNOOZED_UNTIL_NEXT_WEEK": "รอลูกค้าตอบจนถึงสัปดาห์หน้า",
+      "SNOOZED_UNTIL_NEXT_REPLY": "รอลูกค้าตอบ",
       "SLA_STATUS": {
         "FRT": "FRT {status}",
         "NRT": "NRT {status}",
@@ -106,9 +106,9 @@
     },
     "RESOLVE_DROPDOWN": {
       "MARK_PENDING": "ทำเครื่องหมายว่าอยู่ระหว่างดำเนินการ",
-      "SNOOZE_UNTIL": "Snooze",
+      "SNOOZE_UNTIL": "รอลูกค้าตอบ",
       "SNOOZE": {
-        "TITLE": "พักการสนทนาจนถึง",
+        "TITLE": "รอลูกค้าตอบ",
         "NEXT_REPLY": "การตอบกลับถัดไป",
         "TOMORROW": "พรุ่งนี้",
         "NEXT_WEEK": "สัปดาห์หน้า"
@@ -119,8 +119,8 @@
       "TEAMS": "ทีม"
     },
     "CUSTOM_SNOOZE": {
-      "TITLE": "พักการสนทนาจนถึง",
-      "APPLY": "Snooze",
+      "TITLE": "รอลูกค้าตอบ",
+      "APPLY": "นำไปใช้",
       "CANCEL": "ยกเลิก"
     },
     "PRIORITY": {
@@ -152,7 +152,7 @@
       "MARK_AS_READ": "Mark as read",
       "REOPEN": "เปิดการสนทนาอีกครั้ง",
       "SNOOZE": {
-        "TITLE": "Snooze",
+        "TITLE": "รอลูกค้าตอบ",
         "NEXT_REPLY": "จนกว่าการตอบกลับถัดไป",
         "TOMORROW": "จนกว่าพรุ่งนี้",
         "NEXT_WEEK": "จนกว่าสัปดาห์หน้า"

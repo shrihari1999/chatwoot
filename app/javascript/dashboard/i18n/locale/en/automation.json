@@ -153,7 +153,7 @@
       "SEND_EMAIL_TO_TEAM": "Send an Email to Team",
       "SEND_EMAIL_TRANSCRIPT": "Send an Email Transcript",
       "MUTE_CONVERSATION": "Mute Conversation",
-      "SNOOZE_CONVERSATION": "Snooze Conversation",
+      "SNOOZE_CONVERSATION": "Mark as Waiting on Customer",
       "RESOLVE_CONVERSATION": "Resolve Conversation",
       "SEND_WEBHOOK_EVENT": "Send Webhook Event",
       "SEND_ATTACHMENT": "Send Attachment",
