@@ -1,6 +1,6 @@
 class CustomRolePolicy < ApplicationPolicy
   def index?
-    @account_user.administrator?
+    @account_user.administrator? || settings_manager?
   end
 
   def update?
@@ -8,7 +8,7 @@ class CustomRolePolicy < ApplicationPolicy
   end
 
   def show?
-    @account_user.administrator?
+    @account_user.administrator? || settings_manager?
   end
 
   def create?
@@ -17,5 +17,11 @@ class CustomRolePolicy < ApplicationPolicy
 
   def destroy?
     @account_user.administrator?
+  end
+
+  private
+
+  def settings_manager?
+    @account_user.custom_role&.permissions&.include?('settings_manage')
   end
 end
