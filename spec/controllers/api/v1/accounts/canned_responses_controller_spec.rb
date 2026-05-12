@@ -39,8 +39,9 @@ RSpec.describe 'Canned Responses API', type: :request do
         expect(response.parsed_body).to eq(expected_payload(account.canned_responses))
       end
 
-      it 'returns all the canned responses the user searched for' do
-        cr1 = account.canned_responses.first
+      it 'returns canned responses whose short_code matches the search term' do
+        # `cr1` from the outer `before` block has "Thanks" in content but not in
+        # short_code — it must be excluded now that search is short_code-only.
         create(:canned_response, account: account, content: 'Great! Looking forward', short_code: 'short-code')
         cr2 = create(:canned_response, account: account, content: 'Thanks for reaching out', short_code: 'content-with-thanks')
         cr3 = create(:canned_response, account: account, content: 'Thanks for reaching out', short_code: 'Thanks')
@@ -53,7 +54,7 @@ RSpec.describe 'Canned Responses API', type: :request do
             as: :json
 
         expect(response).to have_http_status(:success)
-        expect(response.parsed_body).to eq(expected_payload([cr3, cr2, cr1]))
+        expect(response.parsed_body).to eq(expected_payload([cr3, cr2]))
       end
 
       context 'when filtering by category_id' do
