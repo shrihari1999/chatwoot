@@ -211,6 +211,47 @@ describe Line::SendOnLineService do
 
         described_class.new(message: message).perform
       end
+
+      it 'sends the message with text and audio attachment including duration' do
+        attachment = message.attachments.new(account_id: message.account_id, file_type: :audio)
+        attachment.file.attach(io: Rails.root.join('spec/assets/sample.mp3').open, filename: 'sample.mp3', content_type: 'audio/mpeg')
+        attachment.save!
+        allow_any_instance_of(ActiveStorage::Blob).to receive(:analyzed?).and_return(true)
+        allow_any_instance_of(ActiveStorage::Blob).to receive(:metadata).and_return({ duration: 5.2 })
+        expected_original_url_regex = %r{rails/active_storage/blobs/redirect/[a-zA-Z0-9=_\-+]+/sample\.mp3}
+
+        expect(line_client).to receive(:push_message).with(
+          message.conversation.contact_inbox.source_id,
+          [
+            { type: 'text', text: message.content },
+            {
+              type: 'audio',
+              originalContentUrl: match(expected_original_url_regex),
+              duration: 5200
+            }
+          ]
+        )
+
+        described_class.new(message: message).perform
+      end
+
+      it 'falls back to 1000ms when audio duration metadata is missing' do
+        attachment = message.attachments.new(account_id: message.account_id, file_type: :audio)
+        attachment.file.attach(io: Rails.root.join('spec/assets/sample.mp3').open, filename: 'sample.mp3', content_type: 'audio/mpeg')
+        attachment.save!
+        allow_any_instance_of(ActiveStorage::Blob).to receive(:analyzed?).and_return(true)
+        allow_any_instance_of(ActiveStorage::Blob).to receive(:metadata).and_return({})
+
+        expect(line_client).to receive(:push_message).with(
+          message.conversation.contact_inbox.source_id,
+          [
+            { type: 'text', text: message.content },
+            hash_including(type: 'audio', duration: 1000)
+          ]
+        )
+
+        described_class.new(message: message).perform
+      end
     end
 
     context 'when the agent replies to a quoted customer message' do
