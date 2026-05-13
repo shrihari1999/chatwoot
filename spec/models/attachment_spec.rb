@@ -63,6 +63,37 @@ RSpec.describe Attachment do
     end
   end
 
+  describe 'push_event_data data_url scoping for instagram-direct incoming attachments' do
+    # Upstream #9287 routed every incoming IG attachment's data_url through
+    # Meta's lookaside CDN to satisfy App Review for images.  This fork
+    # scopes the override to file_type='image' only, because lookaside URLs
+    # are signed-and-short-lived — fine for an inline <img>, broken for
+    # <audio> which fails to stream once the signature expires.  Pin both
+    # cases so the scope can't silently widen back to all types.
+    let(:account) { create(:account) }
+    let(:channel) { create(:channel_instagram, account: account, instagram_id: 'BUSINESS_IGSID') }
+    let(:inbox)   { channel.inbox }
+    let(:contact) { create(:contact, account: account) }
+    let(:contact_inbox) { create(:contact_inbox, inbox: inbox, contact: contact, source_id: 'IGSID') }
+    let(:conversation) { create(:conversation, account: account, inbox: inbox, contact: contact, contact_inbox: contact_inbox) }
+    let(:message) { create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :incoming) }
+
+    it 'returns external lookaside URL for image attachments' do
+      attachment = message.attachments.create!(account_id: account.id, file_type: :image, external_url: 'https://lookaside.fbsbx.com/asset.jpg')
+      attachment.file.attach(io: StringIO.new('fake'), filename: 'a.jpg', content_type: 'image/jpeg')
+
+      expect(attachment.push_event_data[:data_url]).to eq 'https://lookaside.fbsbx.com/asset.jpg'
+    end
+
+    it 'returns the local ActiveStorage URL for audio attachments (not the lookaside URL)' do
+      attachment = message.attachments.create!(account_id: account.id, file_type: :audio, external_url: 'https://lookaside.fbsbx.com/audio.mp4')
+      attachment.file.attach(io: StringIO.new('fake'), filename: 'a.mp4', content_type: 'video/mp4')
+
+      expect(attachment.push_event_data[:data_url]).not_to eq attachment.external_url
+      expect(attachment.push_event_data[:data_url]).to include '/rails/active_storage/'
+    end
+  end
+
   describe 'thumb_url' do
     it 'returns empty string for non-image attachments' do
       attachment = message.attachments.new(account_id: message.account_id, file_type: :file)
