@@ -143,7 +143,6 @@ export default {
       messageSignature: 'getMessageSignature',
       currentUser: 'getCurrentUser',
       lastEmail: 'getLastEmailInSelectedChat',
-      globalConfig: 'globalConfig/get',
       accountId: 'getCurrentAccountId',
       isFeatureEnabledonAccount: 'accounts/isFeatureEnabledonAccount',
     }),
@@ -364,6 +363,9 @@ export default {
         return AUDIO_FORMATS.MP3;
       }
       if (this.isAPIInbox) {
+        return AUDIO_FORMATS.MP3;
+      }
+      if (this.isALineChannel) {
         return AUDIO_FORMATS.MP3;
       }
       return AUDIO_FORMATS.WAV;
