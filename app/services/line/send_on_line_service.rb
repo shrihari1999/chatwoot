@@ -67,20 +67,32 @@ class Line::SendOnLineService < Base::SendOnChannelService
 
   def attachments
     message.attachments.map do |attachment|
-      # Support only image and video for now, https://developers.line.biz/en/reference/messaging-api/#image-message
-      next unless attachment.file_type == 'image' || attachment.file_type == 'video'
+      next unless %w[image video audio].include?(attachment.file_type)
 
       # Use file_url (permanent redirect-based URL) instead of download_url (signed URL that expires in 5 minutes).
-      # LINE mobile app lazy-loads images and may fetch them well after the message is sent.
+      # LINE mobile app lazy-loads media and may fetch it well after the message is sent.
       original_url = attachment.file_url
-      preview_url = attachment.thumb_url.presence || original_url
 
-      {
-        type: attachment.file_type,
-        originalContentUrl: original_url,
-        previewImageUrl: preview_url
-      }
+      case attachment.file_type
+      when 'audio'
+        # https://developers.line.biz/en/reference/messaging-api/#audio-message
+        # `duration` is required (milliseconds); LINE natively plays m4a only.
+        { type: 'audio', originalContentUrl: original_url, duration: audio_duration_ms(attachment) }
+      else
+        preview_url = attachment.thumb_url.presence || original_url
+        { type: attachment.file_type, originalContentUrl: original_url, previewImageUrl: preview_url }
+      end
     end
+  end
+
+  def audio_duration_ms(attachment)
+    blob = attachment.file.blob
+    blob.analyze unless blob.analyzed?
+    seconds = blob.metadata[:duration] || blob.metadata['duration']
+    return (seconds.to_f * 1000).round.clamp(1, nil) if seconds.present?
+
+    Rails.logger.warn("Line::SendOnLineService: audio duration unavailable for attachment #{attachment.id}, defaulting to 1000ms")
+    1000
   end
 
   # https://developers.line.biz/en/reference/messaging-api/#text-message
