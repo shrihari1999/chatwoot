@@ -120,7 +120,14 @@ class Attachment < ApplicationRecord
       height: file.metadata[:height]
     }
 
-    metadata[:data_url] = metadata[:thumb_url] = external_url if instagram_incoming_message?
+    # Upstream #9287 routes incoming IG attachments through Meta's lookaside
+    # CDN URL to satisfy App Review for images.  Audio/video/file don't have
+    # the same App Review requirement and the lookaside signature expires
+    # short-term — leaving the audio bubble unable to load.  Scope the
+    # override to images only so non-image attachments fall back to chatwoot's
+    # stable ActiveStorage URL (Rails-routed, refreshes the storage SAS on
+    # each fetch).
+    metadata[:data_url] = metadata[:thumb_url] = external_url if instagram_incoming_message? && file_type == 'image'
     metadata
   end
 
