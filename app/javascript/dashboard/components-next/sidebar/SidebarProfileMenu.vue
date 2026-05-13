@@ -82,7 +82,8 @@ const menuItems = computed(() => {
       },
     },
     {
-      show: true,
+      // Hidden in this fork — upstream Chatwoot docs are not relevant to our deployment.
+      show: false,
       showOnCustomBrandedInstance: false,
       label: t('SIDEBAR_ITEMS.DOCS'),
       icon: 'i-lucide-book',
@@ -91,7 +92,8 @@ const menuItems = computed(() => {
       target: '_blank',
     },
     {
-      show: true,
+      // Hidden in this fork — upstream Chatwoot changelog is not relevant to our deployment.
+      show: false,
       showOnCustomBrandedInstance: false,
       label: t('SIDEBAR_ITEMS.CHANGELOG'),
       icon: 'i-lucide-scroll-text',
