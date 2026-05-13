@@ -235,18 +235,6 @@ useEmitter(CMD_RESOLVE_CONVERSATION, onCmdResolveConversation);
             @click="() => markAsWaitingOnCustomer()"
           />
         </WootDropdownItem>
-        <WootDropdownItem v-if="!isPending">
-          <Button
-            :label="t('CONVERSATION.RESOLVE_DROPDOWN.MARK_PENDING')"
-            ghost
-            slate
-            sm
-            start
-            icon="i-lucide-circle-dot-dashed"
-            class="w-full"
-            @click="() => toggleStatus(wootConstants.STATUS_TYPE.PENDING)"
-          />
-        </WootDropdownItem>
       </WootDropdownMenu>
     </div>
     <ConversationResolveAttributesModal
