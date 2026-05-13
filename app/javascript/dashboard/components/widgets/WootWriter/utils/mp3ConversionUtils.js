@@ -104,30 +104,28 @@ export const encodeToMP3 = (channels, sampleRate, samples, bitrate = 128) => {
 export const convertToMp3 = async (audioBlob, bitrate = 128) => {
   try {
     const audioBuffer = await decodeAudioData(audioBlob);
-    const samples = new Int16Array(
-      audioBuffer.length * audioBuffer.numberOfChannels
-    );
-    let offset = 0;
-    for (let i = 0; i < audioBuffer.length; i += 1) {
-      for (
-        let channel = 0;
-        channel < audioBuffer.numberOfChannels;
-        channel += 1
-      ) {
-        const sample = Math.max(
-          -1,
-          Math.min(1, audioBuffer.getChannelData(channel)[i])
-        );
-        samples[offset] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-        offset += 1;
-      }
+    // lamejs's Mp3Encoder.encodeBuffer expects either a single Int16Array (mono)
+    // or two separate Int16Arrays (left, right) for stereo. Passing an interleaved
+    // stereo buffer as a single argument crashes inside lamejs with
+    // "R is undefined". Downmix any multi-channel input to mono before encoding —
+    // voice messages don't need stereo and this keeps the encode path channel-agnostic
+    // across browsers (Firefox often records stereo, Chrome usually mono).
+    const channelCount = audioBuffer.numberOfChannels;
+    const channelData = [];
+    for (let c = 0; c < channelCount; c += 1) {
+      channelData.push(audioBuffer.getChannelData(c));
     }
-    return encodeToMP3(
-      audioBuffer.numberOfChannels,
-      audioBuffer.sampleRate,
-      samples,
-      bitrate
-    );
+    const samples = new Int16Array(audioBuffer.length);
+    for (let i = 0; i < audioBuffer.length; i += 1) {
+      let mixed = 0;
+      for (let c = 0; c < channelCount; c += 1) {
+        mixed += channelData[c][i];
+      }
+      mixed /= channelCount;
+      const clamped = Math.max(-1, Math.min(1, mixed));
+      samples[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+    }
+    return encodeToMP3(1, audioBuffer.sampleRate, samples, bitrate);
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('convertToMp3 failed:', error);
