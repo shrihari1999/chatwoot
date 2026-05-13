@@ -143,6 +143,10 @@ export default {
       messageSignature: 'getMessageSignature',
       currentUser: 'getCurrentUser',
       lastEmail: 'getLastEmailInSelectedChat',
+      // Read by fileUploadMixin.this.globalConfig — vue/no-unused-properties
+      // does not trace mixin access, so suppress the false-positive.
+      // eslint-disable-next-line vue/no-unused-properties
+      globalConfig: 'globalConfig/get',
       accountId: 'getCurrentAccountId',
       isFeatureEnabledonAccount: 'accounts/isFeatureEnabledonAccount',
     }),
