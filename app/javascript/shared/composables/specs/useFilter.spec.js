@@ -141,5 +141,21 @@ describe('useFilter', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toHaveProperty('attribute_key', 'inbox_id');
     });
+
+    it('should coerce a string inbox id to a number so SingleSelect matches options', () => {
+      const { initializeInboxTeamAndLabelFilterToModal } = useFilter({
+        filteri18nKey: 'TEST',
+        attributeModel: 'conversation',
+      });
+      const result = initializeInboxTeamAndLabelFilterToModal(
+        '5',
+        { name: 'Inbox 5' },
+        null,
+        null,
+        null
+      );
+
+      expect(result[0].values).toEqual([{ id: 5, name: 'Inbox 5' }]);
+    });
   });
 });
