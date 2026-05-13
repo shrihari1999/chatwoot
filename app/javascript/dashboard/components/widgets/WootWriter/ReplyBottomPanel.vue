@@ -188,7 +188,7 @@ export default {
     },
     showAudioRecorderButton() {
       if (this.isEditorDisabled) return false;
-      if (this.isALineChannel || this.isATiktokChannel || this.isALazadaChannel) {
+      if (this.isATiktokChannel || this.isALazadaChannel) {
         return false;
       }
       // Disable audio recorder for safari browser as recording is not supported
@@ -223,10 +223,21 @@ export default {
         channelType = INBOX_TYPES.INSTAGRAM;
       }
 
-      return getAllowedFileTypesByChannel({
+      const allowed = getAllowedFileTypesByChannel({
         channelType,
         medium: this.inbox?.medium,
       });
+
+      // @chatwoot/utils v0.0.52 omits audio MIMEs from the LINE channel config,
+      // but LINE Messaging API accepts mp3 and m4a audio messages. Append them
+      // so agents can attach audio files via the paperclip on LINE inboxes.
+      if (this.isALineChannel) {
+        return [allowed, 'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/x-m4a']
+          .filter(Boolean)
+          .join(', ');
+      }
+
+      return allowed;
     },
     enableDragAndDrop() {
       return !this.newConversationModalActive;
