@@ -129,7 +129,9 @@ export const convertToMp3 = async (audioBlob, bitrate = 128) => {
       bitrate
     );
   } catch (error) {
-    throw new Error('Conversion to MP3 failed.');
+    // eslint-disable-next-line no-console
+    console.error('convertToMp3 failed:', error);
+    throw new Error(`Conversion to MP3 failed: ${error?.message || error}`);
   }
 };
 
