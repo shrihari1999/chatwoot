@@ -141,16 +141,18 @@ class User < ApplicationRecord
   end
 
   def push_event_data
-    {
+    data = {
       id: id,
       name: name,
       available_name: available_name,
       avatar_url: avatar_url,
       type: 'user',
       availability_status: availability_status,
-      thumbnail: avatar_url,
-      seatalk_profile_id: custom_attributes && custom_attributes['seatalk_profile_id']
-    }.compact
+      thumbnail: avatar_url
+    }
+    seatalk_id = custom_attributes && custom_attributes['seatalk_profile_id']
+    data[:seatalk_profile_id] = seatalk_id if seatalk_id.present?
+    data
   end
 
   def webhook_data
