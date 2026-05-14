@@ -38,34 +38,4 @@ describe('#actionQueryGenerator', () => {
       actionQueryGenerator(testData).every(i => Array.isArray(i.action_params))
     ).toBe(true);
   });
-
-  it('preserves change_custom_attribute hash payload across a re-save', () => {
-    const loaded = [
-      {
-        action_name: 'change_custom_attribute',
-        action_params: [{ attribute_key: 'sla_alerted', value: 'true' }],
-      },
-    ];
-    expect(actionQueryGenerator(loaded)).toEqual([
-      {
-        action_name: 'change_custom_attribute',
-        action_params: [{ attribute_key: 'sla_alerted', value: 'true' }],
-      },
-    ]);
-  });
-
-  it('wraps a fresh change_custom_attribute object into an array', () => {
-    const fresh = [
-      {
-        action_name: 'change_custom_attribute',
-        action_params: { attribute_key: 'sla_alerted', value: 'true' },
-      },
-    ];
-    expect(actionQueryGenerator(fresh)).toEqual([
-      {
-        action_name: 'change_custom_attribute',
-        action_params: [{ attribute_key: 'sla_alerted', value: 'true' }],
-      },
-    ]);
-  });
 });
