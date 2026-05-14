@@ -140,6 +140,27 @@ RSpec.describe 'Agents API', type: :request do
         expect(response_data['auto_offline']).to be(false)
         expect(other_agent.account_users.first.role).to eq('administrator')
       end
+
+      it 'persists seatalk_profile_id into the user custom_attributes' do
+        put "/api/v1/accounts/#{account.id}/agents/#{other_agent.id}",
+            params: { custom_attributes: { seatalk_profile_id: '12345' } },
+            headers: admin.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(other_agent.reload.custom_attributes['seatalk_profile_id']).to eq('12345')
+      end
+
+      it 'merges custom_attributes without clobbering existing keys' do
+        other_agent.update!(custom_attributes: { keep: 'me' })
+        put "/api/v1/accounts/#{account.id}/agents/#{other_agent.id}",
+            params: { custom_attributes: { seatalk_profile_id: '777' } },
+            headers: admin.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(other_agent.reload.custom_attributes).to include('keep' => 'me', 'seatalk_profile_id' => '777')
+      end
     end
   end
 
@@ -176,6 +197,16 @@ RSpec.describe 'Agents API', type: :request do
         expect(response).to conform_schema(200)
         expect(response.parsed_body['email']).to eq(params[:email])
         expect(account.users.last.name).to eq('NewUser')
+      end
+
+      it 'creates a new agent with seatalk_profile_id' do
+        post "/api/v1/accounts/#{account.id}/agents",
+             params: params.merge(custom_attributes: { seatalk_profile_id: '42' }),
+             headers: admin.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(account.users.last.custom_attributes['seatalk_profile_id']).to eq('42')
       end
     end
   end

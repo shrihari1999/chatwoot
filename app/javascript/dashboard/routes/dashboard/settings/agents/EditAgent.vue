@@ -9,6 +9,7 @@ import { useAdmin } from 'dashboard/composables/useAdmin';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Auth from '../../../../api/auth';
 import wootConstants from 'dashboard/constants/globals';
+import { parseSeatalkProfileId } from './seatalkHelper';
 
 const props = defineProps({
   id: {
@@ -39,6 +40,10 @@ const props = defineProps({
     type: Number,
     default: null,
   },
+  customAttributes: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 
 const emit = defineEmits(['close']);
@@ -52,6 +57,9 @@ const agentName = ref(props.name);
 const agentAvailability = ref(props.availability);
 const selectedRoleId = ref(props.customRoleId || props.type);
 const agentCredentials = ref({ email: props.email });
+const seatalkProfileInput = ref(
+  props.customAttributes?.seatalk_profile_id || ''
+);
 
 const rules = {
   agentName: { required, minLength: minLength(1) },
@@ -132,6 +140,9 @@ const editAgent = async () => {
       id: props.id,
       name: agentName.value,
       availability: agentAvailability.value,
+      custom_attributes: {
+        seatalk_profile_id: parseSeatalkProfileId(seatalkProfileInput.value),
+      },
     };
 
     if (selectedRole.value.name.startsWith('custom_')) {
@@ -208,6 +219,20 @@ const resetPassword = async () => {
             {{ $t('AGENT_MGMT.EDIT.FORM.AGENT_AVAILABILITY.ERROR') }}
           </span>
         </label>
+      </div>
+
+      <div class="w-full">
+        <label>
+          {{ $t('AGENT_MGMT.SEATALK_PROFILE.LABEL') }}
+          <input
+            v-model="seatalkProfileInput"
+            type="text"
+            :placeholder="$t('AGENT_MGMT.SEATALK_PROFILE.PLACEHOLDER')"
+          />
+        </label>
+        <p class="text-xs text-n-slate-11 -mt-1 mb-2">
+          {{ $t('AGENT_MGMT.SEATALK_PROFILE.HELP') }}
+        </p>
       </div>
 
       <div class="flex flex-row justify-start w-full gap-2 px-0 py-2">

@@ -254,4 +254,17 @@ RSpec.describe User do
       end
     end
   end
+
+  describe '#push_event_data' do
+    let(:user) { create(:user, account: create(:account)) }
+
+    it 'omits seatalk_profile_id when not set' do
+      expect(user.push_event_data).not_to have_key(:seatalk_profile_id)
+    end
+
+    it 'includes seatalk_profile_id when set on custom_attributes' do
+      user.update!(custom_attributes: { 'seatalk_profile_id' => '12345' })
+      expect(user.push_event_data[:seatalk_profile_id]).to eq('12345')
+    end
+  end
 end
