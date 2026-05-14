@@ -6,10 +6,18 @@ const allElementsNumbers = arr => {
   return arr.every(elem => typeof elem === 'number');
 };
 
+const isPlainObjectPayload = val =>
+  val !== null && typeof val === 'object' && !('id' in val);
+
 const formatArray = params => {
   if (params.length <= 0) {
     params = [];
   } else if (allElementsString(params) || allElementsNumbers(params)) {
+    params = [...params];
+  } else if (params.every(isPlainObjectPayload)) {
+    // Hash payloads (e.g. change_custom_attribute's [{attribute_key, value}])
+    // pass through unchanged. They have no .id, so the .map(val => val.id)
+    // branch below would corrupt them to [undefined].
     params = [...params];
   } else {
     params = params.map(val => val.id);
