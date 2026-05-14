@@ -148,8 +148,9 @@ class User < ApplicationRecord
       avatar_url: avatar_url,
       type: 'user',
       availability_status: availability_status,
-      thumbnail: avatar_url
-    }
+      thumbnail: avatar_url,
+      seatalk_profile_id: custom_attributes && custom_attributes['seatalk_profile_id']
+    }.compact
   end
 
   def webhook_data

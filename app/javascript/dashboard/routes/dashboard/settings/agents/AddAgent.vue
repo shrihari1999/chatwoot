@@ -7,6 +7,7 @@ import { useVuelidate } from '@vuelidate/core';
 import { required, email } from '@vuelidate/validators';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import Button from 'dashboard/components-next/button/Button.vue';
+import { parseSeatalkProfileId } from './seatalkHelper';
 
 const emit = defineEmits(['close']);
 
@@ -16,6 +17,7 @@ const { t } = useI18n();
 const agentName = ref('');
 const agentEmail = ref('');
 const selectedRoleId = ref('agent');
+const seatalkProfileInput = ref('');
 
 const rules = {
   agentName: { required },
@@ -75,6 +77,9 @@ const addAgent = async () => {
     const payload = {
       name: agentName.value,
       email: agentEmail.value,
+      custom_attributes: {
+        seatalk_profile_id: parseSeatalkProfileId(seatalkProfileInput.value),
+      },
     };
 
     if (selectedRole.value.name.startsWith('custom_')) {
@@ -151,6 +156,20 @@ const addAgent = async () => {
             @input="v$.agentEmail.$touch"
           />
         </label>
+      </div>
+
+      <div class="w-full">
+        <label>
+          {{ $t('AGENT_MGMT.SEATALK_PROFILE.LABEL') }}
+          <input
+            v-model="seatalkProfileInput"
+            type="text"
+            :placeholder="$t('AGENT_MGMT.SEATALK_PROFILE.PLACEHOLDER')"
+          />
+        </label>
+        <p class="text-xs text-n-slate-11 -mt-1 mb-2">
+          {{ $t('AGENT_MGMT.SEATALK_PROFILE.HELP') }}
+        </p>
       </div>
 
       <div class="flex flex-row justify-end w-full gap-2 px-0 py-2">

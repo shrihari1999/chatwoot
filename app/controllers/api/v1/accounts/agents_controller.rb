@@ -15,6 +15,7 @@ class Api::V1::Accounts::AgentsController < Api::V1::Accounts::BaseController
       role: new_agent_params['role'],
       availability: new_agent_params['availability'],
       auto_offline: new_agent_params['auto_offline'],
+      custom_attributes: new_agent_params['custom_attributes'] || {},
       inviter: current_user,
       account: Current.account
     )
@@ -23,7 +24,11 @@ class Api::V1::Accounts::AgentsController < Api::V1::Accounts::BaseController
   end
 
   def update
-    @agent.update!(agent_params.slice(:name).compact)
+    user_updates = agent_params.slice(:name).compact.to_h
+    if agent_params[:custom_attributes].present?
+      user_updates['custom_attributes'] = @agent.custom_attributes.merge(agent_params[:custom_attributes].to_h)
+    end
+    @agent.update!(user_updates) if user_updates.present?
     @agent.current_account_user.update!(agent_params.slice(*account_user_attributes).compact)
   end
 
@@ -76,11 +81,11 @@ class Api::V1::Accounts::AgentsController < Api::V1::Accounts::BaseController
   end
 
   def agent_params
-    params.require(:agent).permit(allowed_agent_params)
+    params.require(:agent).permit(*allowed_agent_params, custom_attributes: {})
   end
 
   def new_agent_params
-    params.require(:agent).permit(:email, :name, :role, :availability, :auto_offline)
+    params.require(:agent).permit(:email, :name, :role, :availability, :auto_offline, custom_attributes: {})
   end
 
   def agents
