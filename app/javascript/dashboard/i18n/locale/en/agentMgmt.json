@@ -105,7 +105,7 @@
     "SEATALK_PROFILE": {
       "LABEL": "SeaTalk Profile",
       "PLACEHOLDER": "Paste SeaTalk profile link or ID",
-      "HELP": "SLA alerts will mention this agent only when this field is set."
+      "HELP": "SeaTalk alerts will mention this agent only when this field is set."
     },
     "MULTI_SELECTOR": {
       "PLACEHOLDER": "None",
