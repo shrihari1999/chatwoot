@@ -170,13 +170,11 @@ const currentUser = useMapGetter('getCurrentUser');
 
 const ownConversationFolders = computed(() =>
   conversationCustomViews.value.filter(
-    view => view.user_id === currentUser.value?.id
+    view => !view.shared && view.user_id === currentUser.value?.id
   )
 );
 const sharedConversationFolders = computed(() =>
-  conversationCustomViews.value.filter(
-    view => view.shared && view.user_id !== currentUser.value?.id
-  )
+  conversationCustomViews.value.filter(view => view.shared)
 );
 
 onMounted(() => {
