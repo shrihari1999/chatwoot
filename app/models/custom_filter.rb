@@ -6,6 +6,7 @@
 #  filter_type :integer          default("conversation"), not null
 #  name        :string           not null
 #  query       :jsonb            not null
+#  shared      :boolean          default(FALSE), not null
 #  created_at  :datetime         not null
 #  updated_at  :datetime         not null
 #  account_id  :bigint           not null

@@ -1,6 +1,7 @@
 <script>
 import { useVuelidate } from '@vuelidate/core';
 import { required, minLength } from '@vuelidate/validators';
+import { mapGetters } from 'vuex';
 import { useAlert } from 'dashboard/composables';
 import { CONTACTS_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
 import { vOnClickOutside } from '@vueuse/components';
@@ -38,12 +39,20 @@ export default {
     return {
       show: true,
       name: '',
+      shared: false,
     };
   },
 
   computed: {
+    ...mapGetters({
+      currentRole: 'getCurrentRole',
+      currentCustomRoleId: 'getCurrentCustomRoleId',
+    }),
     isButtonDisabled() {
       return this.v$.name.$invalid;
+    },
+    canShare() {
+      return this.currentRole === 'administrator' || !!this.currentCustomRoleId;
     },
   },
 
@@ -68,6 +77,7 @@ export default {
           name: this.name,
           filter_type: this.filterType,
           query: this.customViewsQuery,
+          shared: this.canShare ? this.shared : false,
         });
         this.alertMessage =
           this.filterType === 0
@@ -112,6 +122,17 @@ export default {
         :message-type="v$.name.$error && 'error'"
         @blur="v$.name.$touch"
       />
+      <label
+        v-if="canShare && filterType === 0"
+        class="flex items-center gap-2 text-sm text-n-slate-12 cursor-pointer"
+      >
+        <input
+          v-model="shared"
+          type="checkbox"
+          class="rounded border-n-weak text-n-brand focus:ring-n-brand"
+        />
+        {{ $t('FILTER.CUSTOM_VIEWS.ADD.SHARED_LABEL') }}
+      </label>
       <div class="flex flex-row justify-end w-full gap-2">
         <NextButton faded slate sm @click.prevent="onClose">
           {{ $t('FILTER.CUSTOM_VIEWS.ADD.CANCEL_BUTTON') }}

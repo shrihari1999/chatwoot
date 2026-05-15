@@ -166,6 +166,18 @@ const contactCustomViews = useMapGetter('customViews/getContactCustomViews');
 const conversationCustomViews = useMapGetter(
   'customViews/getConversationCustomViews'
 );
+const currentUser = useMapGetter('getCurrentUser');
+
+const ownConversationFolders = computed(() =>
+  conversationCustomViews.value.filter(
+    view => view.user_id === currentUser.value?.id
+  )
+);
+const sharedConversationFolders = computed(() =>
+  conversationCustomViews.value.filter(
+    view => view.shared && view.user_id !== currentUser.value?.id
+  )
+);
 
 onMounted(() => {
   store.dispatch('labels/get');
@@ -273,12 +285,29 @@ const menuItems = computed(() => {
           label: t('SIDEBAR.CUSTOM_VIEWS_FOLDER'),
           icon: 'i-lucide-folder',
           activeOn: ['conversations_through_folders'],
-          children: conversationCustomViews.value.map(view => ({
+          children: ownConversationFolders.value.map(view => ({
             name: `${view.name}-${view.id}`,
             label: view.name,
             to: accountScopedRoute('folder_conversations', { id: view.id }),
           })),
         },
+        ...(sharedConversationFolders.value.length
+          ? [
+              {
+                name: 'SharedFolders',
+                label: t('SIDEBAR.CUSTOM_VIEWS_SHARED_FOLDER'),
+                icon: 'i-lucide-folder-heart',
+                activeOn: ['conversations_through_folders'],
+                children: sharedConversationFolders.value.map(view => ({
+                  name: `shared-${view.name}-${view.id}`,
+                  label: view.name,
+                  to: accountScopedRoute('folder_conversations', {
+                    id: view.id,
+                  }),
+                })),
+              },
+            ]
+          : []),
         {
           name: 'Teams',
           label: t('SIDEBAR.TEAMS'),
