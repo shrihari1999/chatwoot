@@ -81,6 +81,7 @@
         "LABEL": "Name this filter",
         "PLACEHOLDER": "Name your filter to refer it later.",
         "ERROR_MESSAGE": "Name is required.",
+        "SHARED_LABEL": "Share with everyone",
         "SAVE_BUTTON": "Save filter",
         "CANCEL_BUTTON": "Cancel",
         "API_FOLDERS": {

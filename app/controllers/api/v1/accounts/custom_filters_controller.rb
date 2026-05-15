@@ -1,5 +1,5 @@
 class Api::V1::Accounts::CustomFiltersController < Api::V1::Accounts::BaseController
-  before_action :check_authorization
+  before_action :check_authorization, only: [:index]
   before_action :fetch_custom_filters, only: [:index]
   before_action :fetch_custom_filter, only: [:show, :update, :destroy]
   DEFAULT_FILTER_TYPE = 'conversation'.freeze
@@ -9,14 +9,16 @@ class Api::V1::Accounts::CustomFiltersController < Api::V1::Accounts::BaseContro
   def show; end
 
   def create
-    @custom_filter = Current.account.custom_filters.create!(
-      permitted_payload.merge(user: Current.user)
-    )
+    @custom_filter = Current.account.custom_filters.new(permitted_payload.merge(user: Current.user))
+    authorize(@custom_filter)
+    @custom_filter.save!
     render json: { error: @custom_filter.errors.messages }, status: :unprocessable_entity and return unless @custom_filter.valid?
   end
 
   def update
-    @custom_filter.update!(permitted_payload)
+    @custom_filter.assign_attributes(permitted_payload)
+    authorize(@custom_filter)
+    @custom_filter.save!
   end
 
   def destroy
@@ -27,22 +29,22 @@ class Api::V1::Accounts::CustomFiltersController < Api::V1::Accounts::BaseContro
   private
 
   def fetch_custom_filters
-    @custom_filters = Current.account.custom_filters.where(
-      user: Current.user,
-      filter_type: permitted_params[:filter_type] || DEFAULT_FILTER_TYPE
-    )
+    filter_type = permitted_params[:filter_type] || DEFAULT_FILTER_TYPE
+    @custom_filters = Current.account.custom_filters
+                             .where(filter_type: filter_type)
+                             .where('user_id = ? OR shared = ?', Current.user.id, true)
   end
 
   def fetch_custom_filter
-    @custom_filter = Current.account.custom_filters.where(
-      user: Current.user
-    ).find(permitted_params[:id])
+    @custom_filter = Current.account.custom_filters.find(permitted_params[:id])
+    authorize(@custom_filter)
   end
 
   def permitted_payload
     params.require(:custom_filter).permit(
       :name,
       :filter_type,
+      :shared,
       query: {}
     )
   end

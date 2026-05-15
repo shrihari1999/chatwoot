@@ -1,5 +1,5 @@
 class CustomFilterPolicy < ApplicationPolicy
-  def create?
+  def index?
     @account_user.administrator? || @account_user.agent?
   end
 
@@ -7,15 +7,35 @@ class CustomFilterPolicy < ApplicationPolicy
     @account_user.administrator? || @account_user.agent?
   end
 
-  def index?
+  def create?
+    return manager_or_above? if shared_record?
+
     @account_user.administrator? || @account_user.agent?
   end
 
   def update?
-    @account_user.administrator? || @account_user.agent?
+    return manager_or_above? if shared_record?
+
+    owner?
   end
 
   def destroy?
-    @account_user.administrator? || @account_user.agent?
+    return manager_or_above? if shared_record?
+
+    owner?
+  end
+
+  private
+
+  def shared_record?
+    record.is_a?(CustomFilter) && record.shared
+  end
+
+  def owner?
+    record.is_a?(CustomFilter) && record.user_id == @user.id
+  end
+
+  def manager_or_above?
+    @account_user.administrator? || @account_user.custom_role_id.present?
   end
 end
