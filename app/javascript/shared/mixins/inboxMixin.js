@@ -142,6 +142,9 @@ export default {
     isATiktokChannel() {
       return this.channelType === INBOX_TYPES.TIKTOK;
     },
+    isATiktokShopChannel() {
+      return this.channelType === INBOX_TYPES.TIKTOK_SHOP;
+    },
   },
   methods: {
     inboxHasFeature(feature) {

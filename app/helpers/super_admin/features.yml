@@ -83,6 +83,12 @@ tiktok:
   enabled: true
   icon: 'icon-tiktok'
   config_key: 'tiktok'
+tiktok_shop:
+  name: 'TikTok Shop'
+  description: 'Manage TikTok Shop buyer messages from Chatwoot'
+  enabled: true
+  icon: 'icon-tiktok'
+  config_key: 'tiktok_shop'
 whatsapp:
   name: 'WhatsApp'
   description: 'Manage your WhatsApp business interactions from Chatwoot.'

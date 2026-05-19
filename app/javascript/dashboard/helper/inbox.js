@@ -12,6 +12,7 @@ export const INBOX_TYPES = {
   SMS: 'Channel::Sms',
   INSTAGRAM: 'Channel::Instagram',
   TIKTOK: 'Channel::Tiktok',
+  TIKTOK_SHOP: 'Channel::TiktokShop',
   VOICE: 'Channel::Voice',
 };
 
@@ -32,6 +33,7 @@ const INBOX_ICON_MAP_FILL = {
   [INBOX_TYPES.LINE]: 'i-ri-line-fill',
   [INBOX_TYPES.INSTAGRAM]: 'i-ri-instagram-fill',
   [INBOX_TYPES.TIKTOK]: 'i-ri-tiktok-fill',
+  [INBOX_TYPES.TIKTOK_SHOP]: 'i-ri-shopping-bag-3-fill',
   [INBOX_TYPES.VOICE]: 'i-ri-phone-fill',
 };
 
@@ -50,6 +52,7 @@ const INBOX_ICON_MAP_LINE = {
   [INBOX_TYPES.INSTAGRAM]: 'i-woot-instagram',
   [INBOX_TYPES.VOICE]: 'i-woot-voice',
   [INBOX_TYPES.TIKTOK]: 'i-woot-tiktok',
+  [INBOX_TYPES.TIKTOK_SHOP]: 'i-ri-shopping-bag-3-line',
 };
 
 const DEFAULT_ICON_LINE = 'i-ri-chat-1-line';
@@ -103,6 +106,9 @@ export const getReadableInboxByType = (type, phoneNumber) => {
     case INBOX_TYPES.LINE:
       return 'line';
 
+    case INBOX_TYPES.TIKTOK_SHOP:
+      return 'tiktok_shop';
+
     case INBOX_TYPES.VOICE:
       return 'voice';
 
@@ -150,6 +156,9 @@ export const getInboxClassByType = (type, phoneNumber) => {
 
     case INBOX_TYPES.TIKTOK:
       return 'brand-tiktok';
+
+    case INBOX_TYPES.TIKTOK_SHOP:
+      return 'brand-tiktok-shop';
 
     case INBOX_TYPES.VOICE:
       return 'phone';

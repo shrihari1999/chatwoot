@@ -27,6 +27,10 @@ const hasTiktokConfigured = computed(() => {
   return window.chatwootConfig?.tiktokAppId;
 });
 
+const hasTiktokShopConfigured = computed(() => {
+  return window.chatwootConfig?.tiktokShopAppKey;
+});
+
 const isActive = computed(() => {
   const { key } = props.channel;
   if (Object.keys(props.enabledFeatures).length === 0) {
@@ -52,6 +56,12 @@ const isActive = computed(() => {
     return props.enabledFeatures.channel_tiktok && hasTiktokConfigured.value;
   }
 
+  if (key === 'tiktok_shop') {
+    return (
+      props.enabledFeatures.channel_tiktok_shop && hasTiktokShopConfigured.value
+    );
+  }
+
   if (key === 'voice') {
     return props.enabledFeatures.channel_voice;
   }
@@ -67,6 +77,7 @@ const isActive = computed(() => {
     'line',
     'instagram',
     'tiktok',
+    'tiktok_shop',
     'voice',
   ].includes(key);
 });

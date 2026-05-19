@@ -12,6 +12,7 @@ import inboxMixin from 'shared/mixins/inboxMixin';
 import FacebookReauthorize from './facebook/Reauthorize.vue';
 import InstagramReauthorize from './channels/instagram/Reauthorize.vue';
 import TiktokReauthorize from './channels/tiktok/Reauthorize.vue';
+import TiktokShopReauthorize from './channels/tiktok_shop/Reauthorize.vue';
 import DuplicateInboxBanner from './channels/instagram/DuplicateInboxBanner.vue';
 import MicrosoftReauthorize from './channels/microsoft/Reauthorize.vue';
 import GoogleReauthorize from './channels/google/Reauthorize.vue';
@@ -63,6 +64,7 @@ export default {
     SpinnerLoader,
     InstagramReauthorize,
     TiktokReauthorize,
+    TiktokShopReauthorize,
     WhatsappReauthorize,
     DuplicateInboxBanner,
     Editor,
@@ -283,6 +285,9 @@ export default {
     },
     tiktokUnauthorized() {
       return this.isATiktokChannel && this.inbox.reauthorization_required;
+    },
+    tiktokShopUnauthorized() {
+      return this.isATiktokShopChannel && this.inbox.reauthorization_required;
     },
     // Check if a instagram inbox exists with the same instagram_id
     hasDuplicateInstagramInbox() {
@@ -662,6 +667,12 @@ export default {
         />
         <TiktokReauthorize
           v-if="tiktokUnauthorized"
+          :inbox="inbox"
+          class="mb-4"
+          :class="bannerMaxWidth"
+        />
+        <TiktokShopReauthorize
+          v-if="tiktokShopUnauthorized"
           :inbox="inbox"
           class="mb-4"
           :class="bannerMaxWidth"

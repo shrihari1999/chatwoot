@@ -101,6 +101,7 @@ module Api::V1::InboxesHelper
       'api' => Current.account.api_channels,
       'email' => Current.account.email_channels,
       'lazada' => Current.account.lazada_channels,
+      'tiktok_shop' => Current.account.tiktok_shop_channels,
       'line' => Current.account.line_channels,
       'telegram' => Current.account.telegram_channels,
       'whatsapp' => Current.account.whatsapp_channels,
