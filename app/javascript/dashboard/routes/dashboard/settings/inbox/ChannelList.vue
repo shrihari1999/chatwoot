@@ -20,6 +20,10 @@ const hasTiktokConfigured = computed(() => {
   return window.chatwootConfig?.tiktokAppId;
 });
 
+const hasTiktokShopConfigured = computed(() => {
+  return window.chatwootConfig?.tiktokShopAppKey;
+});
+
 const channelList = computed(() => {
   const { apiChannelName } = globalConfig.value;
   const channels = [
@@ -91,6 +95,15 @@ const channelList = computed(() => {
       title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.TIKTOK.TITLE'),
       description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.TIKTOK.DESCRIPTION'),
       icon: 'i-woot-tiktok',
+    });
+  }
+
+  if (hasTiktokShopConfigured.value) {
+    channels.push({
+      key: 'tiktok_shop',
+      title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.TIKTOK_SHOP.TITLE'),
+      description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.TIKTOK_SHOP.DESCRIPTION'),
+      icon: 'i-ri-shopping-bag-3-fill',
     });
   }
 

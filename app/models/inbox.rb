@@ -130,6 +130,10 @@ class Inbox < ApplicationRecord
     channel_type == 'Channel::Tiktok'
   end
 
+  def tiktok_shop?
+    channel_type == 'Channel::TiktokShop'
+  end
+
   def web_widget?
     channel_type == 'Channel::WebWidget'
   end
@@ -198,6 +202,8 @@ class Inbox < ApplicationRecord
       "#{ENV.fetch('FRONTEND_URL', nil)}/webhooks/whatsapp/#{channel.phone_number}"
     when 'Channel::Lazada'
       "#{ENV.fetch('FRONTEND_URL', nil)}/webhooks/lazada/#{channel.shop_id}"
+    when 'Channel::TiktokShop'
+      "#{ENV.fetch('FRONTEND_URL', nil)}/webhooks/tiktok_shop"
     end
   end
 

@@ -138,6 +138,7 @@ class Message < ApplicationRecord
 
   after_update_commit :dispatch_update_event
   after_update_commit :trigger_lazada_recall
+  after_update_commit :trigger_tiktok_shop_recall
   after_commit :reindex_for_search, if: :should_index?, on: [:create, :update]
 
   def channel_token
@@ -509,6 +510,19 @@ class Message < ApplicationRecord
       transitioned_to_deleted? &&
       outgoing? &&
       inbox.channel_type == 'Channel::Lazada'
+  end
+
+  def trigger_tiktok_shop_recall
+    return unless tiktok_shop_recall_eligible?
+
+    Tiktok::Shop::RecallJob.perform_later(id)
+  end
+
+  def tiktok_shop_recall_eligible?
+    saved_change_to_content_attributes? &&
+      transitioned_to_deleted? &&
+      outgoing? &&
+      inbox.channel_type == 'Channel::TiktokShop'
   end
 
   # Only true when content_attributes change flips the `deleted` flag from a

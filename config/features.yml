@@ -226,6 +226,9 @@
 - name: channel_tiktok
   display_name: TikTok Channel
   enabled: true
+- name: channel_tiktok_shop
+  display_name: TikTok Shop Channel
+  enabled: true
 - name: csat_review_notes
   display_name: CSAT Review Notes
   enabled: true

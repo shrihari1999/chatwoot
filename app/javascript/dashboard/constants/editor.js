@@ -124,6 +124,11 @@ export const FORMATTING = {
     nodes: [],
     menu: [],
   },
+  'Channel::TiktokShop': {
+    marks: [],
+    nodes: [],
+    menu: ['copilot', 'undo', 'redo'],
+  },
   // Special contexts (not actual channels)
   'Context::PrivateNote': {
     marks: ['strong', 'em', 'code', 'link', 'strike'],
