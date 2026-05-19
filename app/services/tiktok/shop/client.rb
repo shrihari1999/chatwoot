@@ -55,6 +55,26 @@ class Tiktok::Shop::Client
     request(:post, '/customer_service/202309/conversations', body: { buyer_user_id: buyer_user_id })
   end
 
+  # ---- Webhook subscription (per-shop) ---------------------------------
+  # The Partner Center GUI configures webhooks at the app level. These three
+  # endpoints let us do it per-shop via API, which is useful when the GUI
+  # misbehaves or when we want programmatic control.
+  #
+  # event_type uses the STRING names (e.g. 'NEW_MESSAGE', 'NEW_CONVERSATION'),
+  # distinct from the NUMERIC type ids that arrive in webhook payloads (14, 13).
+
+  def subscribe_webhook(event_type:, address:)
+    request(:put, '/event/202309/webhooks', body: { event_type: event_type, address: address })
+  end
+
+  def list_webhooks
+    request(:get, '/event/202309/webhooks')
+  end
+
+  def delete_webhook(event_type:)
+    request(:delete, '/event/202309/webhooks', body: { event_type: event_type })
+  end
+
   # ---- Convenience ------------------------------------------------------
 
   def send_text(conversation_id, text)
@@ -88,6 +108,10 @@ class Tiktok::Shop::Client
                  HTTParty.get(url, query: full_query, headers: headers, timeout: 30)
                when :post
                  HTTParty.post(url, query: full_query, body: body_string, headers: headers, timeout: 30)
+               when :put
+                 HTTParty.put(url, query: full_query, body: body_string, headers: headers, timeout: 30)
+               when :delete
+                 HTTParty.delete(url, query: full_query, body: body_string, headers: headers, timeout: 30)
                end
 
     parse_response(response)
