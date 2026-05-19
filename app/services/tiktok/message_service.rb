@@ -4,6 +4,8 @@ class Tiktok::MessageService
   pattr_initialize [:channel!, :content!, :outgoing_echo]
 
   def perform
+    return Tiktok::MessageReactionService.new(channel: channel, content: content).perform if reaction_message?
+
     if outgoing_message?
       message = find_message(tt_conversation_id, tt_message_id)
       return if message.present?
@@ -113,6 +115,10 @@ class Tiktok::MessageService
 
   def share_post_message?
     tt_message_type == 'share_post'
+  end
+
+  def reaction_message?
+    tt_message_type == 'reaction'
   end
 
   def tt_text_body

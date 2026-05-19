@@ -135,6 +135,24 @@ RSpec.describe Tiktok::MessageService do
       tempfile.close!
     end
 
+    context 'when the webhook carries a reaction' do
+      it 'delegates to Tiktok::MessageReactionService and does not create a message' do
+        content = {
+          type: 'reaction',
+          conversation_id: 'tt-conv-1',
+          reaction: [{
+            operation: 'ADD', type: 'EMOJI', emoji: '❤️',
+            unique_identifier: 'user-1', original_msg_id: 'tt-msg-1'
+          }]
+        }.deep_symbolize_keys
+        reaction_service = instance_double(Tiktok::MessageReactionService, perform: nil)
+        allow(Tiktok::MessageReactionService).to receive(:new).with(channel: channel, content: content).and_return(reaction_service)
+
+        expect { described_class.new(channel: channel, content: content).perform }.not_to change(Message, :count)
+        expect(reaction_service).to have_received(:perform)
+      end
+    end
+
     context 'when lock_to_single_conversation is enabled' do
       it 'reuses the last resolved conversation' do
         inbox.update!(lock_to_single_conversation: true)
