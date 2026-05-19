@@ -860,6 +860,46 @@ RSpec.describe 'Conversations API', type: :request do
         expect(response).to have_http_status(:success)
       end
     end
+
+    context 'when the conversation belongs to a TikTok Business inbox' do
+      let(:tiktok_channel) { create(:channel_tiktok, account: account) }
+      let(:tiktok_inbox) { create(:inbox, channel: tiktok_channel, account: account) }
+      let(:contact) { create(:contact, account: account) }
+      let(:contact_inbox) { create(:contact_inbox, inbox: tiktok_inbox, contact: contact) }
+      let(:tt_conversation) do
+        create(:conversation, inbox: tiktok_inbox, contact: contact,
+                              contact_inbox: contact_inbox, account: account,
+                              additional_attributes: { 'conversation_id' => 'tt-conv-1' })
+      end
+      let(:agent) { create(:user, account: account, role: :agent) }
+
+      before do
+        create(:inbox_member, user: agent, inbox: tiktok_inbox)
+      end
+
+      it 'enqueues Tiktok::MarkAsReadJob' do
+        expect(Tiktok::MarkAsReadJob).to receive(:perform_later).with(tt_conversation)
+
+        post "/api/v1/accounts/#{account.id}/conversations/#{tt_conversation.display_id}/update_last_seen",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+      end
+
+      it 'does NOT enqueue Tiktok::MarkAsReadJob for a non-TikTok conversation' do
+        other_conversation = create(:conversation, account: account)
+        create(:inbox_member, user: agent, inbox: other_conversation.inbox)
+
+        expect(Tiktok::MarkAsReadJob).not_to receive(:perform_later)
+
+        post "/api/v1/accounts/#{account.id}/conversations/#{other_conversation.display_id}/update_last_seen",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+      end
+    end
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/unread' do
