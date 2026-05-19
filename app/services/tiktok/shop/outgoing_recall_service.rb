@@ -1,13 +1,13 @@
-# Agent-initiated recall of a previously-sent TikTok Shop message.
+# Agent-initiated recall (Chatwoot-side "delete this message") on TikTok Shop.
 #
-# TODO: TikTok Shop API may not support recalling messages sent via the
-# Customer Service API. The publicly-available EcomPHP SDK (CustomerService.php)
-# exposes only send/list/read endpoints — no recall. Until Partner Center docs
-# confirm a recall endpoint, this service performs a no-op and logs the attempt.
+# **Confirmed unsupported by the TikTok Shop Customer Service API.** The v202309
+# customer_service endpoint surface exposes send / list / read / upload / create
+# only — there is no recall, edit, or delete endpoint. See the feature-gap
+# table in docs/integrations/TIKTOK_SHOP_INTEGRATION_PLAN.md.
 #
-# Consistent with Lazada::OutgoingRecallService in interface and lifecycle so the
-# wiring in Message.trigger_tiktok_shop_recall + Tiktok::Shop::RecallJob mirrors
-# Lazada exactly.
+# This service is kept (rather than deleted) so the Message.trigger_tiktok_shop_recall
+# wiring stays parallel to Lazada's. The Chatwoot agent UI will mark the
+# message deleted locally; the buyer continues to see it on TikTok Shop.
 class Tiktok::Shop::OutgoingRecallService
   pattr_initialize [:message!]
 
@@ -15,9 +15,10 @@ class Tiktok::Shop::OutgoingRecallService
     return if message.source_id.blank?
     return unless tiktok_shop_channel?
 
-    # TODO: replace with real Client#recall_message(...) call when the endpoint
-    # is verified in Partner Center docs.
-    Rails.logger.warn "[TikTok Shop Recall] Recall is not yet wired — would recall message #{message.source_id}"
+    Rails.logger.info(
+      "[TikTok Shop] Recall not supported by TikTok Shop API — " \
+      "message #{message.source_id} is removed in Chatwoot only"
+    )
   end
 
   private

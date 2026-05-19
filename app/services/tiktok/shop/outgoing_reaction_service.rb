@@ -1,17 +1,11 @@
-# Agent-initiated reaction toward a buyer's message on TikTok Shop.
+# Outgoing reaction handler.
 #
-# TODO: TikTok Shop API support for sending reactions is unverified. Until
-# Partner Center docs confirm a reaction endpoint, this service performs a
-# no-op and logs the attempt.
-#
-# Mirrors the inbound counterpart (Tiktok::Shop::IncomingReactionService) so
-# the wiring is symmetric once both ends become real.
+# **TikTok Shop API does not support sending reactions on customer-service
+# messages.** Kept as a no-op for symmetry with the inbound counterpart.
 class Tiktok::Shop::OutgoingReactionService
   pattr_initialize [:message!, :emoji!]
 
   def perform
-    return if message.source_id.blank?
-
-    Rails.logger.warn "[TikTok Shop Reaction] Outgoing reaction is not yet wired — would react :#{emoji}: to message #{message.source_id}"
+    Rails.logger.info "[TikTok Shop] Outbound reactions are not supported by the TikTok Shop API"
   end
 end

@@ -1,5 +1,11 @@
-# Handles the TikTok Shop OAuth callback. Mirrors Tiktok::CallbacksController
-# but talks to the Shop OAuth endpoints (separate host, separate token shape).
+# Handles the TikTok Shop OAuth callback.
+#
+# Flow:
+#   1. Validate state JWT → resolve account_id
+#   2. Exchange ?code for access_token + refresh_token (does NOT include shop_cipher)
+#   3. Call Get Authorized Shops with the access_token to fetch shop_cipher
+#   4. Create one Channel::TiktokShop per authorized shop (MVP: just the first)
+#   5. Redirect to inbox setup
 class Tiktok::Shop::CallbacksController < ApplicationController
   include Tiktok::Shop::IntegrationHelper
 
@@ -26,7 +32,6 @@ class Tiktok::Shop::CallbacksController < ApplicationController
   def handle_error(error)
     Rails.logger.error("TikTok Shop channel creation Error: #{error.message}")
     ChatwootExceptionTracker.new(error).capture_exception
-
     redirect_to_error_page(error_type: error.class.name, code: 500, error_message: error.message)
   end
 
@@ -40,67 +45,63 @@ class Tiktok::Shop::CallbacksController < ApplicationController
 
   def redirect_to_error_page(error_type:, code:, error_message:)
     redirect_to app_new_tiktok_shop_inbox_url(
-      account_id: account_id,
-      error_type: error_type,
-      code: code,
-      error_message: error_message
+      account_id: account_id, error_type: error_type, code: code, error_message: error_message
     )
   end
 
   def find_or_create_inbox
-    channel = find_channel
+    shop_attrs = primary_shop_attrs
+    channel = Channel::TiktokShop.find_by(shop_id: shop_attrs[:shop_id], account: account)
     channel_exists = channel.present?
 
     if channel
-      update_channel(channel)
+      channel.update!(shop_attrs)
+      channel.inbox.update!(name: shop_attrs[:seller_name].presence || channel.inbox.name)
     else
-      channel = create_channel_with_inbox
+      channel = create_channel_with_inbox(shop_attrs)
     end
 
     channel.reauthorized!
     [channel.inbox, channel_exists]
   end
 
-  def create_channel_with_inbox
+  def create_channel_with_inbox(shop_attrs)
     ActiveRecord::Base.transaction do
-      channel = Channel::TiktokShop.create!(
-        account: account,
-        shop_id: short_term_access_token[:shop_id],
-        shop_cipher: short_term_access_token[:shop_cipher],
-        seller_name: short_term_access_token[:seller_name],
-        region: short_term_access_token[:region],
-        access_token: short_term_access_token[:access_token],
-        refresh_token: short_term_access_token[:refresh_token],
-        access_token_expires_at: short_term_access_token[:access_token_expires_at],
-        refresh_token_expires_at: short_term_access_token[:refresh_token_expires_at]
-      )
-
+      channel = Channel::TiktokShop.create!(shop_attrs.merge(account: account))
       account.inboxes.create!(
         account: account,
         channel: channel,
-        name: short_term_access_token[:seller_name].presence || "TikTok Shop #{short_term_access_token[:shop_id]}"
+        name: shop_attrs[:seller_name].presence || "TikTok Shop #{shop_attrs[:shop_id]}"
       )
-
       channel
     end
   end
 
-  def find_channel
-    Channel::TiktokShop.find_by(shop_id: short_term_access_token[:shop_id], account: account)
+  # The token-exchange response does not include shop_cipher; we get it by
+  # calling Get Authorized Shops. For MVP we pick the first shop; multi-shop
+  # support (one Chatwoot inbox per shop) is a follow-up.
+  def primary_shop_attrs
+    @primary_shop_attrs ||= begin
+      token = token_response
+      shops = Tiktok::Shop::AuthClient.fetch_authorized_shops(token[:access_token])
+      raise 'No authorized shops returned from TikTok Shop' if shops.empty?
+
+      shop = shops.first
+      {
+        shop_id: shop[:id].to_s,
+        shop_cipher: shop[:cipher],
+        seller_name: shop[:name].presence || token[:seller_name],
+        region: shop[:region].presence || token[:seller_base_region] || 'others',
+        access_token: token[:access_token],
+        refresh_token: token[:refresh_token],
+        access_token_expires_at: token[:access_token_expires_at],
+        refresh_token_expires_at: token[:refresh_token_expires_at]
+      }
+    end
   end
 
-  def update_channel(channel)
-    channel.update!(
-      shop_cipher: short_term_access_token[:shop_cipher],
-      seller_name: short_term_access_token[:seller_name],
-      region: short_term_access_token[:region],
-      access_token: short_term_access_token[:access_token],
-      refresh_token: short_term_access_token[:refresh_token],
-      access_token_expires_at: short_term_access_token[:access_token_expires_at],
-      refresh_token_expires_at: short_term_access_token[:refresh_token_expires_at]
-    )
-
-    channel.inbox.update!(name: short_term_access_token[:seller_name].presence || channel.inbox.name)
+  def token_response
+    @token_response ||= Tiktok::Shop::AuthClient.obtain_access_token(params[:code])
   end
 
   def account_id
@@ -109,9 +110,5 @@ class Tiktok::Shop::CallbacksController < ApplicationController
 
   def account
     @account ||= Account.find(account_id)
-  end
-
-  def short_term_access_token
-    @short_term_access_token ||= Tiktok::Shop::AuthClient.obtain_short_term_access_token(params[:code])
   end
 end

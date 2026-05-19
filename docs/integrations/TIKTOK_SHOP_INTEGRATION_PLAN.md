@@ -1,217 +1,275 @@
 # TikTok Shop Channel Integration — Plan & Scaffold
 
-**Status:** Scaffolding committed, end-to-end testing blocked on TikTok Shop Partner approval.
-**Author:** Claude (Sonnet 4.6) under instruction from @shrihari1999
+**Status:** Scaffolding committed. All TikTok Shop API specifics resolved against
+the official Partner Center docs. End-to-end testing still requires a TikTok Shop
+Partner Center developer app + approval.
 **Branch:** `vorflux/tiktok-shop-integration`
 
 ---
 
 ## 1. Why this exists
 
-TikTok Shop is a separate messaging system from TikTok Business Messaging API. Test messages sent to the @TheRollingPinn shop appear in TikTok Seller Center and in Freshchat (which uses the TikTok Shop Partner API) but never reach Chatwoot — because Chatwoot's existing TikTok channel uses the **Business Messaging API**, not the **Shop Partner API**. Direct quote from TikTok's own FAQ (`Access_to_Business_Messaging_API__1832184145137922.md`):
+TikTok Shop messaging and TikTok Business Messaging are **distinct systems**. Buyer
+messages to a shop appear in TikTok Seller Center and through any integrated
+Customer Service API consumer (e.g. Freshchat) — they are not delivered to the
+Business Messaging API that the existing `Channel::Tiktok` consumes. That is why
+test DMs to `@TheRollingPinn`'s shop reach Freshchat but never Chatwoot.
 
-> "TikTok Business Messaging and TikTok Shop Messaging are distinct messaging systems. Integration with the TikTok Business Messaging API does not allow management of TikTok Shop Messages."
+Direct quote from TikTok's Business Messaging FAQ:
 
-The bakery's actual customer messages are Shop messages, so we need a separate channel: `Channel::TiktokShop`.
+> "TikTok Business Messaging and TikTok Shop Messaging are distinct messaging
+> systems. Integration with the TikTok Business Messaging API does not allow
+> management of TikTok Shop Messages."
 
-## 2. Reference architecture — modelled on Lazada with three deltas
+We therefore introduce `Channel::TiktokShop`, dedicated to the Shop Customer
+Service API (v202309).
 
-Lazada (`Channel::Lazada`) is the closest existing precedent: same vertical (e-commerce marketplace messaging), same flavour (text + image + product/order cards), similar minimal feature surface. We replicate that architecture with three meaningful differences:
+## 2. Reference architecture — modelled on Lazada with OAuth (Tiktok-style)
 
 | Aspect | Lazada | TikTok Shop |
 |---|---|---|
-| Auth | Manual credentials (shop_id + app_key + app_secret + access_token entered into the form) | OAuth 3-legged flow (modeled on existing `Tiktok::CallbacksController`); app_key + app_secret are global Super Admin config, access_token + refresh_token + shop_cipher come from TikTok |
-| Token lifecycle | No refresh logic | Access token expires ~24h, refresh token expires longer; `TokenService` refreshes on demand (same pattern as existing `Tiktok::TokenService`) |
-| Shop identifier | `shop_id` (provided by user) | `shop_cipher` (returned by TikTok OAuth, used in API calls) + `shop_id` (numeric, used in webhook routing) |
+| Auth | Manual app_key/app_secret/access_token | OAuth 3-legged via `services.tiktokshop.com/open/authorize` |
+| Token lifecycle | Static | Access token = 7 days, refresh handled by `TokenService` |
+| Shop identifier | `shop_id` | `shop_id` + `shop_cipher` (cipher required in API calls; obtained via Get Authorized Shops after OAuth) |
+| Webhook routing | `/webhooks/lazada/:shop_id` | `/webhooks/tiktok_shop` (single endpoint; shop disambiguated by payload `shop_id`) |
 
-Everything else — webhook handler → events job → incoming service → conversation building → outgoing service → recall service → mark-as-read service → frontend Vue page → routes — mirrors Lazada one-to-one.
+## 3. Confirmed API specs (resolved from official docs)
 
-## 3. Feature parity matrix
+### OAuth flow
 
-Based on the @user's at-a-glance matrix plus what I could verify from the publicly-readable EcomPHP SDK for v202309. Items marked **UNVERIFIED** depend on TikTok Shop documentation pages that are JS-rendered SPAs and could not be extracted programmatically — they are marked with TODO comments in the code, to be confirmed once the user has Partner Center access.
+```
+Step 1 — User redirected to:
+   https://services.tiktokshop.com/open/authorize?service_id=<service_id>&state=<jwt>
+   (US sellers: services.us.tiktokshop.com)
+   Note: service_id is distinct from app_key — both come from Partner Center
+   but service_id identifies the OAuth client, app_key identifies the API caller.
 
-| Feature | Status | Implementation |
+Step 2 — Redirect back to <Redirect URL>?code=<auth_code>&state=<jwt>
+   auth_code valid for 30 minutes, single-use.
+
+Step 3 — GET https://auth.tiktok-shops.com/api/v2/token/get
+   ?app_key=...&app_secret=...&auth_code=...&grant_type=authorized_code
+   → { access_token, refresh_token,
+       access_token_expire_in,   # ABSOLUTE Unix timestamp, NOT a duration
+       refresh_token_expire_in,
+       open_id, seller_name, seller_base_region, user_type }
+   Access token good for 7 days; refresh token determined by seller's grant duration.
+
+Step 4 — GET /authorization/202309/shops with x-tts-access-token: <token>
+   → { shops: [ { id, cipher, code, name, region, seller_type } ] }
+   Required because token-exchange does NOT include shop_cipher.
+
+Step 5 — Refresh as needed:
+   GET https://auth.tiktok-shops.com/api/v2/token/refresh
+   ?app_key=...&app_secret=...&refresh_token=...&grant_type=refresh_token
+```
+
+### Request signing (HMAC-SHA256)
+
+Algorithm (per `Sign_your_API_request`):
+
+```
+1. Take query params except `sign` and `access_token`. Sort alphabetically.
+2. Concatenate as "key1value1key2value2..."
+3. Prepend the request path. e.g. "/customer_service/202309/conversations" + concat
+4. If Content-Type != multipart/form-data, append raw body.
+5. Wrap: app_secret + result + app_secret
+6. HMAC-SHA256, key = app_secret. Hex-encoded lowercase.
+```
+
+Implementation: `Tiktok::Shop::SignatureService.generate(...)`.
+
+### API request shape
+
+- Base: `https://open-api.tiktokglobalshop.com`
+- Always in query: `app_key`, `timestamp`, `sign`. Add `shop_cipher` for shop-scoped calls.
+- Header: `x-tts-access-token: <token>` (NOT `Access-Token` or `Authorization`)
+- Header: `Content-Type: application/json` (or `multipart/form-data` for image upload)
+
+### Messaging endpoints (v202309)
+
+| Method | Path | Use |
 |---|---|---|
-| **Send text** | ✅ Implemented | `customer_service/202309/conversations/{id}/messages` with `type=TEXT` |
-| **Send image** | ✅ Implemented | Upload via `customer_service/202309/images/upload`, then send with `type=IMAGE` |
-| **Send product/order card** | ✅ Implemented | Same send endpoint with `type=PRODUCT_CARD` / `type=ORDER_CARD`. Field names TODO. |
-| **Receive text** | ✅ Implemented | Webhook event handler routes to `Tiktok::Shop::IncomingMessageService` |
-| **Receive image** | ✅ Implemented | Image URL or media_id parsed from webhook payload — TODO field names |
-| **Receive product/order card** | ✅ Implemented | Card payload preserved in `content_attributes` |
-| **Mark as read** (agent → buyer) | ✅ Implemented | `POST /customer_service/202309/conversations/{id}/messages/read` enqueued via `Tiktok::Shop::MarkAsReadJob` when agent views conversation |
-| **Read receipts** (buyer → agent) | ⚠️ TODO | Webhook event name and payload schema unknown. Service stubbed; will route to `Conversations::UpdateMessageStatusJob` when wired. |
-| **Reply / quote** | ❌ Not supported by API | Per the feature matrix: TikTok Shop has no documented `reply_to` field. Send service accepts the param but ignores it. |
-| **Unsend / recall** (agent-initiated) | ⚠️ TODO | EcomPHP SDK does not expose a recall endpoint. Service file scaffolded but performs no-op with TODO. |
-| **Unsend / recall** (buyer-initiated, webhook in) | ⚠️ TODO | Event name unknown. Handler stubbed. |
-| **Bidirectional reactions** | ⚠️ TODO | EcomPHP SDK does not expose reaction endpoints. Scaffolded as no-op service. **User explicitly requested this — see Open Question #5.** |
-| **Typing indicator** (outbound) | ⚠️ TODO | Unknown. No scaffold. |
-| **Edit message** | ❌ Not supported | Consistent with every other social channel — businesses cannot API-edit sent messages. |
-| **Token refresh** | ✅ Implemented | `Tiktok::Shop::TokenService` refreshes access token when within 5-minute expiry window |
-| **Reauthorize UI** | ✅ Implemented | `Reauthorize.vue` page + `Reauthorizable` concern + admin email on auth failure |
+| `GET` | `/customer_service/202309/conversations` | List conversations |
+| `GET` | `/customer_service/202309/conversations/{id}/messages` | List messages |
+| `POST` | `/customer_service/202309/conversations/{id}/messages` | Send message |
+| `POST` | `/customer_service/202309/conversations/{id}/messages/read` | Mark read |
+| `POST` | `/customer_service/202309/images/upload` | Upload image (multipart) |
+| `POST` | `/customer_service/202309/conversations` | Create conversation (with buyer) |
 
-## 4. File-by-file inventory
+### Send Message body
 
-### Database
-- `db/migrate/<timestamp>_create_channel_tiktok_shop.rb` — `channel_tiktok_shop` table
+```json
+{ "type": "TEXT", "content": "{\"content\":\"hello\"}" }
+```
 
-### Models
-- `app/models/channel/tiktok_shop.rb` — channel model, encrypts secrets, contains API helpers + Reauthorizable concern
-- `app/models/account.rb` — adds `has_many :tiktok_shop_channels`
+The `content` field is itself a JSON-serialized string. Supported `type` enums:
+`TEXT, IMAGE, VIDEO, PRODUCT_CARD, ORDER_CARD, RETURN_REFUND_CARD, COUPON_CARD, LOGISTICS_CARD`.
 
-### Services
-- `app/services/tiktok/shop/auth_client.rb` — global static class wrapping OAuth + token exchange (parallels `Tiktok::AuthClient`)
-- `app/services/tiktok/shop/client.rb` — per-channel HTTP client with signing logic
-- `app/services/tiktok/shop/token_service.rb` — refreshes access token on demand
-- `app/services/tiktok/shop/incoming_message_service.rb` — webhook → conversation + message
-- `app/services/tiktok/shop/incoming_recall_service.rb` — TODO: handle buyer-initiated recall webhook
-- `app/services/tiktok/shop/incoming_reaction_service.rb` — TODO: handle buyer reaction webhook
-- `app/services/tiktok/shop/send_on_tiktok_shop_service.rb` — outgoing message dispatcher
-- `app/services/tiktok/shop/outgoing_recall_service.rb` — TODO: agent-initiated recall
-- `app/services/tiktok/shop/outgoing_reaction_service.rb` — TODO: agent-initiated reaction
-- `app/services/tiktok/shop/mark_as_read_service.rb` — agent viewed conversation
-- `app/services/tiktok/shop/messaging_helpers.rb` — shared helpers (signing, parsing)
+### Webhook delivery
 
-### Jobs
-- `app/jobs/webhooks/tiktok_shop_events_job.rb` — dispatches webhook events to services
-- `app/jobs/tiktok/shop/mark_as_read_job.rb` — async wrapper for MarkAsReadService
-- `app/jobs/tiktok/shop/recall_job.rb` — async wrapper for OutgoingRecallService
+- HTTPS POST to the URL configured in Partner Center under app's "Developing" tab.
+- `Authorization` header carries the HMAC-SHA256 signature, computed with the
+  same algorithm as outgoing API requests (path = the webhook callback path,
+  body = raw JSON payload, no query params).
+- Must respond 200 or 401 within **3 seconds**. Retries: 2 min, 30 min, 3 h, 12 h.
 
-### Controllers
-- `app/controllers/tiktok/shop/callbacks_controller.rb` — OAuth callback handler
-- `app/controllers/api/v1/accounts/tiktok/shop/authorizations_controller.rb` — generates OAuth init URL
-- `app/controllers/webhooks/tiktok_shop_controller.rb` — webhook receiver with signature verify
+### Webhook payload (event type 14 — "new message")
 
-### Routes
-- `config/routes.rb`:
-  - `get '/tiktok/shop/callback'` → CallbacksController#show
-  - `post 'webhooks/tiktok_shop'` → tiktok_shop_controller#events
-  - `post 'tiktok/shop/authorization'` (namespaced API) → AuthorizationsController#create
-  - `get 'tiktok/shop/reauthorize'` (API) → AuthorizationsController#reauthorize (TODO if reusing create)
+```json
+{
+  "type": 14,
+  "tts_notification_id": "...",
+  "shop_id": "7494049642642441621",
+  "timestamp": 1644412885,
+  "data": {
+    "conversation_id": "...",
+    "message_id": "...",
+    "index": "...",
+    "type": "TEXT",
+    "content": "{\"content\":\"hi\"}",
+    "create_time": 1681790246,
+    "is_visible": true,
+    "sender": { "im_user_id": "...", "role": "BUYER" }
+  }
+}
+```
 
-### Inbox / channel wiring
-- `app/helpers/api/v1/inboxes_helper.rb` — register `'tiktok_shop' => Current.account.tiktok_shop_channels`
-- `app/controllers/api/v1/accounts/inboxes_controller.rb` — `allowed_channel_types` += `'tiktok_shop'`; map type
-- `app/models/inbox.rb` — add `tiktok_shop?` predicate + `/webhooks/tiktok_shop` in `webhook_url`
-- `app/builders/contact_inbox_builder.rb` — allow TikTok Shop channel
-- `app/jobs/send_reply_job.rb` — map `Channel::TiktokShop => ::Tiktok::Shop::SendOnTiktokShopService`
-- `app/models/message.rb` — wire `trigger_tiktok_shop_recall` (mirrors `trigger_lazada_recall`)
-- `app/controllers/api/v1/accounts/conversations_controller.rb` — enqueue MarkAsReadJob on view
-- `app/controllers/super_admin/app_configs_controller.rb` — add `tiktok_shop` config group for global `TIKTOK_SHOP_APP_KEY` + `TIKTOK_SHOP_APP_SECRET`
+Event types in scope:
+- `13` — new conversation (CS agent joined/left)
+- `14` — new message (in CS conversation; main path)
+- `33` — new message listener (creator → seller; out of scope for buyer support)
+
+### Eligibility to send
+
+Reply allowed only if at least one of:
+1. Buyer messaged the shop in the last 30 days
+2. Buyer placed an order in the last 60 days
+3. Buyer has a return/refund history with the shop
+
+The `conversations` list response carries `can_send_message` per conversation.
+
+## 4. Feature parity matrix (verified)
+
+Legend: ✅ supported. ❌ not in API.
+
+| Feature | TikTok Shop API | Chatwoot wiring |
+|---|---|---|
+| Send text | ✅ | `Tiktok::Shop::Client#send_text` |
+| Send image | ✅ (upload→send) | `Client#upload_image` + `#send_image` |
+| Send video/product/order/coupon/logistics card | ✅ | `Client#send_message(type:, content_payload:)` |
+| Receive text | ✅ webhook 14 | `Tiktok::Shop::IncomingMessageService` |
+| Receive image / video | ✅ | Attachment built from `content.url` |
+| Receive product/order/etc. cards | ✅ | Descriptive text + raw payload preserved in `content_attributes` |
+| Mark as read | ✅ | `Tiktok::Shop::MarkAsReadJob` on conversation view |
+| Read receipts (buyer→agent) | ❌ not exposed | — |
+| Reply/quote | ❌ not in API | — |
+| Unsend/recall (agent) | ❌ confirmed unsupported | `OutgoingRecallService` no-ops with log |
+| Unsend/recall (buyer webhook) | ❌ no event type | — |
+| Reactions (bidirectional) | ❌ confirmed unsupported | `*ReactionService` no-ops with log |
+| Edit message | ❌ universal across channels | — |
+| Token refresh | ✅ 7-day cycle | `Tiktok::Shop::TokenService` |
+| Reauthorize UI | ✅ | `Reauthorize.vue` + `Reauthorizable` |
+
+## 5. File inventory (post-fix)
+
+### Backend
+- `db/migrate/20260519102516_create_channel_tiktok_shop.rb`
+- `app/models/channel/tiktok_shop.rb`
+- `app/models/account.rb` — `has_many :tiktok_shop_channels`
+- `app/services/tiktok/shop/auth_client.rb` — OAuth + Get Authorized Shops
+- `app/services/tiktok/shop/signature_service.rb` — HMAC-SHA256 helper
+- `app/services/tiktok/shop/client.rb` — per-channel signed HTTP client
+- `app/services/tiktok/shop/token_service.rb` — refresh with Redis lock
+- `app/services/tiktok/shop/incoming_message_service.rb` — webhook 14
+- `app/services/tiktok/shop/incoming_conversation_service.rb` — webhook 13
+- `app/services/tiktok/shop/mark_as_read_service.rb`
+- `app/services/tiktok/shop/send_on_tiktok_shop_service.rb`
+- `app/services/tiktok/shop/outgoing_recall_service.rb` — explicit no-op
+- `app/services/tiktok/shop/incoming_reaction_service.rb` — explicit no-op
+- `app/services/tiktok/shop/outgoing_reaction_service.rb` — explicit no-op
+- `app/jobs/webhooks/tiktok_shop_events_job.rb`
+- `app/jobs/tiktok/shop/mark_as_read_job.rb`
+- `app/jobs/tiktok/shop/recall_job.rb`
+- `app/controllers/tiktok/shop/callbacks_controller.rb`
+- `app/controllers/api/v1/accounts/tiktok/shop/authorizations_controller.rb`
+- `app/controllers/webhooks/tiktok_shop_controller.rb`
+- `app/helpers/tiktok/shop/integration_helper.rb`
+
+### Wiring
+- `config/routes.rb` — `/tiktok/shop/callback`, `/webhooks/tiktok_shop`, namespaced authorization API
+- `app/controllers/api/v1/accounts/conversations_controller.rb` — enqueue MarkAsRead
+- `app/models/message.rb` — `trigger_tiktok_shop_recall`
+- `app/models/inbox.rb` — `tiktok_shop?` predicate + webhook URL
+- `app/builders/contact_inbox_builder.rb` — allow channel
+- `app/jobs/send_reply_job.rb` — dispatch to `Tiktok::Shop::SendOnTiktokShopService`
+- `app/helpers/api/v1/inboxes_helper.rb` — register `tiktok_shop` channel type
+- `app/controllers/super_admin/app_configs_controller.rb` — config group `tiktok_shop`
+  with `TIKTOK_SHOP_APP_KEY`, `TIKTOK_SHOP_APP_SECRET`, `TIKTOK_SHOP_SERVICE_ID`
 
 ### Frontend
-- `app/javascript/dashboard/routes/dashboard/settings/inbox/channels/TiktokShop.vue` — connect button (initiates OAuth)
-- `app/javascript/dashboard/routes/dashboard/settings/inbox/channels/tiktok_shop/Reauthorize.vue` — re-authorize component
-- `app/javascript/dashboard/api/channel/tiktokShopClient.js` — API client for OAuth init
-- `app/javascript/dashboard/routes/dashboard/settings/inbox/ChannelFactory.vue` — register channel
-- `app/javascript/dashboard/routes/dashboard/settings/inbox/ChannelList.vue` — list TikTok Shop option
-- `app/javascript/dashboard/routes/dashboard/settings/inbox/Settings.vue` — handle reauthorize state
-- `app/javascript/dashboard/helper/inbox.js` — `INBOX_TYPES.TIKTOK_SHOP = 'Channel::TiktokShop'` + icon/brand helpers
-- `app/javascript/dashboard/components-next/icon/provider.js` — icon mapping
-- `app/javascript/dashboard/components/widgets/ChannelItem.vue` — channel icon support
-- `app/javascript/dashboard/constants/editor.js` — editor config (minimal, like Lazada)
-- `app/javascript/dashboard/i18n/locale/en/inboxMgmt.json` — strings under `INBOX_MGMT.ADD.TIKTOK_SHOP_CHANNEL`
+- `app/javascript/dashboard/api/channel/tiktokShopClient.js`
+- `app/javascript/dashboard/routes/dashboard/settings/inbox/channels/TiktokShop.vue`
+- `app/javascript/dashboard/routes/dashboard/settings/inbox/channels/tiktok_shop/Reauthorize.vue`
+- `app/javascript/dashboard/routes/dashboard/settings/inbox/ChannelFactory.vue`
+- `app/javascript/dashboard/routes/dashboard/settings/inbox/ChannelList.vue` — gated on `chatwootConfig.tiktokShopAppKey`
+- `app/javascript/dashboard/routes/dashboard/settings/inbox/Settings.vue` — reauthorize banner
+- `app/javascript/dashboard/helper/inbox.js` — `INBOX_TYPES.TIKTOK_SHOP`
+- `app/javascript/dashboard/components-next/icon/provider.js`
+- `app/javascript/dashboard/components/widgets/ChannelItem.vue`
+- `app/javascript/dashboard/constants/editor.js`
+- `app/javascript/dashboard/featureFlags.js` — `CHANNEL_TIKTOK_SHOP`
+- `app/javascript/shared/mixins/inboxMixin.js` — `isATiktokShopChannel`
+- `app/javascript/dashboard/i18n/locale/en/inboxMgmt.json`
+- `app/views/layouts/vueapp.html.erb` — expose `TIKTOK_SHOP_APP_KEY` as `tiktokShopAppKey`
 
-### Configuration
-- `config/features.yml` — add `channel_tiktok_shop` feature flag
-- `app/helpers/super_admin/features.yml` — registry of the flag
-- `app/javascript/dashboard/featureFlags.js` — frontend feature flag enum
+### Config & DB
+- `config/features.yml` — `channel_tiktok_shop` flag
+- `app/helpers/super_admin/features.yml` — Super Admin `tiktok_shop` entry
+- `app/controllers/dashboard_controller.rb` — expose `TIKTOK_SHOP_APP_KEY` to frontend
 
-### Specs (scaffold-only — minimal)
-- `spec/factories/channel/channel_tiktok_shop.rb` — FactoryBot factory
-- Test files for each service are NOT scaffolded in this branch — they should be written once the live API behaviour is verified, otherwise they encode our guesses rather than real behaviour.
+### Test scaffolding
+- `spec/factories/channel/channel_tiktok_shop.rb` — minimal factory; no further tests scaffolded until live API verifies behavior.
 
-## 5. OAuth flow (designed)
+## 6. Verification path (post-deploy)
 
-```
-1. User clicks "Connect TikTok Shop" in Chatwoot
-   → POST /api/v1/accounts/:id/tiktok/shop/authorization
-   → Backend generates state JWT, redirects to:
-     https://services.tiktokshop.com/open/authorize?app_key=<key>&state=<jwt>
+1. Register a developer app in Partner Center.
+2. Configure:
+   - Redirect URL = `https://chat.rollingpinn.com/tiktok/shop/callback`
+   - Webhook URL = `https://chat.rollingpinn.com/webhooks/tiktok_shop`
+   - Subscribe to event types **13** and **14**.
+   - Enable the `customer_service` access scope.
+3. Set Super Admin → AppConfig → TikTok Shop → `TIKTOK_SHOP_APP_KEY`, `TIKTOK_SHOP_APP_SECRET`, `TIKTOK_SHOP_SERVICE_ID`.
+4. From Chatwoot inbox setup, click "Connect TikTok Shop" → complete OAuth.
+5. Verify the resulting channel has `access_token`, `refresh_token`, `shop_cipher`, expiry timestamps populated.
+6. Send a test DM from a buyer test account → verify nginx `chatwoot_access_443.log` shows a 200 POST to `/webhooks/tiktok_shop` → verify message lands in inbox.
+7. Reply from Chatwoot → confirm visible in Seller Center.
 
-2. User authorizes on TikTok, redirected to:
-   https://chat.rollingpinn.com/tiktok/shop/callback?code=<auth_code>&state=<jwt>
+## 7. Non-goals (deliberately out of scope)
 
-3. CallbacksController exchanges code:
-   POST https://auth.tiktok-shops.com/api/v2/token/get
-   body: { app_key, app_secret, auth_code, grant_type: "authorized_code" }
-   → returns: { access_token, refresh_token, access_token_expire_in, refresh_token_expire_in,
-                open_id, seller_name, seller_base_region, shop_id_list, shop_cipher_list }
+- Order / product / fulfillment / affiliate APIs — Chatwoot is the messaging surface only.
+- Multi-shop-per-inbox UX — one shop = one Chatwoot inbox; multi-shop sellers get multiple inboxes.
+- The "creator messaging" (event 33) path — different relationship type, outside buyer support.
 
-4. For each shop_id+shop_cipher returned, create one Channel::TiktokShop record.
-   (If multiple shops, pick the first — UX iteration: let user choose.)
+## 8. What changed between the initial scaffold and the fix-up commit
 
-5. After channel save, enqueue Avatar::AvatarFromUrlJob (mirrors existing Tiktok callback).
-   Redirect user back to inbox setup → agents page.
-```
+| Area | Before (TODO scaffold) | After (verified) |
+|---|---|---|
+| Auth URL host | Guess based on Business Messaging | `services.tiktokshop.com/open/authorize?service_id=...` |
+| Token endpoint | POST (Business-Messaging style) | **GET** `auth.tiktok-shops.com/api/v2/token/{get,refresh}` |
+| OAuth identifier | `app_key` | `service_id` (separate Partner Center field) |
+| Token expiry | `Time.current + seconds_until_expiry` | `Time.zone.at(<unix_ts>)` — absolute Unix timestamps |
+| shop_cipher source | Expected from token response | Fetched via `/authorization/202309/shops` |
+| Access-token header | `Access-Token` | `x-tts-access-token` |
+| `sign` placement | Header | Query parameter |
+| Signing input | Modeled on EcomPHP SDK guess | Confirmed against official Go/Java/Node/Python samples |
+| Webhook signature header | `X-TTS-Signature` guess | `Authorization` |
+| Webhook event names | String placeholders (`MESSAGE_NEW`) | Numeric integers (`13`, `14`) |
+| `content` field shape | JSON object | JSON-serialized **string** within the message body |
+| Recall/reactions | "TODO verify" | Confirmed unsupported by TikTok Shop API; explicit no-ops |
 
-## 6. Webhook flow (designed)
+## 9. Bottom line
 
-```
-TikTok Shop → POST https://chat.rollingpinn.com/webhooks/tiktok_shop
-  Headers:
-    X-TTS-Signature: <hex HMAC-SHA256 of timestamp + body, key = app_secret>   ← TODO: verify header name
-    X-TTS-Timestamp: <unix seconds>                                              ← TODO: verify header name
-  Body:
-    {
-      "tts_notification_id": "...",
-      "shop_id": "<numeric shop id>",
-      "timestamp": <unix seconds>,
-      "type": "MESSAGE_NEW"          ← TODO: confirm exact event name
-      "data": { ... event-specific payload ... }
-    }
-
-→ Webhooks::TiktokShopController.events
-  → verify_signature! (constant-time HMAC compare + 5s timestamp tolerance)
-  → enqueue Webhooks::TiktokShopEventsJob
-
-→ Webhooks::TiktokShopEventsJob
-  → look up Channel::TiktokShop by shop_id
-  → dispatch on payload['type']:
-       MESSAGE_NEW         → Tiktok::Shop::IncomingMessageService
-       MESSAGE_READ        → Tiktok::Shop::SessionUpdateService (TODO: verify name)
-       MESSAGE_RECALLED    → Tiktok::Shop::IncomingRecallService (TODO: verify name)
-       MESSAGE_REACTION    → Tiktok::Shop::IncomingReactionService (TODO: verify name)
-```
-
-## 7. Open questions (must answer before going live)
-
-1. **Exact webhook event names and payload schemas** — extract from Partner Center docs (JS-rendered SPA, requires browser session). Currently using placeholder names in code with TODO markers.
-2. **Exact API signing scheme for v202309** — the EcomPHP SDK source code shows the mechanics, but our implementation copies the convention without verification. First live request will confirm.
-3. **Webhook signature header name** — guessed `X-TTS-Signature`. Lazada uses `Authorization`. TikTok Business uses `Tiktok-Signature`. TODO verify.
-4. **Region routing for `auth.tiktok-shops.com` vs `auth.tiktok-shops.us.com`** — US shops use a different auth host. Channel stores `region` to disambiguate. TODO confirm hostnames.
-5. **Reactions** — user explicitly asked about bidirectional reaction support. The EcomPHP SDK's `CustomerService.php` exposes no reaction endpoints. **Verdict: TikTok Shop API likely does not support reactions today.** Service stubbed as no-op pending Partner Center verification.
-6. **TikTok Shop Partner approval** — accessing the messaging endpoints requires Partner Center registration + app approval. Without an approved app, every API call returns 401. **The bakery's existing TikTok Shop account (shop code `THLCQ2WL89`) is a separate prerequisite.**
-7. **Token storage size** — `access_token` and `refresh_token` from TikTok Shop are JWT-like and can be ~1KB each. Migration uses `text` instead of `string`.
-8. **Multiple shops per account** — TikTok Shop OAuth returns an array of `shop_id`/`shop_cipher` pairs. MVP picks the first. Future: per-shop inbox setup wizard.
-
-## 8. Non-goals (deliberately scoped out)
-
-- Order/product management endpoints — only customer service / messaging is in scope. Use the official Shopify-style admin for shop management.
-- Affiliate, Logistics, Fulfillment APIs — out of scope.
-- Webhook subscription management via API — TikTok Shop requires subscription in Partner Center UI, not via API. Documented in plan but not coded.
-- Multi-shop per inbox — one channel = one shop; multi-shop accounts get multiple inboxes.
-
-## 9. Verification path (post-merge, requires Partner approval)
-
-1. Apply for TikTok Shop Partner Center developer account
-2. Register an app, get app_key + app_secret, configure in Super Admin → AppConfig → TikTok Shop
-3. Configure webhook URL `https://chat.rollingpinn.com/webhooks/tiktok_shop` in Partner Center
-4. Click "Connect TikTok Shop" in Chatwoot inbox setup → complete OAuth
-5. Verify channel record created with access_token, refresh_token, shop_cipher populated
-6. Send a test DM from a buyer account to the shop → verify webhook hits `/webhooks/tiktok_shop` in nginx log → verify message appears in Chatwoot inbox
-7. Reply from Chatwoot → verify it appears in TikTok Seller Center
-8. Resolve all TODOs in code with verified field names
-
-## 10. Risk register
-
-| Risk | Mitigation |
-|---|---|
-| Webhook event names wrong → no messages ingested | Plan rolls out behind `channel_tiktok_shop` feature flag; first failed delivery in Partner Center event logs reveals correct names |
-| Token refresh race condition under load | `TokenService` checks expiry per request, holds advisory lock via Redis if needed (TODO when traffic warrants) |
-| Encryption key rotation | Tokens use Rails 7 `encrypts` macro; rotation handled by existing infra (matches Lazada) |
-| Partner Center approval delayed | Code merges without affecting other channels (gated behind feature flag); deploy when approval lands |
-| Region-routing mistakes (US vs others) | Region stored on channel; routed at API client construction time |
-
----
-
-**Bottom line:** every architectural decision mirrors a proven pattern in this codebase (Lazada for the shop/messaging shape, existing `Tiktok::*` for the OAuth shape). The unknowns are confined to TikTok Shop's gated documentation — coded as TODOs, will be resolved in a follow-up PR once the user has Partner Center access.
+Every gating unknown has been answered against official docs. The remaining
+prerequisites are operational (Partner Center developer app, webhook subscription
+configured) rather than architectural.

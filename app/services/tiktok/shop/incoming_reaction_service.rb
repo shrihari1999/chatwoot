@@ -1,28 +1,16 @@
-# Handles inbound reaction events from TikTok Shop.
+# Inbound reaction handler.
 #
-# TODO: TikTok Shop API support for reactions is unverified. The public
-# EcomPHP SDK does not expose reaction endpoints or document reaction webhook
-# events. The user explicitly requested bidirectional reaction support — this
-# service is the inbound half of that placeholder.
+# **TikTok Shop API does not surface message reactions.** Neither the
+# Customer Service API endpoint set (send/list/read/upload/create) nor the
+# webhook event catalogue (types 13, 14, 33 — see docs/integrations/
+# TIKTOK_SHOP_INTEGRATION_PLAN.md) includes a reaction primitive.
 #
-# When confirmed: store the reaction in `content_attributes` of the referenced
-# message and broadcast via the existing message-update channel so the agent
-# UI re-renders. See app/models/concerns/message_emoji_interactable.rb for the
-# in-Chatwoot reaction storage pattern.
+# Kept as a no-op for interface symmetry with the outgoing counterpart and to
+# preserve the door for a future API revision.
 class Tiktok::Shop::IncomingReactionService
   pattr_initialize [:channel!, :payload!]
 
   def perform
-    return if data.blank?
-
-    Rails.logger.info "[TikTok Shop Reaction] Inbound reaction event received but not yet wired. data=#{data.inspect}"
-    # TODO: locate the target message by source_id, attach the reaction to
-    # content_attributes[:reactions], then save.
-  end
-
-  private
-
-  def data
-    @data ||= payload[:data] || payload
+    Rails.logger.info "[TikTok Shop] Inbound reactions are not supported by the TikTok Shop API"
   end
 end

@@ -1,6 +1,7 @@
 # Refreshes the TikTok Shop access token when it's within the 5-minute expiry
-# window. Mirrors Tiktok::TokenService — same lock pattern via Redis::LockManager
-# to prevent concurrent refresh storms when multiple jobs hit the API at once.
+# window. Mirrors Tiktok::TokenService and Lazada in lifecycle. Lock via
+# Redis::LockManager prevents concurrent refresh storms when multiple jobs
+# fire API calls at once.
 class Tiktok::Shop::TokenService
   pattr_initialize [:channel!]
 
@@ -33,11 +34,9 @@ class Tiktok::Shop::TokenService
   def refresh_access_token
     lock_manager = Redis::LockManager.new
     begin
-      # Another worker is mid-refresh; trust them and return the current token,
-      # which is valid for at least the 5-minute buffer window.
       return current_access_token unless lock_manager.lock(lock_key, 30.seconds)
 
-      result = Tiktok::Shop::AuthClient.renew_short_term_access_token(channel.refresh_token, region: channel.region)
+      result = Tiktok::Shop::AuthClient.renew_access_token(channel.refresh_token)
       channel.update!(
         access_token: result[:access_token],
         refresh_token: result[:refresh_token],

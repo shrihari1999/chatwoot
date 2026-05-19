@@ -1,113 +1,133 @@
-# Static helper class wrapping the TikTok Shop Open Platform OAuth endpoints.
+# OAuth helper for the TikTok Shop Open Platform.
 #
-# Unlike Lazada (manual creds) and the existing Tiktok Business Messaging
-# channel (which uses /tt_user/oauth2/...), TikTok Shop uses a separate auth
-# host and a different token shape.
-#
-# Auth flow:
-#   1. authorize_url   → user redirected to TikTok Shop consent screen
-#   2. obtain_short_term_access_token(auth_code) → exchanges code for tokens
-#   3. renew_short_term_access_token(refresh_token) → refresh
-#
-# References:
-#   https://partner.tiktokshop.com/docv2/page/upgrading-to-api-version-202309 (JS-rendered, content not extracted)
-#   https://github.com/EcomPHP/tiktokshop-php (open-source SDK targeting v202309)
+# Refs (from Partner Center docs):
+#   Authorization guide (202309): docs/integrations/TIKTOK_SHOP_INTEGRATION_PLAN.md
+#   - Auth URL host varies by region: services.tiktokshop.com vs services.us.tiktokshop.com
+#   - Token endpoints are GET (not POST), at auth.tiktok-shops.com/api/v2/token/{get,refresh}
+#   - Token response gives Unix-timestamps (absolute), not durations
+#   - Token response does NOT include shop_cipher — must call Get Authorized Shops
+#     (/authorization/202309/shops) afterwards with the access_token to obtain it.
 class Tiktok::Shop::AuthClient
-  AUTH_HOST = 'https://services.tiktokshop.com'.freeze
-  TOKEN_HOST = 'https://auth.tiktok-shops.com'.freeze
-  # TODO: TikTok Shop has a separate US host for sellers in US region.
-  # Confirm hostname before going live for US shops.
-  US_TOKEN_HOST = 'https://auth.tiktok-shops.us.com'.freeze
+  AUTH_HOST_GLOBAL = 'https://services.tiktokshop.com'.freeze
+  AUTH_HOST_US     = 'https://services.us.tiktokshop.com'.freeze
+  TOKEN_HOST       = 'https://auth.tiktok-shops.com'.freeze
+  # NB: docs don't differentiate token host for US sellers — only the
+  # authorize URL host differs. Token exchange is the same auth.tiktok-shops.com.
 
   class << self
-    def authorize_url(state: nil)
-      params = {
-        app_key: client_id,
-        state: state
-      }.compact
+    # Build the seller authorization URL. The seller (TikTok Shop owner) opens
+    # this URL, logs in, approves access, and is redirected to the app's
+    # Redirect URL with `?code=<auth_code>&state=<state>`.
+    #
+    # `service_id` is the app's per-app OAuth client identifier from Partner
+    # Center → App details. It is distinct from `app_key`.
+    # Both US and non-US sellers can use the global authorize host; the US
+    # host exists for the US-restricted Partner Center but redirects work
+    # either way for SEA/Thai sellers.
+    def authorize_url(state: nil, region: 'others')
+      return if service_id.blank?
 
-      "#{AUTH_HOST}/open/authorize?#{params.to_query}"
+      base = region.to_s.casecmp('us').zero? ? AUTH_HOST_US : AUTH_HOST_GLOBAL
+      params = { service_id: service_id, state: state }.compact
+      "#{base}/open/authorize?#{params.to_query}"
     end
 
     # Exchange the auth_code from the OAuth callback for a long-lived token set.
-    # TikTok Shop returns multiple shops; we use the first one for MVP. Multi-shop
-    # support is a follow-up — see TIKTOK_SHOP_INTEGRATION_PLAN.md #8.
+    # GET request; all parameters in the query string. Returns Unix timestamps
+    # for both token expiries (absolute, not seconds-from-now).
     #
-    # https://partner.tiktokshop.com/docv2/page/upgrading-to-api-version-202309
-    def obtain_short_term_access_token(auth_code, region: 'others')
-      endpoint = "#{token_host(region)}/api/v2/token/get"
+    # The response does NOT contain shop_cipher. Caller MUST follow up with
+    # fetch_authorized_shops(access_token) to get the cipher needed for API
+    # calls.
+    def obtain_access_token(auth_code)
+      raise 'TIKTOK_SHOP_APP_KEY / TIKTOK_SHOP_APP_SECRET not configured' if app_key.blank? || app_secret.blank?
+
+      endpoint = "#{TOKEN_HOST}/api/v2/token/get"
       params = {
-        app_key: client_id,
-        app_secret: client_secret,
+        app_key: app_key,
+        app_secret: app_secret,
         auth_code: auth_code,
         grant_type: 'authorized_code'
       }
-
       response = HTTParty.get(endpoint, query: params, timeout: 30)
-      json = process_json_response(response, 'Failed to obtain TikTok Shop access token')
+      data = process_response(response, 'Failed to obtain TikTok Shop access token')
 
-      data = json['data'] || {}
-      shops = data['granted_scopes'] || []  # TODO: confirm key name. Some SDKs return shop_list / authorized_shop_list.
-      first_shop = (data['shop_list'] || data['authorized_shop_list'] || []).first || {}
-
-      {
-        shop_id: first_shop['shop_id'] || data['shop_id'],
-        shop_cipher: first_shop['shop_cipher'] || data['shop_cipher'],
-        seller_name: data['seller_name'],
-        region: data['seller_base_region'] || region,
-        access_token: data['access_token'],
-        refresh_token: data['refresh_token'],
-        access_token_expires_at: Time.current + data['access_token_expire_in'].to_i.seconds,
-        refresh_token_expires_at: Time.current + data['refresh_token_expire_in'].to_i.seconds,
-        raw_shops: data['shop_list'] || data['authorized_shop_list'] || []
-      }.with_indifferent_access
+      build_token_hash(data)
     end
 
-    def renew_short_term_access_token(refresh_token, region: 'others')
-      endpoint = "#{token_host(region)}/api/v2/token/refresh"
+    def renew_access_token(refresh_token)
+      raise 'TIKTOK_SHOP_APP_KEY / TIKTOK_SHOP_APP_SECRET not configured' if app_key.blank? || app_secret.blank?
+
+      endpoint = "#{TOKEN_HOST}/api/v2/token/refresh"
       params = {
-        app_key: client_id,
-        app_secret: client_secret,
+        app_key: app_key,
+        app_secret: app_secret,
         refresh_token: refresh_token,
         grant_type: 'refresh_token'
       }
-
       response = HTTParty.get(endpoint, query: params, timeout: 30)
-      json = process_json_response(response, 'Failed to renew TikTok Shop access token')
+      data = process_response(response, 'Failed to renew TikTok Shop access token')
 
-      data = json['data'] || {}
-      {
-        access_token: data['access_token'],
-        refresh_token: data['refresh_token'],
-        access_token_expires_at: Time.current + data['access_token_expire_in'].to_i.seconds,
-        refresh_token_expires_at: Time.current + data['refresh_token_expire_in'].to_i.seconds
-      }.with_indifferent_access
+      build_token_hash(data)
+    end
+
+    # Fetch the list of shops the seller has authorized this app for.
+    # https://partner.tiktokshop.com/docv2/page/get-authorized-shops
+    # Returns an array of { id, cipher, code, name, region, seller_type }.
+    def fetch_authorized_shops(access_token)
+      path = '/authorization/202309/shops'
+      timestamp = Time.current.to_i.to_s
+      query = { app_key: app_key, timestamp: timestamp }
+      query[:sign] = Tiktok::Shop::SignatureService.generate(path: path, query: query, body: nil, app_secret: app_secret)
+
+      response = HTTParty.get(
+        "#{Tiktok::Shop::Client::API_BASE}#{path}",
+        query: query,
+        headers: { 'x-tts-access-token' => access_token, 'Content-Type' => 'application/json' },
+        timeout: 30
+      )
+      data = process_response(response, 'Failed to fetch authorized shops')
+      Array(data['shops']).map(&:with_indifferent_access)
     end
 
     private
 
-    def client_id
-      GlobalConfigService.load('TIKTOK_SHOP_APP_KEY', nil)
+    def build_token_hash(data)
+      {
+        access_token: data['access_token'],
+        refresh_token: data['refresh_token'],
+        # Unix timestamps — convert to Time objects for storage.
+        access_token_expires_at: Time.zone.at(data['access_token_expire_in'].to_i),
+        refresh_token_expires_at: Time.zone.at(data['refresh_token_expire_in'].to_i),
+        open_id: data['open_id'],
+        seller_name: data['seller_name'],
+        seller_base_region: data['seller_base_region'],
+        user_type: data['user_type']
+      }.with_indifferent_access
     end
 
-    def client_secret
-      GlobalConfigService.load('TIKTOK_SHOP_APP_SECRET', nil)
-    end
-
-    def token_host(region)
-      region.to_s.casecmp('us').zero? ? US_TOKEN_HOST : TOKEN_HOST
-    end
-
-    def process_json_response(response, error_prefix)
+    def process_response(response, error_prefix)
       unless response.success?
         Rails.logger.error "#{error_prefix}. Status: #{response.code}, Body: #{response.body}"
         raise "#{response.code}: #{response.body}"
       end
 
-      res = JSON.parse(response.body)
-      raise "#{res['code']}: #{res['message']}" if res['code'].to_i != 0
+      json = JSON.parse(response.body)
+      raise "#{json['code']}: #{json['message']}" if json['code'].to_i != 0
 
-      res
+      json['data'] || {}
+    end
+
+    def service_id
+      GlobalConfigService.load('TIKTOK_SHOP_SERVICE_ID', nil)
+    end
+
+    def app_key
+      GlobalConfigService.load('TIKTOK_SHOP_APP_KEY', nil)
+    end
+
+    def app_secret
+      GlobalConfigService.load('TIKTOK_SHOP_APP_SECRET', nil)
     end
   end
 end

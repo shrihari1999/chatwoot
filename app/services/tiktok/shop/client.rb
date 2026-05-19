@@ -1,44 +1,53 @@
-# HTTP client wrapping the TikTok Shop Open Platform Customer Service API
-# (version 202309). Constructed per-channel so it can pick the right access
-# token + shop_cipher for every request.
+# HTTP client for the TikTok Shop Open Platform Customer Service API (v202309).
 #
-# Endpoint inventory comes from https://github.com/EcomPHP/tiktokshop-php
-# (CustomerService.php). The signing convention is the standard TikTok Shop
-# scheme: HMAC-SHA256 over `<app_secret>` + concatenated sorted params (excluding
-# `sign` and `access_token`) + (for POSTs) the raw JSON body + `<app_secret>`.
-# TODO: confirm the precise input string format against Partner Center docs
-# before going live — the SDK source is the only public reference.
+# Constructed per-channel so it can supply the correct access_token and
+# shop_cipher per request. All requests must:
+#   - include `app_key`, `timestamp`, `sign` (and usually `shop_cipher`) in query
+#   - send the access token in the `x-tts-access-token` HEADER (not query)
+#   - have `sign` calculated via Tiktok::Shop::SignatureService
+#
+# Refs:
+#   API base: open-api.tiktokglobalshop.com
+#   Endpoints: docs/integrations/TIKTOK_SHOP_INTEGRATION_PLAN.md
 class Tiktok::Shop::Client
   API_BASE = 'https://open-api.tiktokglobalshop.com'.freeze
-  API_VERSION = '202309'.freeze
 
   pattr_initialize [:channel!]
 
-  # ---- Customer Service endpoints -----------------------------------------
+  # ---- Customer Service endpoints ----------------------------------------
 
-  def get_conversations(page_size: 20, next_page_token: nil)
-    params = { page_size: page_size, next_page_token: next_page_token }.compact
-    request(:get, '/customer_service/202309/conversations', query: params)
+  def get_conversations(page_size: 20, page_token: nil, need_session_id: false, locale: 'en')
+    request(:get, '/customer_service/202309/conversations', query: {
+              page_size: page_size,
+              page_token: page_token,
+              need_session_id: need_session_id,
+              locale: locale
+            }.compact)
   end
 
-  def get_conversation_messages(conversation_id, page_size: 20, next_page_token: nil, sort_order: 'DESC')
-    params = { page_size: page_size, next_page_token: next_page_token, sort_order: sort_order }.compact
-    request(:get, "/customer_service/202309/conversations/#{conversation_id}/messages", query: params)
+  def get_conversation_messages(conversation_id, page_size: 10, page_token: nil, sort_order: 'DESC')
+    request(:get, "/customer_service/202309/conversations/#{conversation_id}/messages", query: {
+              page_size: page_size, page_token: page_token, sort_order: sort_order
+            }.compact)
   end
 
-  def send_message(conversation_id, type:, content:)
-    body = { type: type, content: content }
+  # type: TEXT, IMAGE, VIDEO, PRODUCT_CARD, ORDER_CARD, RETURN_REFUND_CARD,
+  #       COUPON_CARD, LOGISTICS_CARD
+  # content_payload: a Hash that will be JSON-encoded and assigned to `content`.
+  # Per the docs, the `content` body field is itself a JSON-serialized string.
+  def send_message(conversation_id, type:, content_payload:)
+    body = { type: type, content: content_payload.to_json }
     request(:post, "/customer_service/202309/conversations/#{conversation_id}/messages", body: body)
   end
 
+  # Marks all buyer-sent messages in this conversation as read.
   def mark_conversation_read(conversation_id)
-    request(:post, "/customer_service/202309/conversations/#{conversation_id}/messages/read")
+    request(:post, "/customer_service/202309/conversations/#{conversation_id}/messages/read", body: {})
   end
 
+  # Uploads a binary image; returns { url, width, height }. Use the returned
+  # url/width/height in send_message's IMAGE content payload.
   def upload_image(file)
-    # TODO: TikTok Shop image upload uses multipart/form-data with form key `data`.
-    # Confirm key name and any required metadata fields once Partner Center docs
-    # are accessible.
     request_multipart('/customer_service/202309/images/upload', file: file)
   end
 
@@ -46,77 +55,58 @@ class Tiktok::Shop::Client
     request(:post, '/customer_service/202309/conversations', body: { buyer_user_id: buyer_user_id })
   end
 
-  def get_authorized_shops
-    request(:get, '/authorization/202309/shops')
+  # ---- Convenience ------------------------------------------------------
+
+  def send_text(conversation_id, text)
+    send_message(conversation_id, type: 'TEXT', content_payload: { content: text })
   end
 
-  # TODO: TikTok Shop reactions / recall / reply endpoints are not exposed by the
-  # public EcomPHP SDK. If Partner Center docs reveal them, add methods here:
-  #   def react_to_message(conversation_id, message_id, emoji)
-  #   def recall_message(conversation_id, message_id)
-  #   def reply_to_message(conversation_id, parent_message_id, ...)
+  def send_image(conversation_id, url:, width:, height:)
+    send_message(conversation_id, type: 'IMAGE', content_payload: { url: url, width: width, height: height })
+  end
 
   private
 
   def request(method, path, query: {}, body: nil)
-    timestamp = Time.current.to_i.to_s
-    sys_params = {
-      app_key: app_key,
-      shop_cipher: channel.shop_cipher,
-      timestamp: timestamp,
-      version: API_VERSION,
-      access_token: channel.validated_access_token
-    }
+    sys = { app_key: app_key, timestamp: Time.current.to_i.to_s }
+    sys[:shop_cipher] = channel.shop_cipher if channel.shop_cipher.present?
+    full_query = sys.merge(query.transform_keys(&:to_sym).compact)
 
-    signed_query = sys_params.merge(query.transform_keys(&:to_sym))
-    signed_query[:sign] = generate_sign(path, signed_query, body)
+    body_string = body.is_a?(String) ? body : (body.nil? ? nil : body.to_json)
+    full_query[:sign] = Tiktok::Shop::SignatureService.generate(
+      path: path, query: full_query, body: body_string, app_secret: app_secret
+    )
 
     url = "#{API_BASE}#{path}"
+    headers = {
+      'x-tts-access-token' => channel.validated_access_token,
+      'Content-Type' => 'application/json'
+    }
+
     response = case method
                when :get
-                 HTTParty.get(url, query: signed_query, timeout: 30)
+                 HTTParty.get(url, query: full_query, headers: headers, timeout: 30)
                when :post
-                 HTTParty.post(url, query: signed_query, body: body&.to_json, headers: { 'Content-Type' => 'application/json' }, timeout: 30)
+                 HTTParty.post(url, query: full_query, body: body_string, headers: headers, timeout: 30)
                end
 
     parse_response(response)
   end
 
   def request_multipart(path, file:)
-    timestamp = Time.current.to_i.to_s
-    sys_params = {
-      app_key: app_key,
-      shop_cipher: channel.shop_cipher,
-      timestamp: timestamp,
-      version: API_VERSION,
-      access_token: channel.validated_access_token
-    }
-    # Multipart requests don't include the body in the signature.
-    sys_params[:sign] = generate_sign(path, sys_params, nil)
+    sys = { app_key: app_key, timestamp: Time.current.to_i.to_s }
+    sys[:shop_cipher] = channel.shop_cipher if channel.shop_cipher.present?
+    # Per docs: body is NOT included in the signature when Content-Type is multipart/form-data.
+    sys[:sign] = Tiktok::Shop::SignatureService.generate(path: path, query: sys, body: nil, app_secret: app_secret)
 
-    url = "#{API_BASE}#{path}"
-    response = HTTParty.post(url, query: sys_params, body: { data: file }, timeout: 60)
+    headers = { 'x-tts-access-token' => channel.validated_access_token }
+    response = HTTParty.post("#{API_BASE}#{path}", query: sys, body: { data: file }, headers: headers, timeout: 60)
     parse_response(response)
-  end
-
-  # TikTok Shop signing — based on EcomPHP/tiktokshop-php convention.
-  # Sign = HMAC-SHA256 of: <app_secret> + <path> + <sorted params concatenated as k+v> + <body if not multipart> + <app_secret>
-  # TODO: verify exactly which params are excluded — the SDK excludes `sign`, `access_token`, and content-type.
-  def generate_sign(path, params, body)
-    excluded_keys = %i[sign access_token]
-    sorted = params.except(*excluded_keys).sort_by { |k, _| k.to_s }
-    string_to_sign = +"#{app_secret}#{path}"
-    sorted.each { |k, v| string_to_sign << "#{k}#{v}" }
-    string_to_sign << body.to_json if body.present?
-    string_to_sign << app_secret
-
-    OpenSSL::HMAC.hexdigest('SHA256', app_secret, string_to_sign)
   end
 
   def parse_response(response)
     parsed = response.parsed_response
     parsed = JSON.parse(parsed) if parsed.is_a?(String)
-
     OpenStruct.new(
       success?: parsed['code'].to_i == 0,
       code: parsed['code'],

@@ -1,13 +1,16 @@
-# Receives webhook events from the TikTok Shop Open Platform. Signature
-# verification and event dispatch happen in the async job to keep this endpoint
-# fast (TikTok expects 200 OK quickly or it will retry and may auto-disable the
-# subscription).
+# Receives webhook events from TikTok Shop Open Platform.
+#
+# Per the Configuration guide: TikTok delivers webhooks via HTTPS POST with the
+# signature in the `Authorization` header. The signature is computed using the
+# same HMAC-SHA256 algorithm as outgoing API calls (Tiktok::Shop::SignatureService).
+#
+# TikTok requires a 200 (or 401) response within 3 seconds — so we offload the
+# verification + dispatch to a job and return 200 immediately.
 class Webhooks::TiktokShopController < ActionController::API
   def events
     Webhooks::TiktokShopEventsJob.perform_later(
       raw_body: request.raw_post,
-      signature: request.headers['X-TTS-Signature'] || request.headers['Authorization'],
-      timestamp: request.headers['X-TTS-Timestamp']
+      signature: request.headers['Authorization']
     )
     head :ok
   end
