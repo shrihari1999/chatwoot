@@ -438,6 +438,22 @@
   type: secret
 # ------- End of TikTok Channel Related Config ------- #
 
+# ------- TikTok Shop Channel Related Config ------- #
+- name: TIKTOK_SHOP_APP_KEY
+  display_title: 'TikTok Shop App Key'
+  description: 'The App Key from your TikTok Shop Partner Center app (App Details > Basic Information). Used to identify your app in API calls.'
+  locked: false
+- name: TIKTOK_SHOP_APP_SECRET
+  display_title: 'TikTok Shop App Secret'
+  description: 'The App Secret from your TikTok Shop Partner Center app (App Details > Basic Information). Used to sign API requests.'
+  locked: false
+  type: secret
+- name: TIKTOK_SHOP_SERVICE_ID
+  display_title: 'TikTok Shop Service ID'
+  description: 'The Service ID from your TikTok Shop Partner Center app (App Details > Basic Information > Service ID). This is separate from the App Key — it identifies your OAuth client and is used to build the seller authorization URL (services.tiktokshop.com/open/authorize?service_id=...).'
+  locked: false
+# ------- End of TikTok Shop Channel Related Config ------- #
+
 # ------- OG Image Related Config ------- #
 - name: OG_IMAGE_CDN_URL
   display_title: 'OG Image CDN URL'
