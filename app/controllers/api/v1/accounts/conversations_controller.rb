@@ -120,6 +120,7 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
     Notification::MarkConversationReadService.new(user: Current.user, account: Current.account, conversation: @conversation).perform
     Line::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::Line'
     Lazada::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::Lazada'
+    Tiktok::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::Tiktok'
     Tiktok::Shop::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::TiktokShop'
     if @conversation.inbox.channel_type == 'Channel::FacebookPage' &&
        @conversation.additional_attributes['type'] != 'instagram_direct_message'
