@@ -1,4 +1,5 @@
 import { computed } from 'vue';
+import { isVoiceCallEnabled } from 'dashboard/helper/inbox';
 
 export function useChannelIcon(inbox) {
   const channelTypeIconMap = {
@@ -38,6 +39,11 @@ export function useChannelIcon(inbox) {
     // Special case for Twilio whatsapp
     if (type === 'Channel::TwilioSms' && inboxDetails.medium === 'whatsapp') {
       icon = 'i-woot-whatsapp';
+    }
+
+    // Special case for voice-enabled inboxes (Twilio, WhatsApp, etc.)
+    if (isVoiceCallEnabled(inboxDetails)) {
+      icon = 'i-woot-voice';
     }
 
     return icon ?? 'i-ri-global-fill';

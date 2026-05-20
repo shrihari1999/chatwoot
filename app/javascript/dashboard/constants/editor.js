@@ -114,11 +114,6 @@ export const FORMATTING = {
       'redo',
     ],
   },
-  'Channel::Voice': {
-    marks: [],
-    nodes: [],
-    menu: [],
-  },
   'Channel::Tiktok': {
     marks: [],
     nodes: [],

@@ -10,8 +10,6 @@ import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
 import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import { useWindowSize, useEventListener } from '@vueuse/core';
-import { emitter } from 'shared/helpers/mitt';
-import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 // eslint-disable-next-line no-unused-vars -- compose pencil hidden in this fork
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -194,18 +192,6 @@ const sortedInboxes = computed(() =>
 const closeMobileSidebar = () => {
   if (!props.isMobileSidebarOpen) return;
   emit('closeMobileSidebar');
-};
-
-// Compose pencil hidden in this fork — handlers preserved for clarity.
-// eslint-disable-next-line no-unused-vars
-const onComposeOpen = toggleFn => {
-  toggleFn();
-  emitter.emit(BUS_EVENTS.NEW_CONVERSATION_MODAL, true);
-};
-
-// eslint-disable-next-line no-unused-vars
-const onComposeClose = () => {
-  emitter.emit(BUS_EVENTS.NEW_CONVERSATION_MODAL, false);
 };
 
 const newReportRoutes = () => [
@@ -502,7 +488,7 @@ const menuItems = computed(() => {
             {},
             { page: 1, search: undefined }
           ),
-          activeOn: ['companies_dashboard_index'],
+          activeOn: ['companies_dashboard_index', 'companies_dashboard_show'],
         },
       ],
     },
@@ -769,7 +755,13 @@ const menuItems = computed(() => {
   <aside
     v-on-click-outside="[
       closeMobileSidebar,
-      { ignore: ['#mobile-sidebar-launcher'] },
+      {
+        ignore: [
+          '#mobile-sidebar-launcher',
+          '[data-popover-content]',
+          '[data-popover-backdrop]',
+        ],
+      },
     ]"
     class="bg-n-background flex flex-col text-sm pb-px fixed top-0 ltr:left-0 rtl:right-0 h-full z-40 w-[200px] md:w-auto md:relative md:flex-shrink-0 md:ltr:translate-x-0 md:rtl:translate-x-0 ltr:border-r rtl:border-l border-n-weak"
     :class="[
@@ -838,8 +830,9 @@ const menuItems = computed(() => {
           <span class="i-lucide-search size-4 text-n-slate-11" />
         </RouterLink>
         <!-- Hidden in this fork — new-conversation compose pencil is unused. -->
-        <!-- <ComposeConversation align-position="right" @close="onComposeClose">
-          <template #trigger="{ toggle, isOpen }">
+        <!-- <ComposeConversation align="start">
+          <template #trigger="{ isOpen }">
+
             <Button
               icon="i-lucide-pen-line"
               color="slate"
@@ -851,7 +844,6 @@ const menuItems = computed(() => {
                   : '!h-7 !outline-n-weak !text-n-slate-11',
                 { '!bg-n-alpha-2 dark:!bg-n-slate-9/30': isOpen },
               ]"
-              @click="onComposeOpen(toggle)"
             />
           </template>
         </ComposeConversation> -->
