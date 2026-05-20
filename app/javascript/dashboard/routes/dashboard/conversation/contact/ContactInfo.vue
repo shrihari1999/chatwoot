@@ -40,7 +40,6 @@ export default {
       default: true,
     },
   },
-  emits: ['panelClose'],
   setup() {
     const { isAdmin } = useAdmin();
     return {
@@ -332,7 +331,6 @@ export default {
         </ContactMergeModal>
         <!-- Hidden in this fork — delete contact action is unused.
              ContactDeleteModal import/registration intentionally omitted. -->
-
       </div>
       <EditContact
         :show="showEditModal"

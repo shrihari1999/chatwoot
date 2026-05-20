@@ -39,9 +39,7 @@ const isLoading = computed(() => assignableAgentsUiFlags.value.isFetching);
 const isUpdating = computed(() => bulkActionsUiFlags.value.isUpdating);
 
 // Fork behaviour: only administrators may bulk-unassign agents.
-const canUnassign = computed(
-  () => currentUser.value?.role === 'administrator'
-);
+const canUnassign = computed(() => currentUser.value?.role === 'administrator');
 
 const assignableAgentsList = useMapGetter(
   'inboxAssignableAgents/getAssignableAgents'
