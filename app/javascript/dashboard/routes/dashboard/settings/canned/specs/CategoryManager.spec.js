@@ -29,9 +29,10 @@ const mountComponent = ({ categories = [], dispatch = vi.fn() } = {}) => {
         NextButton: {
           template:
             '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
-          props: ['label', 'disabled', 'isLoading', 'size', 'type'],
+          props: ['label', 'disabled', 'isLoading', 'size', 'type', 'icon'],
         },
         Icon: true,
+        CategoryDialog: true,
       },
     },
   });
@@ -40,8 +41,8 @@ const mountComponent = ({ categories = [], dispatch = vi.fn() } = {}) => {
 describe('CategoryManager.vue', () => {
   it('renders existing categories', () => {
     const categories = [
-      { id: 1, name: 'Greetings' },
-      { id: 2, name: 'Billing' },
+      { id: 1, name: 'Greetings', visibility: 'everyone' },
+      { id: 2, name: 'Billing', visibility: 'everyone' },
     ];
     const wrapper = mountComponent({ categories });
     expect(wrapper.text()).toContain('Greetings');
@@ -53,50 +54,52 @@ describe('CategoryManager.vue', () => {
     expect(wrapper.findAll('span.inline-flex').length).toBe(0);
   });
 
-  it('disables Add button when input is empty', () => {
+  it('opens the dialog in add mode when Add Category is clicked', async () => {
     const wrapper = mountComponent();
-    expect(wrapper.vm.canAdd).toBe(false);
+    expect(wrapper.vm.showDialog).toBe(false);
+
+    await wrapper.find('button').trigger('click');
+
+    expect(wrapper.vm.showDialog).toBe(true);
+    expect(wrapper.vm.editingCategory).toBeNull();
   });
 
-  it('enables Add button when input has a value', async () => {
-    const wrapper = mountComponent();
-    await wrapper.find('input[type="text"]').setValue('My Category');
-    expect(wrapper.vm.canAdd).toBe(true);
+  it('opens the dialog in edit mode when a category name is clicked', async () => {
+    const categories = [{ id: 1, name: 'Greetings', visibility: 'everyone' }];
+    const wrapper = mountComponent({ categories });
+
+    const nameBtn = wrapper
+      .find('span.inline-flex')
+      .find('button[type="button"]');
+    await nameBtn.trigger('click');
+
+    expect(wrapper.vm.showDialog).toBe(true);
+    expect(wrapper.vm.editingCategory).toEqual(categories[0]);
   });
 
-  it('treats whitespace-only input as empty', async () => {
+  it('closes the dialog and clears editing state', () => {
     const wrapper = mountComponent();
-    await wrapper.find('input[type="text"]').setValue('   ');
-    expect(wrapper.vm.canAdd).toBe(false);
+    wrapper.vm.openEditDialog({ id: 9, name: 'X' });
+    wrapper.vm.closeDialog();
+    expect(wrapper.vm.showDialog).toBe(false);
+    expect(wrapper.vm.editingCategory).toBeNull();
   });
 
-  it('dispatches createCannedResponseCategory on submit', async () => {
-    const dispatch = vi.fn().mockResolvedValue({});
-    const wrapper = mountComponent({ dispatch });
-
-    await wrapper.find('input[type="text"]').setValue('New Cat');
-    await wrapper.find('form').trigger('submit.prevent');
-
-    expect(dispatch).toHaveBeenCalledWith(
-      'cannedResponseCategory/createCannedResponseCategory',
-      { name: 'New Cat' }
+  it('shows a visibility icon for non-everyone categories', () => {
+    const wrapper = mountComponent();
+    expect(wrapper.vm.visibilityIcon({ visibility: 'only_me' })).toBe(
+      'i-lucide-lock'
     );
-  });
-
-  it('does not dispatch on submit when input is blank', async () => {
-    const dispatch = vi.fn().mockResolvedValue({});
-    const wrapper = mountComponent({ dispatch });
-
-    await wrapper.find('input[type="text"]').setValue('   ');
-    await wrapper.find('form').trigger('submit.prevent');
-
-    expect(dispatch).not.toHaveBeenCalled();
+    expect(wrapper.vm.visibilityIcon({ visibility: 'specific_team' })).toBe(
+      'i-lucide-users'
+    );
+    expect(wrapper.vm.visibilityIcon({ visibility: 'everyone' })).toBeNull();
   });
 
   // Delete: the delete button is the second button inside each chip (index 1)
   it('dispatches deleteCannedResponseCategory when confirm returns true', async () => {
     const dispatch = vi.fn().mockResolvedValue({});
-    const categories = [{ id: 42, name: 'Greetings' }];
+    const categories = [{ id: 42, name: 'Greetings', visibility: 'everyone' }];
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const wrapper = mountComponent({ categories, dispatch });
 
@@ -115,7 +118,7 @@ describe('CategoryManager.vue', () => {
 
   it('refreshes canned responses after a successful category delete', async () => {
     const dispatch = vi.fn().mockResolvedValue({});
-    const categories = [{ id: 42, name: 'Greetings' }];
+    const categories = [{ id: 42, name: 'Greetings', visibility: 'everyone' }];
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const wrapper = mountComponent({ categories, dispatch });
 
@@ -136,7 +139,7 @@ describe('CategoryManager.vue', () => {
 
   it('does not dispatch delete when confirm returns false', async () => {
     const dispatch = vi.fn().mockResolvedValue({});
-    const categories = [{ id: 42, name: 'Greetings' }];
+    const categories = [{ id: 42, name: 'Greetings', visibility: 'everyone' }];
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const wrapper = mountComponent({ categories, dispatch });
 
@@ -147,65 +150,5 @@ describe('CategoryManager.vue', () => {
 
     expect(dispatch).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
-  });
-
-  // Edit: click the name button (index 0) to enter edit mode
-  it('enters edit mode when category name is clicked', async () => {
-    const categories = [{ id: 1, name: 'Greetings' }];
-    const wrapper = mountComponent({ categories });
-
-    expect(wrapper.vm.editingId).toBeNull();
-    const nameBtn = wrapper
-      .find('span.inline-flex')
-      .find('button[type="button"]');
-    await nameBtn.trigger('click');
-
-    expect(wrapper.vm.editingId).toBe(1);
-    expect(wrapper.vm.editingName).toBe('Greetings');
-  });
-
-  it('cancels edit on Escape key', async () => {
-    const categories = [{ id: 1, name: 'Greetings' }];
-    const wrapper = mountComponent({ categories });
-
-    wrapper.vm.startEdit(categories[0]);
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.vm.editingId).toBe(1);
-    wrapper.vm.onEditKeydown({ key: 'Escape' }, categories[0]);
-    expect(wrapper.vm.editingId).toBeNull();
-  });
-
-  it('dispatches updateCannedResponseCategory on Enter with changed name', async () => {
-    const dispatch = vi.fn().mockResolvedValue({});
-    const categories = [{ id: 1, name: 'Greetings' }];
-    const wrapper = mountComponent({ categories, dispatch });
-
-    wrapper.vm.startEdit(categories[0]);
-    wrapper.vm.editingName = 'Hello';
-    await wrapper.vm.$nextTick();
-
-    await wrapper.vm.onEditKeydown(
-      { key: 'Enter', preventDefault: vi.fn() },
-      categories[0]
-    );
-
-    expect(dispatch).toHaveBeenCalledWith(
-      'cannedResponseCategory/updateCannedResponseCategory',
-      { id: 1, name: 'Hello' }
-    );
-  });
-
-  it('does not dispatch update when name is unchanged', async () => {
-    const dispatch = vi.fn().mockResolvedValue({});
-    const categories = [{ id: 1, name: 'Greetings' }];
-    const wrapper = mountComponent({ categories, dispatch });
-
-    wrapper.vm.startEdit(categories[0]);
-    // name unchanged
-    await wrapper.vm.saveEdit(categories[0]);
-
-    expect(dispatch).not.toHaveBeenCalled();
-    expect(wrapper.vm.editingId).toBeNull();
   });
 });

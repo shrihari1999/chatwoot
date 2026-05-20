@@ -23,6 +23,8 @@ class Team < ApplicationRecord
   has_many :members, through: :team_members, source: :user
   has_many :conversations, dependent: :nullify
 
+  before_destroy :reset_canned_response_categories
+
   validates :name,
             presence: { message: I18n.t('errors.validations.presence') },
             uniqueness: { scope: :account_id, case_sensitive: false }
@@ -60,6 +62,19 @@ class Team < ApplicationRecord
       id: id,
       name: name
     }
+  end
+
+  private
+
+  # When a team is removed, any canned response category scoped to it would be left
+  # with a dangling team_id (and an invalid `specific_team` visibility). Fall back to
+  # "all agents" so the category stays usable rather than silently hidden.
+  def reset_canned_response_categories
+    # Bulk update is intentional — these are simple column resets with no callbacks needed.
+    account.canned_response_categories.where(team_id: id).update_all( # rubocop:disable Rails/SkipsModelValidations
+      team_id: nil,
+      visibility: CannedResponseCategory.visibilities[:everyone]
+    )
   end
 end
 
