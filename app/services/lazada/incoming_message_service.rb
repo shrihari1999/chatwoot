@@ -40,7 +40,7 @@ class Lazada::IncomingMessageService
   def set_contact(data)
     # Lazada sends from_user_id, not from_account_id
     user_id = (data[:from_user_id] || data[:from_account_id]).to_s
-
+    
     contact_inbox = ::ContactInboxWithContactBuilder.new(
       source_id: user_id,
       inbox: inbox,

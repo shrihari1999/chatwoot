@@ -18,17 +18,17 @@ class Tiktok::Shop::Client
 
   def get_conversations(page_size: 20, page_token: nil, need_session_id: false, locale: 'en')
     request(:get, '/customer_service/202309/conversations', query: {
-      page_size: page_size,
-      page_token: page_token,
-      need_session_id: need_session_id,
-      locale: locale
-    }.compact)
+              page_size: page_size,
+              page_token: page_token,
+              need_session_id: need_session_id,
+              locale: locale
+            }.compact)
   end
 
   def get_conversation_messages(conversation_id, page_size: 10, page_token: nil, sort_order: 'DESC')
     request(:get, "/customer_service/202309/conversations/#{conversation_id}/messages", query: {
-      page_size: page_size, page_token: page_token, sort_order: sort_order
-    }.compact)
+              page_size: page_size, page_token: page_token, sort_order: sort_order
+            }.compact)
   end
 
   # type: TEXT, IMAGE, VIDEO, PRODUCT_CARD, ORDER_CARD, RETURN_REFUND_CARD,
@@ -87,16 +87,12 @@ class Tiktok::Shop::Client
 
   private
 
-  def request(method, path, query: {}, body: nil) # rubocop:disable Metrics/AbcSize,Metrics/MethodLength
+  def request(method, path, query: {}, body: nil)
     sys = { app_key: app_key, timestamp: Time.current.to_i.to_s }
     sys[:shop_cipher] = channel.shop_cipher if channel.shop_cipher.present?
     full_query = sys.merge(query.transform_keys(&:to_sym).compact)
 
-    body_string = if body.is_a?(String)
-                    body
-                  else
-                    (body.nil? ? nil : body.to_json)
-                  end
+    body_string = body.is_a?(String) ? body : (body.nil? ? nil : body.to_json)
     full_query[:sign] = Tiktok::Shop::SignatureService.generate(
       path: path, query: full_query, body: body_string, app_secret: app_secret
     )

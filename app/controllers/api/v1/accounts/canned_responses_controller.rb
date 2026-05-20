@@ -64,7 +64,7 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     @canned_response.files.attach(blobs)
   end
 
-  # NOTE: `file_ids: []` is meaningful — it explicitly clears attachments. We distinguish
+  # Note: `file_ids: []` is meaningful — it explicitly clears attachments. We distinguish
   # "key absent" (leave files untouched) from "empty array" (detach all) via params.key?.
   def update_files
     return unless params.key?(:file_ids)

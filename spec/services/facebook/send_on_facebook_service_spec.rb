@@ -367,7 +367,7 @@ describe Facebook::SendOnFacebookService do
       end
 
       it 'includes reply_to in input_select message payload when replying to an incoming FB message' do
-        # NOTE: for input_select messages, we must use create() so the before_save :ensure_in_reply_to
+        # Note: for input_select messages, we must use create() so the before_save :ensure_in_reply_to
         # callback runs to resolve in_reply_to (internal id) -> in_reply_to_external_id (FB mid).
         # content_attributes must include 'in_reply_to' (not just the accessor) because
         # the store accessor overwrites the entire hash when content_attributes= is assigned.

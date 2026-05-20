@@ -25,20 +25,20 @@ class Lazada::SendOnLazadaService < Base::SendOnChannelService
     handle_response(response)
   end
 
-  def send_attachments(session_id) # rubocop:disable Metrics/AbcSize
+  def send_attachments(session_id)
     message.attachments.each_with_index do |attachment, index|
       next unless attachment.file_type == 'image'
 
       # Use file_url instead of download_url to avoid CORS and authentication issues
       image_url = attachment.file_url
-
+      
       # Get image dimensions - Lazada requires width and height
       metadata = attachment.file.metadata
       width = metadata['width'] || 800  # Default if not available
       height = metadata['height'] || 600
-
+      
       Rails.logger.info "[Lazada] Sending image attachment #{index + 1}/#{message.attachments.count} (#{width}x#{height})"
-
+      
       response = channel.send_im_message(
         session_id: session_id,
         template_id: 3,
@@ -46,14 +46,14 @@ class Lazada::SendOnLazadaService < Base::SendOnChannelService
         width: width.to_i,
         height: height.to_i
       )
-
+      
       handle_response(response, index + 1)
     end
 
     send_text(session_id) if message.outgoing_content.present?
   end
 
-  def handle_response(response, _attachment_index = nil)
+  def handle_response(response, attachment_index = nil)
     if response.success?
       message_id = response.body.dig('data', 'message_id')
       message.update!(source_id: message_id) if message_id.present?
