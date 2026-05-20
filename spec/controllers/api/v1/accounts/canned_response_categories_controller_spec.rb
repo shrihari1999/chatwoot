@@ -89,6 +89,15 @@ RSpec.describe 'Canned Response Categories API', type: :request do
         expect(response).to have_http_status(:success)
         expect(category.reload.name).to eq('Updated Support')
       end
+
+      it 'assigns the current agent as owner when switching to only_me' do
+        patch "/api/v1/accounts/#{account.id}/canned_response_categories/#{category.id}",
+              params: { visibility: 'only_me' },
+              headers: agent.create_new_auth_token
+        expect(response).to have_http_status(:success)
+        expect(category.reload.visibility).to eq('only_me')
+        expect(category.user_id).to eq(agent.id)
+      end
     end
   end
 

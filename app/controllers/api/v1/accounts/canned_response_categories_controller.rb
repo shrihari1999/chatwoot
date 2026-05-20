@@ -10,8 +10,7 @@ class Api::V1::Accounts::CannedResponseCategoriesController < Api::V1::Accounts:
 
   def create
     @category = Current.account.canned_response_categories.new(category_params)
-    # The creating agent owns the category; the model keeps user_id only for `only_me`.
-    @category.user = Current.user
+    assign_owner
     if @category.save
       render json: serialize(@category), status: :created
     else
@@ -20,7 +19,9 @@ class Api::V1::Accounts::CannedResponseCategoriesController < Api::V1::Accounts:
   end
 
   def update
-    if @category.update(category_params)
+    @category.assign_attributes(category_params)
+    assign_owner
+    if @category.save
       render json: serialize(@category)
     else
       render json: { errors: @category.errors.full_messages }, status: :unprocessable_entity
@@ -41,6 +42,13 @@ class Api::V1::Accounts::CannedResponseCategoriesController < Api::V1::Accounts:
 
   def set_category
     @category = Current.account.canned_response_categories.find(params[:id])
+  end
+
+  # `only_me` categories must have an owner. Fill it from the current user when
+  # missing (create, or an existing category switched to `only_me`); the model
+  # clears user_id again for any other visibility.
+  def assign_owner
+    @category.user ||= Current.user
   end
 
   def category_params
