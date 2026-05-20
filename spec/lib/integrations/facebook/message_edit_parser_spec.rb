@@ -52,12 +52,12 @@ RSpec.describe Integrations::Facebook::MessageEditParser do
   context 'with wrapped payload (gem Bot.on serialization shape)' do
     subject(:parser) { described_class.new(wrapped_payload) }
 
-    it_behaves_like 'parses fields correctly'
+    include_examples 'parses fields correctly'
   end
 
   context 'with unwrapped payload' do
     subject(:parser) { described_class.new(unwrapped_payload) }
 
-    it_behaves_like 'parses fields correctly'
+    include_examples 'parses fields correctly'
   end
 end

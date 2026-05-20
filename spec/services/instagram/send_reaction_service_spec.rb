@@ -15,7 +15,7 @@ RSpec.describe Instagram::SendReactionService do
 
   before do
     allow(contact).to receive(:get_source_id).with(1).and_return('igsid_xyz')
-    stub_const('GlobalConfigService', Class.new { def self.load(_, default = nil) = default })
+    stub_const('GlobalConfigService', Class.new { def self.load(_, default = nil); default; end })
   end
 
   describe '#perform' do
@@ -82,5 +82,6 @@ RSpec.describe Instagram::SendReactionService do
 
       expect(tracker).to have_received(:capture_exception)
     end
+
   end
 end
