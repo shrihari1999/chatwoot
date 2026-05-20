@@ -64,7 +64,7 @@ class Webhooks::TiktokShopEventsJob < ApplicationJob
       Tiktok::Shop::IncomingConversationService.new(channel: @channel, payload: @payload).perform
     when EVENT_NEW_MESSAGE_CREATOR
       # Creator-side messaging — out of scope for the buyer-support inbox.
-      Rails.logger.info "[TikTok Shop Webhook] Ignored creator message event 33"
+      Rails.logger.info '[TikTok Shop Webhook] Ignored creator message event 33'
     else
       Rails.logger.info "[TikTok Shop Webhook] Unhandled event type: #{@payload[:type]}"
     end

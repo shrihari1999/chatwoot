@@ -66,9 +66,7 @@ export default {
           },
         });
       } catch (error) {
-        useAlert(
-          this.$t('INBOX_MGMT.ADD.LAZADA_CHANNEL.API.ERROR_MESSAGE')
-        );
+        useAlert(this.$t('INBOX_MGMT.ADD.LAZADA_CHANNEL.API.ERROR_MESSAGE'));
       }
     },
   },

@@ -29,17 +29,17 @@ class Channel::Lazada < ApplicationRecord
 
   def get_im_messages(session_id:, start_time:, page_size: 20)
     lazada_api_request('/im/message/list', 'GET', {
-      session_id: session_id,
-      start_time: start_time.to_s,
-      page_size: page_size.to_s
-    })
+                         session_id: session_id,
+                         start_time: start_time.to_s,
+                         page_size: page_size.to_s
+                       })
   end
 
   def get_im_sessions(start_time:, page_size: 20)
     lazada_api_request('/im/session/list', 'GET', {
-      start_time: start_time.to_s,
-      page_size: page_size.to_s
-    })
+                         start_time: start_time.to_s,
+                         page_size: page_size.to_s
+                       })
   end
 
   def read_session(session_id:)

@@ -16,7 +16,7 @@ class Tiktok::Shop::OutgoingRecallService
     return unless tiktok_shop_channel?
 
     Rails.logger.info(
-      "[TikTok Shop] Recall not supported by TikTok Shop API — " \
+      '[TikTok Shop] Recall not supported by TikTok Shop API — ' \
       "message #{message.source_id} is removed in Chatwoot only"
     )
   end

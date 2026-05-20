@@ -820,6 +820,7 @@ RSpec.describe 'Conversations API', type: :request do
     context 'when the conversation belongs to a Facebook Page inbox' do
       before do
         allow(Facebook::Messenger::Subscriptions).to receive(:subscribe).and_return(true)
+        create(:inbox_member, user: agent, inbox: facebook_inbox)
       end
 
       # Build the channel then create the inbox against the same account so Pundit's
@@ -833,10 +834,6 @@ RSpec.describe 'Conversations API', type: :request do
                               contact_inbox: contact_inbox, account: account)
       end
       let(:agent) { create(:user, account: account, role: :agent) }
-
-      before do
-        create(:inbox_member, user: agent, inbox: facebook_inbox)
-      end
 
       it 'enqueues Facebook::MarkAsReadJob' do
         expect(Facebook::MarkAsReadJob).to receive(:perform_later).with(fb_conversation)

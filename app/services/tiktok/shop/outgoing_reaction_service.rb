@@ -6,6 +6,6 @@ class Tiktok::Shop::OutgoingReactionService
   pattr_initialize [:message!, :emoji!]
 
   def perform
-    Rails.logger.info "[TikTok Shop] Outbound reactions are not supported by the TikTok Shop API"
+    Rails.logger.info '[TikTok Shop] Outbound reactions are not supported by the TikTok Shop API'
   end
 end

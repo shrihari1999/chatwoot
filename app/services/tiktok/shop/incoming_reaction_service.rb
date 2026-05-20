@@ -11,6 +11,6 @@ class Tiktok::Shop::IncomingReactionService
   pattr_initialize [:channel!, :payload!]
 
   def perform
-    Rails.logger.info "[TikTok Shop] Inbound reactions are not supported by the TikTok Shop API"
+    Rails.logger.info '[TikTok Shop] Inbound reactions are not supported by the TikTok Shop API'
   end
 end
