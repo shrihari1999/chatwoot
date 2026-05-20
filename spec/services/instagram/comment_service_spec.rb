@@ -88,7 +88,7 @@ RSpec.describe Instagram::CommentService do
 
       expect do
         described_class.new(value: value, channel: channel, ig_account_id: 'BUSINESS_IGSID').perform
-      end.not_to change { inbox.messages.count }
+      end.not_to(change { inbox.messages.count })
     end
 
     it 'is a no-op when comment text is missing' do
@@ -96,13 +96,13 @@ RSpec.describe Instagram::CommentService do
 
       expect do
         described_class.new(value: value, channel: channel, ig_account_id: 'BUSINESS_IGSID').perform
-      end.not_to change { inbox.messages.count }
+      end.not_to(change { inbox.messages.count })
     end
 
     it 'is idempotent against duplicate webhook deliveries (same comment_id)' do
       svc = -> { described_class.new(value: value, channel: channel, ig_account_id: 'BUSINESS_IGSID').perform }
       svc.call
-      expect { svc.call }.not_to change { inbox.messages.count }
+      expect { svc.call }.not_to(change { inbox.messages.count })
     end
   end
 end

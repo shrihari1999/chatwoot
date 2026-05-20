@@ -1365,39 +1365,37 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_000002) do
     t.index ["inbox_id"], name: "index_working_hours_on_inbox_id"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "canned_responses", "canned_response_categories", column: "category_id", on_delete: :restrict
+  add_foreign_key "inboxes", "portals"
+  create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
+      on("accounts").
+      after(:insert).
+      for_each(:row) do
+    "execute format('create sequence IF NOT EXISTS conv_dpid_seq_%s', NEW.id);"
+  end
 
-  # Function must be defined before the trigger that references it. The
-  # hairtrigger gem's schema dumper emits these in the wrong order; manually
-  # corrected here so `db:schema:load` works from a clean DB.
-  execute(<<-SQL)
-CREATE OR REPLACE FUNCTION public.chatwoot_account_dpid_create_seq()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  EXECUTE format('CREATE SEQUENCE IF NOT EXISTS conv_dpid_seq_%s', NEW.id);
-  RETURN NEW;
-END;
-$function$
-  SQL
+  create_trigger("conversations_before_insert_row_tr", :generated => true, :compatibility => 1).
+      on("conversations").
+      before(:insert).
+      for_each(:row) do
+    "NEW.display_id := nextval('conv_dpid_seq_' || NEW.account_id);"
+  end
 
-  execute("CREATE TRIGGER accounts_conv_dpid_seq_tr AFTER INSERT ON \"accounts\" FOR EACH ROW EXECUTE FUNCTION chatwoot_account_dpid_create_seq()")
+  create_trigger("camp_dpid_before_insert", :generated => true, :compatibility => 1).
+      on("accounts").
+      name("camp_dpid_before_insert").
+      after(:insert).
+      for_each(:row) do
+    "execute format('create sequence IF NOT EXISTS camp_dpid_seq_%s', NEW.id);"
+  end
 
-  # no candidate create_trigger statement could be found, creating an adapter-specific one
-  execute(<<-SQL)
-CREATE OR REPLACE FUNCTION public.chatwoot_conv_dpid_set()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  NEW.display_id := nextval('conv_dpid_seq_' || NEW.account_id);
-  RETURN NEW;
-END;
-$function$
-  SQL
-
-  # no candidate create_trigger statement could be found, creating an adapter-specific one
-  execute("CREATE TRIGGER conversations_before_insert_row_tr BEFORE INSERT ON \"conversations\" FOR EACH ROW EXECUTE FUNCTION chatwoot_conv_dpid_set()")
+  create_trigger("campaigns_before_insert_row_tr", :generated => true, :compatibility => 1).
+      on("campaigns").
+      before(:insert).
+      for_each(:row) do
+    "NEW.display_id := nextval('camp_dpid_seq_' || NEW.account_id);"
+  end
 
 end

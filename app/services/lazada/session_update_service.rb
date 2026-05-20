@@ -16,13 +16,11 @@ class Lazada::SessionUpdateService
   private
 
   def conversation
-    @conversation ||= begin
-      # Find conversation by Lazada session_id stored in additional_attributes
-      Conversation.joins(:contact_inbox)
-                  .where(inbox_id: inbox.id)
-                  .where("conversations.additional_attributes->>'lazada_session_id' = ?", session_id)
-                  .first
-    end
+    # Find conversation by Lazada session_id stored in additional_attributes
+    @conversation ||= Conversation.joins(:contact_inbox)
+                                  .where(inbox_id: inbox.id)
+                                  .where("conversations.additional_attributes->>'lazada_session_id' = ?", session_id)
+                                  .first
   end
 
   def data

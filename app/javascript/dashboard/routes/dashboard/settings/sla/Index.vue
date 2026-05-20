@@ -323,10 +323,7 @@ export default {
       </woot-modal>
 
       <woot-modal v-model:show="showEditPopup" :on-close="hideEditPopup">
-        <EditSLA
-          :selected-response="selectedResponse"
-          @close="hideEditPopup"
-        />
+        <EditSLA :selected-response="selectedResponse" @close="hideEditPopup" />
       </woot-modal>
 
       <woot-delete-modal

@@ -1,4 +1,4 @@
-class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseController # rubocop:disable Metrics/ClassLength
   include Events::Types
   include DateRangeHelper
   include HmacConcern
@@ -112,7 +112,7 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
     head :ok
   end
 
-  def update_last_seen
+  def update_last_seen # rubocop:disable Metrics/AbcSize
     # High-traffic accounts generate excessive DB writes when agents frequently switch between conversations.
     # Throttle last_seen updates to once per hour when there are no unread messages to reduce DB load.
     # Always update immediately if there are unread messages to maintain accurate read/unread state.

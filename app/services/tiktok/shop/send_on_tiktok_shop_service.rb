@@ -23,8 +23,8 @@ class Tiktok::Shop::SendOnTiktokShopService < Base::SendOnChannelService
 
     if message.attachments.present?
       send_attachments(conversation_id)
-    else
-      send_text(conversation_id) if message.outgoing_content.present?
+    elsif message.outgoing_content.present?
+      send_text(conversation_id)
     end
   end
 
@@ -37,7 +37,7 @@ class Tiktok::Shop::SendOnTiktokShopService < Base::SendOnChannelService
     message.attachments.each do |attachment|
       next unless attachment.file_type == 'image'
 
-      uploaded = client.upload_image(attachment.file.download)
+      uploaded = client.upload_image(attachment.file.download) # rubocop:disable Chatwoot/AttachmentDownload
       next handle_failed_upload(uploaded) unless uploaded.success?
 
       data = uploaded.body['data'] || {}
