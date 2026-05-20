@@ -74,14 +74,20 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   end
 
   def canned_responses
-    scope = if params[:search]
-              Current.account.canned_responses.with_attached_files
-                     .where('short_code ILIKE :search', search: "%#{params[:search]}%")
-                     .order_by_search(params[:search])
-            else
-              Current.account.canned_responses.with_attached_files
-            end
+    scope = search_scope
     scope = scope.where(category_id: params[:category_id]) if params[:category_id].present?
+    # `visible` is passed by the conversation canned-response picker so that categories
+    # restricted to other users / other teams are filtered out. The settings page omits
+    # it and continues to see every canned response.
+    scope = scope.joins(:category).merge(CannedResponseCategory.visible_to(Current.user)) if params[:visible].present?
     scope
+  end
+
+  def search_scope
+    return Current.account.canned_responses.with_attached_files if params[:search].blank?
+
+    Current.account.canned_responses.with_attached_files
+           .where('short_code ILIKE :search', search: "%#{params[:search]}%")
+           .order_by_search(params[:search])
   end
 end

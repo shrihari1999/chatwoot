@@ -91,6 +91,53 @@ RSpec.describe 'Canned Responses API', type: :request do
           expect(categorized['category']).to eq({ 'id' => category.id, 'name' => category.name })
         end
       end
+
+      context 'when filtering by category visibility' do
+        let(:team) { create(:team, account: account) }
+        let(:other_team) { create(:team, account: account) }
+        let(:other_user) { create(:user, account: account, role: :agent) }
+
+        let!(:everyone_category) { create(:canned_response_category, account: account, visibility: :everyone) }
+        let!(:own_category) { create(:canned_response_category, account: account, visibility: :only_me, user: agent) }
+        let!(:other_user_category) { create(:canned_response_category, account: account, visibility: :only_me, user: other_user) }
+        let!(:team_category) { create(:canned_response_category, account: account, visibility: :specific_team, team: team) }
+        let!(:other_team_category) { create(:canned_response_category, account: account, visibility: :specific_team, team: other_team) }
+
+        let!(:visible_responses) do
+          [everyone_category, own_category, team_category].map do |cat|
+            create(:canned_response, account: account, category: cat, short_code: "code-#{cat.id}")
+          end
+        end
+
+        before do
+          create(:team_member, user: agent, team: team)
+          [other_user_category, other_team_category].each do |cat|
+            create(:canned_response, account: account, category: cat, short_code: "hidden-#{cat.id}")
+          end
+        end
+
+        it 'returns only responses in categories the current user can see' do
+          get "/api/v1/accounts/#{account.id}/canned_responses",
+              params: { visible: 'true' },
+              headers: agent.create_new_auth_token,
+              as: :json
+
+          expect(response).to have_http_status(:success)
+          returned_category_ids = response.parsed_body.filter_map { |cr| cr['category']&.fetch('id') }.uniq
+          expect(returned_category_ids).to include(everyone_category.id, own_category.id, team_category.id)
+          expect(returned_category_ids).not_to include(other_user_category.id, other_team_category.id)
+        end
+
+        it 'returns every response when the visible flag is omitted' do
+          get "/api/v1/accounts/#{account.id}/canned_responses",
+              headers: agent.create_new_auth_token,
+              as: :json
+
+          expect(response).to have_http_status(:success)
+          returned_category_ids = response.parsed_body.filter_map { |cr| cr['category']&.fetch('id') }.uniq
+          expect(returned_category_ids).to include(other_user_category.id, other_team_category.id)
+        end
+      end
     end
   end
 

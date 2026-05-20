@@ -11,12 +11,12 @@ class CannedResponseCategoryAPI extends ApiClient {
     return axios.get(this.url);
   }
 
-  create(name) {
-    return axios.post(this.url, { name });
+  create(payload) {
+    return axios.post(this.url, payload);
   }
 
-  update(id, name) {
-    return axios.patch(`${this.url}/${id}`, { name });
+  update(id, payload) {
+    return axios.patch(`${this.url}/${id}`, payload);
   }
 
   delete(id) {

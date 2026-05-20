@@ -50,6 +50,33 @@ RSpec.describe 'Canned Response Categories API', type: :request do
              headers: agent.create_new_auth_token
         expect(response).to have_http_status(:unprocessable_entity)
       end
+
+      it 'creates an only_me category owned by the current agent' do
+        post "/api/v1/accounts/#{account.id}/canned_response_categories",
+             params: { name: 'Private', visibility: 'only_me' },
+             headers: agent.create_new_auth_token
+        expect(response).to have_http_status(:created)
+        body = JSON.parse(response.body)
+        expect(body['visibility']).to eq('only_me')
+        expect(body['user_id']).to eq(agent.id)
+      end
+
+      it 'creates a specific_team category scoped to the team' do
+        team = create(:team, account: account)
+        post "/api/v1/accounts/#{account.id}/canned_response_categories",
+             params: { name: 'Team Only', visibility: 'specific_team', team_id: team.id },
+             headers: agent.create_new_auth_token
+        expect(response).to have_http_status(:created)
+        body = JSON.parse(response.body)
+        expect(body['team']['id']).to eq(team.id)
+      end
+
+      it 'rejects a specific_team category without a team' do
+        post "/api/v1/accounts/#{account.id}/canned_response_categories",
+             params: { name: 'Team Only', visibility: 'specific_team' },
+             headers: agent.create_new_auth_token
+        expect(response).to have_http_status(:unprocessable_entity)
+      end
     end
   end
 

@@ -75,4 +75,18 @@ RSpec.describe Team do
                                                                         )
     end
   end
+
+  describe 'destroying a team' do
+    it 'resets canned response categories scoped to it back to everyone' do
+      account = create(:account)
+      team = create(:team, account: account)
+      category = create(:canned_response_category, account: account, visibility: :specific_team, team: team)
+
+      team.destroy!
+
+      category.reload
+      expect(category.team_id).to be_nil
+      expect(category.visibility).to eq('everyone')
+    end
+  end
 end

@@ -114,9 +114,19 @@ const fetchCannedResponseCategories = async () => {
   }
 };
 
+// Teams power the "specific team" visibility option in the category dialog.
+const fetchTeams = async () => {
+  try {
+    await store.dispatch('teams/get');
+  } catch (error) {
+    // Ignore Error
+  }
+};
+
 onMounted(() => {
   fetchCannedResponses();
   fetchCannedResponseCategories();
+  fetchTeams();
 });
 
 const showAlertMessage = message => {

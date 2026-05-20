@@ -42,11 +42,11 @@ const actions = {
 
   createCannedResponseCategory: async function createCannedResponseCategory(
     { commit },
-    { name }
+    payload
   ) {
     commit(types.default.SET_CANNED_CATEGORY_UI_FLAG, { creatingItem: true });
     try {
-      const response = await CannedResponseCategoryAPI.create(name);
+      const response = await CannedResponseCategoryAPI.create(payload);
       commit(types.default.ADD_CANNED_CATEGORY, response.data);
       commit(types.default.SET_CANNED_CATEGORY_UI_FLAG, {
         creatingItem: false,
@@ -62,11 +62,11 @@ const actions = {
 
   updateCannedResponseCategory: async function updateCannedResponseCategory(
     { commit },
-    { id, name }
+    { id, ...payload }
   ) {
     commit(types.default.SET_CANNED_CATEGORY_UI_FLAG, { updatingItem: true });
     try {
-      const response = await CannedResponseCategoryAPI.update(id, name);
+      const response = await CannedResponseCategoryAPI.update(id, payload);
       commit(types.default.EDIT_CANNED_CATEGORY, response.data);
       commit(types.default.SET_CANNED_CATEGORY_UI_FLAG, {
         updatingItem: false,

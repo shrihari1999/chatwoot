@@ -64,7 +64,10 @@ export default {
   },
   methods: {
     fetchCannedResponses() {
-      this.$store.dispatch('getCannedResponse', { searchKey: this.searchKey });
+      this.$store.dispatch('getCannedResponse', {
+        searchKey: this.searchKey,
+        filterByVisibility: true,
+      });
     },
     handleMentionClick(item = {}) {
       // Always emit `replace` so the editor removes the trigger text (e.g., "/img")
