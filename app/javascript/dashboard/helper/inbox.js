@@ -16,6 +16,27 @@ export const INBOX_TYPES = {
   VOICE: 'Channel::Voice',
 };
 
+// Add providers here as they gain voice capability (e.g., WhatsApp Cloud, Twilio WhatsApp)
+export const VOICE_CALL_PROVIDERS = {
+  TWILIO: 'twilio',
+};
+
+export const getVoiceCallProvider = inbox => {
+  if (!inbox) return null;
+
+  // Callers pass either snake_case (raw API) or camelCase (after camelcaseKeys) shapes.
+  const channelType = inbox.channel_type || inbox.channelType;
+  const voiceEnabled = inbox.voice_enabled || inbox.voiceEnabled;
+
+  if (channelType === INBOX_TYPES.TWILIO && voiceEnabled) {
+    return VOICE_CALL_PROVIDERS.TWILIO;
+  }
+
+  return null;
+};
+
+export const isVoiceCallEnabled = inbox => getVoiceCallProvider(inbox) !== null;
+
 export const TWILIO_CHANNEL_MEDIUM = {
   WHATSAPP: 'whatsapp',
   SMS: 'sms',
@@ -50,7 +71,6 @@ const INBOX_ICON_MAP_LINE = {
   [INBOX_TYPES.LAZADA]: 'i-ri-shopping-bag-3-line',
   [INBOX_TYPES.LINE]: 'i-woot-line',
   [INBOX_TYPES.INSTAGRAM]: 'i-woot-instagram',
-  [INBOX_TYPES.VOICE]: 'i-woot-voice',
   [INBOX_TYPES.TIKTOK]: 'i-woot-tiktok',
   [INBOX_TYPES.TIKTOK_SHOP]: 'i-ri-shopping-bag-3-line',
 };
@@ -64,7 +84,6 @@ export const getInboxSource = (type, phoneNumber, inbox) => {
 
     case INBOX_TYPES.TWILIO:
     case INBOX_TYPES.WHATSAPP:
-    case INBOX_TYPES.VOICE:
       return phoneNumber || '';
 
     case INBOX_TYPES.EMAIL:

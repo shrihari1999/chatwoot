@@ -75,6 +75,12 @@ export const AUTOMATIONS = {
         filterOperators: OPERATOR_TYPES_6,
       },
       {
+        key: 'company_name',
+        name: 'COMPANY_NAME',
+        inputType: 'plain_text',
+        filterOperators: OPERATOR_TYPES_2,
+      },
+      {
         key: 'labels',
         name: 'LABELS',
         inputType: 'multi_select',
@@ -189,6 +195,12 @@ export const AUTOMATIONS = {
         name: 'PHONE_NUMBER',
         inputType: 'plain_text',
         filterOperators: OPERATOR_TYPES_6,
+      },
+      {
+        key: 'company_name',
+        name: 'COMPANY_NAME',
+        inputType: 'plain_text',
+        filterOperators: OPERATOR_TYPES_2,
       },
       {
         key: 'referer',
@@ -327,6 +339,12 @@ export const AUTOMATIONS = {
         name: 'PHONE_NUMBER',
         inputType: 'plain_text',
         filterOperators: OPERATOR_TYPES_6,
+      },
+      {
+        key: 'company_name',
+        name: 'COMPANY_NAME',
+        inputType: 'plain_text',
+        filterOperators: OPERATOR_TYPES_2,
       },
       {
         key: 'assignee_id',
@@ -485,6 +503,12 @@ export const AUTOMATIONS = {
         filterOperators: OPERATOR_TYPES_6,
       },
       {
+        key: 'company_name',
+        name: 'COMPANY_NAME',
+        inputType: 'plain_text',
+        filterOperators: OPERATOR_TYPES_2,
+      },
+      {
         key: 'team_id',
         name: 'TEAM_NAME',
         inputType: 'search_select',
@@ -623,6 +647,12 @@ export const AUTOMATIONS = {
         name: 'PHONE_NUMBER',
         inputType: 'plain_text',
         filterOperators: OPERATOR_TYPES_6,
+      },
+      {
+        key: 'company_name',
+        name: 'COMPANY_NAME',
+        inputType: 'plain_text',
+        filterOperators: OPERATOR_TYPES_2,
       },
       {
         key: 'team_id',
