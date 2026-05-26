@@ -46,12 +46,20 @@ fi
 CHATWOOT_ROOT="${CHATWOOT_ROOT:-/home/chatwoot/chatwoot}"
 cd "$CHATWOOT_ROOT"
 
-# Load Chatwoot's .env so FRESHCHAT_DB_* propagate to the rake process.
+# Extract just the FRESHCHAT_DB_* lines from .env (a blanket `source .env`
+# trips on shell-unsafe values elsewhere in the file; Rails+dotenv loads the
+# rest at rake-task boot anyway).
 if [[ -f .env ]]; then
-  set -a
-  # shellcheck source=/dev/null
-  source .env
-  set +a
+  while IFS='=' read -r key val; do
+    case "$key" in
+      FRESHCHAT_DB_HOST|FRESHCHAT_DB_PORT|FRESHCHAT_DB_NAME|FRESHCHAT_DB_USER|FRESHCHAT_DB_PASSWORD)
+        # Strip surrounding single or double quotes if present
+        val="${val%\"}"; val="${val#\"}"
+        val="${val%\'}"; val="${val#\'}"
+        export "$key=$val"
+        ;;
+    esac
+  done < <(grep -E '^FRESHCHAT_DB_' .env || true)
 fi
 
 # Verify Freshchat creds are present before doing anything destructive.
