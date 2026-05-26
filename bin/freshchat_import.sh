@@ -23,7 +23,7 @@
 # Then from any device:
 #   ssh chatwoot@<host> "tail -f /home/chatwoot/chatwoot/$LOG"
 
-set -eo pipefail   # NOT -u yet — RVM's sourcing references unset internal vars
+set -euo pipefail
 
 INBOX_ID="${1:-}"
 CHANNELS="${2:-}"
@@ -35,14 +35,13 @@ if [[ -z "$INBOX_ID" || -z "$CHANNELS" ]]; then
   exit 2
 fi
 
-# Activate Ruby (RVM-managed on the Azure VM). No-op locally if RVM absent.
-if [[ -f /usr/local/rvm/scripts/rvm ]]; then
-  # shellcheck source=/dev/null
-  source /usr/local/rvm/scripts/rvm
-  rvm use 3.4.4 >/dev/null
+# Put RVM-installed Ruby on PATH directly (bypassing rvm's strict-mode-hostile
+# bash scripting). No-op locally if the path doesn't exist.
+if [[ -d /usr/local/rvm/rubies/ruby-3.4.4/bin ]]; then
+  export PATH="/usr/local/rvm/gems/ruby-3.4.4/bin:/usr/local/rvm/gems/ruby-3.4.4@global/bin:/usr/local/rvm/rubies/ruby-3.4.4/bin:$PATH"
+  export GEM_HOME="/usr/local/rvm/gems/ruby-3.4.4"
+  export GEM_PATH="/usr/local/rvm/gems/ruby-3.4.4:/usr/local/rvm/gems/ruby-3.4.4@global"
 fi
-
-set -u   # safe to enforce now that RVM is sourced
 
 CHATWOOT_ROOT="${CHATWOOT_ROOT:-/home/chatwoot/chatwoot}"
 cd "$CHATWOOT_ROOT"
