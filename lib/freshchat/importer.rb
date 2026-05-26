@@ -17,8 +17,8 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   IMAGE_EXTENSIONS = %w[.jpg .jpeg .png .gif .webp .heic].freeze
   VIDEO_EXTENSIONS = %w[.mp4 .mov .webm .m4v .3gp].freeze
 
-  SOURCE_CONV_COLUMNS = %i[id conversation_id customer_id actor_id actor_first_name created_time].freeze
-  SOURCE_MSG_COLUMNS  = %i[id message_id conversation_id created_time actor_type detailed_message_type text image_url].freeze
+  SOURCE_CONV_COLUMNS = %i[id conversation_id customer_id].freeze
+  SOURCE_MSG_COLUMNS  = %i[id message_id conversation_id created_time actor_type actor_id actor_first_name detailed_message_type message image_url video_url].freeze
 
   INSERT_SLICE = 2_000
 
@@ -75,14 +75,33 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     stats[:source_conversations_seen] += source_convs.size
 
     msgs_by_conv = load_messages_for_batch(source_convs.map(&:id))
+    customer_info = derive_customer_info(source_convs, msgs_by_conv)
 
-    contact_id_by_customer = upsert_contacts(source_convs, customer_ids)
-    upsert_contact_inboxes(source_convs, contact_id_by_customer)
+    contact_id_by_customer = upsert_contacts(customer_info)
+    upsert_contact_inboxes(source_convs, contact_id_by_customer, customer_info)
     ci_id_by_contact = load_contact_inbox_ids(contact_id_by_customer.values)
     conv_lookup = upsert_conversations(source_convs, msgs_by_conv, contact_id_by_customer, ci_id_by_contact)
     upsert_messages_and_attachments(source_convs, msgs_by_conv, conv_lookup, contact_id_by_customer)
 
     log_batch_progress(source_convs.size)
+  end
+
+  # Returns { customer_id => { name:, actor_id: } } by scanning messages.
+  # Picks the first user-type message per customer (falls back to first message
+  # of any type if no user-type message exists).
+  def derive_customer_info(source_convs, msgs_by_conv)
+    info = {}
+    source_convs.each do |conv|
+      next if conv.customer_id.nil? || info.key?(conv.customer_id)
+
+      msgs = msgs_by_conv[conv.id] || []
+      ref = msgs.find { |m| m.actor_type.to_s.casecmp('user').zero? } || msgs.first
+      info[conv.customer_id] = {
+        name: ref&.actor_first_name.to_s,
+        actor_id: ref&.actor_id
+      }
+    end
+    info
   end
 
   def load_messages_for_batch(conv_ids)
@@ -96,19 +115,21 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     kept.group_by(&:conversation_id)
   end
 
-  def upsert_contacts(source_convs, customer_ids)
+  def upsert_contacts(customer_info)
+    customer_ids = customer_info.keys
     return {} if customer_ids.empty?
 
     existing = pluck_lookup(Contact, 'freshchat_customer_id', customer_ids)
-    missing = source_convs.reject { |c| c.customer_id.nil? || existing.key?(c.customer_id) }.uniq(&:customer_id)
-    return existing if missing.empty?
+    missing_ids = customer_ids - existing.keys
+    return existing if missing_ids.empty?
 
     now = Time.current
-    rows = missing.map do |c|
+    rows = missing_ids.map do |cid|
+      info = customer_info[cid]
       {
         account_id: inbox.account_id,
-        name: c.actor_first_name.presence || '',
-        additional_attributes: { 'freshchat_customer_id' => c.customer_id, 'freshchat_actor_id' => c.actor_id },
+        name: info[:name].presence || '',
+        additional_attributes: { 'freshchat_customer_id' => cid, 'freshchat_actor_id' => info[:actor_id] }.compact,
         created_at: now,
         updated_at: now
       }
@@ -121,8 +142,8 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     existing
   end
 
-  def upsert_contact_inboxes(source_convs, contact_id_by_customer)
-    rows = source_convs.filter_map { |c| build_contact_inbox_row(c, contact_id_by_customer) }
+  def upsert_contact_inboxes(source_convs, contact_id_by_customer, customer_info)
+    rows = source_convs.filter_map { |c| build_contact_inbox_row(c, contact_id_by_customer, customer_info) }
                        .uniq { |r| [r[:inbox_id], r[:source_id]] }
     return if rows.empty?
 
@@ -130,21 +151,22 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     stats[:contact_inboxes_created] += result.length
   end
 
-  def build_contact_inbox_row(source_conv, contact_id_by_customer)
+  def build_contact_inbox_row(source_conv, contact_id_by_customer, customer_info)
     contact_id = contact_id_by_customer[source_conv.customer_id]
     return nil if contact_id.nil?
 
     {
       contact_id: contact_id,
       inbox_id: inbox.id,
-      source_id: contact_inbox_source_id(source_conv),
+      source_id: contact_inbox_source_id(source_conv, customer_info),
       created_at: Time.current,
       updated_at: Time.current
     }
   end
 
-  def contact_inbox_source_id(source_conv)
-    source_conv.actor_id.presence || "freshchat-customer-#{source_conv.customer_id}"
+  def contact_inbox_source_id(source_conv, customer_info)
+    info = customer_info[source_conv.customer_id]
+    info&.dig(:actor_id).presence || "freshchat-customer-#{source_conv.customer_id}"
   end
 
   def load_contact_inbox_ids(contact_ids)
@@ -175,7 +197,7 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     return nil if contact_id.nil? || ci_id.nil?
 
     msgs = msgs_by_conv[source_conv.id] || []
-    first_time = msgs.first&.created_time || source_conv.created_time || Time.current
+    first_time = msgs.first&.created_time || Time.current
     last_time = msgs.last&.created_time || first_time
 
     {
@@ -232,7 +254,8 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
         next if row.nil?
 
         msg_rows << row
-        attachments << build_pending_attachment(m) if m.image_url.present?
+        attachments << build_pending_attachment(m, m.image_url, :image) if m.image_url.present?
+        attachments << build_pending_attachment(m, m.video_url, :video) if m.video_url.present?
       end
     end
 
@@ -244,13 +267,14 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     return nil if message_type.nil?
 
     incoming = message_type.zero?
+    text = msg.message.to_s
     {
       account_id: inbox.account_id,
       inbox_id: inbox.id,
       conversation_id: chatwoot_conv_id,
       message_type: message_type,
-      content: msg.text.to_s,
-      processed_message_content: msg.text.to_s,
+      content: text,
+      processed_message_content: text,
       content_type: 0,
       status: 0,
       private: false,
@@ -267,11 +291,11 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     }
   end
 
-  def build_pending_attachment(msg)
+  def build_pending_attachment(msg, url, hint)
     {
       fc_message_id: msg.message_id,
-      external_url: msg.image_url,
-      file_type: attachment_file_type(msg.image_url),
+      external_url: url,
+      file_type: attachment_file_type(url, hint),
       account_id: inbox.account_id
     }
   end
@@ -283,15 +307,17 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     end
   end
 
-  def attachment_file_type(url)
+  def attachment_file_type(url, hint)
     path = URI.parse(url.to_s).path.to_s.downcase
     ext = File.extname(path)
     return Attachment.file_types[:image] if IMAGE_EXTENSIONS.include?(ext)
     return Attachment.file_types[:video] if VIDEO_EXTENSIONS.include?(ext)
 
-    Attachment.file_types[:file]
+    # Fall back to the source-column hint (image_url vs video_url) when the
+    # extension is ambiguous (e.g. Freshchat CDN URLs with no extension).
+    Attachment.file_types[hint] || Attachment.file_types[:file]
   rescue URI::InvalidURIError
-    Attachment.file_types[:file]
+    Attachment.file_types[hint] || Attachment.file_types[:file]
   end
 
   def insert_attachments(pending, msg_id_by_fc)
