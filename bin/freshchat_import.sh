@@ -23,7 +23,7 @@
 # Then from any device:
 #   ssh chatwoot@<host> "tail -f /home/chatwoot/chatwoot/$LOG"
 
-set -euo pipefail
+set -eo pipefail   # NOT -u yet — RVM's sourcing references unset internal vars
 
 INBOX_ID="${1:-}"
 CHANNELS="${2:-}"
@@ -41,6 +41,8 @@ if [[ -f /usr/local/rvm/scripts/rvm ]]; then
   source /usr/local/rvm/scripts/rvm
   rvm use 3.4.4 >/dev/null
 fi
+
+set -u   # safe to enforce now that RVM is sourced
 
 CHATWOOT_ROOT="${CHATWOOT_ROOT:-/home/chatwoot/chatwoot}"
 cd "$CHATWOOT_ROOT"
