@@ -18,7 +18,11 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   VIDEO_EXTENSIONS = %w[.mp4 .mov .webm .m4v .3gp].freeze
 
   SOURCE_CONV_COLUMNS = %i[id conversation_id customer_id].freeze
-  SOURCE_MSG_COLUMNS  = %i[id message_id conversation_id created_time actor_type actor_id actor_first_name detailed_message_type message image_url video_url].freeze
+  SOURCE_MSG_COLUMNS  = %i[
+    id message_id conversation_id created_time
+    actor_type actor_id actor_first_name detailed_message_type
+    message image_url video_url
+  ].freeze
 
   INSERT_SLICE = 2_000
 
@@ -71,7 +75,6 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   end
 
   def process_batch(source_convs)
-    customer_ids = source_convs.filter_map(&:customer_id).uniq
     stats[:source_conversations_seen] += source_convs.size
 
     msgs_by_conv = load_messages_for_batch(source_convs.map(&:id))
