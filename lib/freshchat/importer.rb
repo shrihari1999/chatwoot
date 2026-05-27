@@ -288,7 +288,8 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       content: text,
       processed_message_content: text,
       content_type: 0,
-      status: 1, # delivered — historical, no in-transit semantics
+      status: imported_message_status,
+      source_id: msg.message_id,
       private: false,
       content_attributes: {},
       sender_type: incoming ? 'Contact' : nil,
@@ -301,6 +302,17 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       created_at: msg.created_time,
       updated_at: msg.created_time
     }
+  end
+
+  # Pick the status that makes the UI render a meaningful delivery indicator
+  # instead of the in-flight clock (MESSAGE_STATUS.PROGRESS fallback in
+  # dashboard/components-next/message/MessageMeta.vue). LINE has no isRead
+  # branch but uses status===DELIVERED in isDelivered; Lazada/IG/FB/TikTok
+  # use status===READ + source_id in isRead. Setting source_id (which we do
+  # unconditionally above) makes the non-LINE branches work; status picks
+  # the right tier for each channel.
+  def imported_message_status
+    inbox.channel_type == 'Channel::Line' ? 1 : 2
   end
 
   def build_pending_attachment(msg, url, hint)
