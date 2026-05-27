@@ -38,7 +38,6 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     @limit = limit
     @since = since
     @stats = Hash.new(0)
-    @max_source_created_time = nil
   end
 
   def run
@@ -46,6 +45,13 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     Freshchat::SourceBase.connect!
 
     effective_since = resolve_since
+    # Capture the run-start wall-clock BEFORE any source reading. The next
+    # delta-sync uses this as its lower bound, so we never miss a source row
+    # that landed AFTER we'd already processed its conversation in this run.
+    # Trade-off: next run re-scans messages from this window (idempotency
+    # dedupes them) — bounded overhead, but always-correct.
+    run_started_at = Time.current
+
     log "Starting #{dry_run ? 'DRY-RUN ' : ''}import: inbox=#{inbox.id} (#{inbox.channel_type}) " \
         "channels=#{channels.inspect} limit=#{limit || '∞'} since=#{effective_since&.iso8601 || 'FULL'}"
 
@@ -61,7 +67,7 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       end
     end
 
-    save_sync_state!(@max_source_created_time) if !dry_run && @max_source_created_time
+    save_sync_state!(run_started_at) unless dry_run
     print_stats
     stats
   end
@@ -135,12 +141,6 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
                                   .order(:conversation_id, :created_time)
     rel = rel.where('created_time >= ?', effective_since) if effective_since
     all_msgs = rel.to_a
-
-    # Track the high-water mark across all batches for the sync-state marker.
-    # We use the max we *saw* in the source, not the max we *imported*, so that
-    # all-system batches still advance the cursor and we don't re-scan them.
-    batch_max = all_msgs.filter_map(&:created_time).max
-    @max_source_created_time = [@max_source_created_time, batch_max].compact.max if batch_max
 
     # Drop a row if EITHER signal says "not a real chat message":
     #   - message_source='system' catches Freshchat workflow events
@@ -451,19 +451,23 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     nil
   end
 
-  def save_sync_state!(max_created_time)
+  # `run_started_at` is the wall-clock captured BEFORE this run started
+  # reading source data. Storing it (not the max created_time we observed)
+  # guarantees the next delta-sync looks back far enough to catch any source
+  # rows that arrived for already-processed conversations mid-run.
+  def save_sync_state!(run_started_at)
     path = sync_state_path
     FileUtils.mkdir_p(path.dirname)
     payload = {
       'inbox_id' => inbox.id,
       'channels' => channels,
-      'last_message_imported_at' => max_created_time.iso8601,
+      'last_message_imported_at' => run_started_at.iso8601,
       'last_run_at' => Time.current.iso8601
     }
     tmp = path.sub_ext('.tmp')
     File.write(tmp, JSON.pretty_generate(payload))
     File.rename(tmp, path)
-    log "Saved sync-state -> #{path} (last_message_imported_at=#{max_created_time.iso8601})"
+    log "Saved sync-state -> #{path} (last_message_imported_at=#{run_started_at.iso8601})"
   end
 end
 # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/MethodLength
