@@ -113,10 +113,16 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
                                        .order(:conversation_id, :created_time)
                                        .to_a
 
-    # Filter on message_source, not actor_type. Workflow events ("Conversation
-    # was marked resolved by X") have message_source='system' but actor_type
-    # can be 'agent' or even 'user' depending on who triggered the action.
-    system_msgs, kept = all_msgs.partition { |m| m.message_source.to_s.casecmp('system').zero? }
+    # Drop a row if EITHER signal says "not a real chat message":
+    #   - message_source='system' catches Freshchat workflow events
+    #     ("Conversation was marked resolved by <agent>"), where actor_type
+    #     can be agent/user depending on who triggered it.
+    #   - actor_type='system' catches IG-side social events (COMMENT on a
+    #     post, STORY_MENTION, STORY_REPLY, SHARE) on LINE/IG channels,
+    #     where message_source is empty string.
+    system_msgs, kept = all_msgs.partition do |m|
+      m.message_source.to_s.casecmp('system').zero? || m.actor_type.to_s.casecmp('system').zero?
+    end
     stats[:system_messages_skipped] += system_msgs.size
     kept.group_by(&:conversation_id)
   end
