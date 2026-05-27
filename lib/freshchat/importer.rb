@@ -26,28 +26,33 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
 
   INSERT_SLICE = 2_000
 
-  attr_reader :inbox, :channels, :dry_run, :limit, :stats
+  attr_reader :inbox, :channels, :dry_run, :limit, :since, :stats
 
-  def initialize(inbox:, channels:, dry_run: false, limit: nil)
+  # since:  nil       -> auto (read marker file, fall back to full scan)
+  #         :full     -> ignore marker file, full scan
+  #         Time/iso  -> explicit lower bound on source `created_time`
+  def initialize(inbox:, channels:, dry_run: false, limit: nil, since: nil)
     @inbox = inbox
     @channels = Array(channels).map(&:to_s)
     @dry_run = dry_run
     @limit = limit
+    @since = since
     @stats = Hash.new(0)
+    @max_source_created_time = nil
   end
 
   def run
     validate!
     Freshchat::SourceBase.connect!
 
-    log "Starting #{dry_run ? 'DRY-RUN ' : ''}import: inbox=#{inbox.id} (#{inbox.channel_type}) channels=#{channels.inspect} limit=#{limit || '∞'}"
+    effective_since = resolve_since
+    log "Starting #{dry_run ? 'DRY-RUN ' : ''}import: inbox=#{inbox.id} (#{inbox.channel_type}) " \
+        "channels=#{channels.inspect} limit=#{limit || '∞'} since=#{effective_since&.iso8601 || 'FULL'}"
 
     ActiveRecord::Base.transaction do
-      scope = Freshchat::SourceConversation.select(SOURCE_CONV_COLUMNS).where(channel_name: channels).order(:id)
-      scope = scope.limit(limit) if limit
-
+      scope = scope_for(effective_since)
       scope.find_in_batches(batch_size: BATCH_SIZE) do |source_convs|
-        process_batch(source_convs)
+        process_batch(source_convs, effective_since)
       end
 
       if dry_run
@@ -56,6 +61,7 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       end
     end
 
+    save_sync_state!(@max_source_created_time) if !dry_run && @max_source_created_time
     print_stats
     stats
   end
@@ -74,10 +80,26 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     raise ArgumentError, "Inbox #{inbox.id} has channel_type=#{inbox.channel_type}, but channels #{channels.inspect} require #{expected}"
   end
 
-  def process_batch(source_convs)
+  # nil-since means full scan; a Time means "only conversations that have at
+  # least one source message with created_time >= since (within our channels)".
+  def scope_for(effective_since)
+    scope = Freshchat::SourceConversation.select(SOURCE_CONV_COLUMNS).where(channel_name: channels).order(:id)
+    if effective_since
+      delta_conv_ids = Freshchat::SourceMessage
+                       .where('created_time >= ?', effective_since)
+                       .where(conversation_id: Freshchat::SourceConversation.where(channel_name: channels).select(:id))
+                       .distinct
+                       .pluck(:conversation_id)
+      scope = scope.where(id: delta_conv_ids)
+    end
+    scope = scope.limit(limit) if limit
+    scope
+  end
+
+  def process_batch(source_convs, effective_since)
     stats[:source_conversations_seen] += source_convs.size
 
-    msgs_by_conv = load_messages_for_batch(source_convs.map(&:id))
+    msgs_by_conv = load_messages_for_batch(source_convs.map(&:id), effective_since)
     customer_info = derive_customer_info(source_convs, msgs_by_conv)
 
     contact_id_by_customer = upsert_contacts(customer_info)
@@ -107,11 +129,18 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     info
   end
 
-  def load_messages_for_batch(conv_ids)
-    all_msgs = Freshchat::SourceMessage.select(SOURCE_MSG_COLUMNS)
-                                       .where(conversation_id: conv_ids)
-                                       .order(:conversation_id, :created_time)
-                                       .to_a
+  def load_messages_for_batch(conv_ids, effective_since)
+    rel = Freshchat::SourceMessage.select(SOURCE_MSG_COLUMNS)
+                                  .where(conversation_id: conv_ids)
+                                  .order(:conversation_id, :created_time)
+    rel = rel.where('created_time >= ?', effective_since) if effective_since
+    all_msgs = rel.to_a
+
+    # Track the high-water mark across all batches for the sync-state marker.
+    # We use the max we *saw* in the source, not the max we *imported*, so that
+    # all-system batches still advance the cursor and we don't re-scan them.
+    batch_max = all_msgs.filter_map(&:created_time).max
+    @max_source_created_time = [@max_source_created_time, batch_max].compact.max if batch_max
 
     # Drop a row if EITHER signal says "not a real chat message":
     #   - message_source='system' catches Freshchat workflow events
@@ -389,6 +418,52 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   def log(msg)
     Rails.logger.info("[Freshchat::Importer] #{msg}")
     Kernel.puts "[Freshchat::Importer] #{msg}"
+  end
+
+  # --- sync-state marker file ----------------------------------------------
+
+  def sync_state_path
+    Rails.root.join('log', 'freshchat', 'sync_state', "inbox-#{inbox.id}.json")
+  end
+
+  def resolve_since
+    case since
+    when :full then nil
+    when nil
+      stored = load_last_synced_at
+      log "Using stored sync marker: #{stored.iso8601}" if stored
+      stored
+    when Time, ActiveSupport::TimeWithZone then since
+    when String then Time.iso8601(since)
+    else raise ArgumentError, "Unsupported since=#{since.inspect}"
+    end
+  end
+
+  def load_last_synced_at
+    path = sync_state_path
+    return nil unless File.exist?(path)
+
+    data = JSON.parse(File.read(path))
+    ts = data['last_message_imported_at']
+    ts ? Time.iso8601(ts) : nil
+  rescue JSON::ParserError, ArgumentError => e
+    log "WARNING: ignoring malformed sync-state file (#{e.message}); doing full scan"
+    nil
+  end
+
+  def save_sync_state!(max_created_time)
+    path = sync_state_path
+    FileUtils.mkdir_p(path.dirname)
+    payload = {
+      'inbox_id' => inbox.id,
+      'channels' => channels,
+      'last_message_imported_at' => max_created_time.iso8601,
+      'last_run_at' => Time.current.iso8601
+    }
+    tmp = path.sub_ext('.tmp')
+    File.write(tmp, JSON.pretty_generate(payload))
+    File.rename(tmp, path)
+    log "Saved sync-state -> #{path} (last_message_imported_at=#{max_created_time.iso8601})"
   end
 end
 # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/MethodLength

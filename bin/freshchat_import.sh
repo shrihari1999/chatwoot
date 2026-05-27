@@ -6,13 +6,23 @@
 # tmux, systemd-run, etc.) and check the log later from anywhere.
 #
 # Usage:
-#   bin/freshchat_import.sh <inbox_id> <channels|pipe-separated> [dry|real] [limit]
+#   bin/freshchat_import.sh <inbox_id> <channels|pipe-separated> [dry|real] [limit] [since]
+#
+# since values:
+#   ""                       (default) auto: importer reads its sync-state
+#                            marker file at log/freshchat/sync_state/inbox-<id>.json
+#                            and uses last_message_imported_at; on first run does
+#                            a full scan.
+#   "full"                   force a full re-scan (ignore the marker file).
+#   "<ISO8601>"              explicit lower bound (e.g. 2026-05-27T18:00:00Z).
 #
 # Examples:
-#   bin/freshchat_import.sh 3 "Lazada IM" dry           # dry-run (rolls back)
-#   bin/freshchat_import.sh 3 "Lazada IM"               # real import
-#   bin/freshchat_import.sh 2 "LINE - TRP|LINE"         # multi-channel LINE
+#   bin/freshchat_import.sh 3 "Lazada IM" dry           # dry-run, auto-since (rolls back)
+#   bin/freshchat_import.sh 3 "Lazada IM"               # real import, auto-since
+#   bin/freshchat_import.sh 2 "LINE - TRP|LINE"         # multi-channel LINE, auto-since
 #   bin/freshchat_import.sh 22 "IG_therollingpinn" real 100   # limit to 100 convs
+#   bin/freshchat_import.sh 3 "Lazada IM" real "" full  # force full re-scan
+#   bin/freshchat_import.sh 3 "Lazada IM" real "" 2026-05-27T18:00:00Z   # explicit since
 #
 # Recommended invocation on the Azure VM (so the script outlives your SSH session):
 #   mkdir -p log/freshchat
@@ -29,9 +39,10 @@ INBOX_ID="${1:-}"
 CHANNELS="${2:-}"
 MODE="${3:-real}"
 LIMIT="${4:-}"
+SINCE="${5:-}"
 
 if [[ -z "$INBOX_ID" || -z "$CHANNELS" ]]; then
-  echo "Usage: $0 <inbox_id> <channels|pipe-separated> [dry|real] [limit]" >&2
+  echo "Usage: $0 <inbox_id> <channels|pipe-separated> [dry|real] [limit] [since]" >&2
   exit 2
 fi
 
@@ -74,16 +85,15 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   exit 3
 fi
 
-# Compose the rake bracket-arg string.
-RAKE_ARGS="$INBOX_ID,$CHANNELS"
-if [[ "$MODE" == "dry" ]]; then
-  RAKE_ARGS="$RAKE_ARGS,dry"
-  if [[ -n "$LIMIT" ]]; then
-    RAKE_ARGS="$RAKE_ARGS,$LIMIT"
-  fi
-elif [[ -n "$LIMIT" ]]; then
-  RAKE_ARGS="$RAKE_ARGS,,$LIMIT"
-fi
+# Compose the rake bracket-arg string. Rake's positional-args syntax means we
+# need empty placeholders for any earlier arg we want to skip; build them all.
+MODE_TOKEN=""
+if [[ "$MODE" == "dry" ]]; then MODE_TOKEN="dry"; fi
+RAKE_ARGS="$INBOX_ID,$CHANNELS,$MODE_TOKEN,$LIMIT,$SINCE"
+RAKE_ARGS="${RAKE_ARGS%%,,,,}"   # trim trailing empty placeholders
+RAKE_ARGS="${RAKE_ARGS%%,,,}"
+RAKE_ARGS="${RAKE_ARGS%%,,}"
+RAKE_ARGS="${RAKE_ARGS%%,}"
 
 echo "==============================================================="
 echo "[$(date -Iseconds)] Starting: freshchat:import[$RAKE_ARGS]"
