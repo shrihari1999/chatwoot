@@ -355,8 +355,8 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
 
   def source_message_type(msg)
     case msg.actor_type.to_s.downcase
-    when 'user' then 0
-    when 'agent' then 1
+    when 'user' then 0          # incoming (from customer)
+    when 'agent', 'bot' then 1  # outgoing (from your side — human agent OR bot reply)
     end
   end
 
