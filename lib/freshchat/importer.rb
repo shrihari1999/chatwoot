@@ -20,7 +20,7 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   SOURCE_CONV_COLUMNS = %i[id conversation_id customer_id].freeze
   SOURCE_MSG_COLUMNS  = %i[
     id message_id conversation_id created_time
-    actor_type actor_id actor_first_name detailed_message_type
+    actor_type actor_id actor_first_name detailed_message_type message_source
     message image_url video_url
   ].freeze
 
@@ -113,7 +113,10 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
                                        .order(:conversation_id, :created_time)
                                        .to_a
 
-    system_msgs, kept = all_msgs.partition { |m| m.actor_type.to_s.casecmp('system').zero? }
+    # Filter on message_source, not actor_type. Workflow events ("Conversation
+    # was marked resolved by X") have message_source='system' but actor_type
+    # can be 'agent' or even 'user' depending on who triggered the action.
+    system_msgs, kept = all_msgs.partition { |m| m.message_source.to_s.casecmp('system').zero? }
     stats[:system_messages_skipped] += system_msgs.size
     kept.group_by(&:conversation_id)
   end
