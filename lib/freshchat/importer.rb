@@ -288,7 +288,7 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       content: text,
       processed_message_content: text,
       content_type: 0,
-      status: 0,
+      status: 1, # delivered — historical, no in-transit semantics
       private: false,
       content_attributes: {},
       sender_type: incoming ? 'Contact' : nil,
