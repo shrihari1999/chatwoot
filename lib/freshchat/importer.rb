@@ -20,9 +20,16 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   SOURCE_CONV_COLUMNS = %i[id conversation_id customer_id].freeze
   SOURCE_MSG_COLUMNS  = %i[
     id message_id conversation_id created_time
-    actor_type actor_id actor_first_name detailed_message_type message_source
-    message image_url video_url
+    actor_type actor_id actor_first_name actor_last_name detailed_message_type message_source
+    message image_url video_url reference_id
   ].freeze
+
+  # Channels where Freshchat's reference_id is the platform-native ID that
+  # Chatwoot's live webhook handler also uses for ContactInbox.source_id. For
+  # these, imported and live contacts will merge cleanly. Everything else
+  # (LINE, IG) gets the Freshchat-UUID fallback — no live continuity, two
+  # Contacts per real-life human when live traffic starts.
+  CONTINUITY_CAPABLE_CHANNELS = %w[Channel::FacebookPage Channel::Tiktok Channel::TiktokShop Channel::Lazada].freeze
 
   INSERT_SLICE = 2_000
 
@@ -117,9 +124,9 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     log_batch_progress(source_convs.size)
   end
 
-  # Returns { customer_id => { name:, actor_id: } } by scanning messages.
-  # Picks the first user-type message per customer (falls back to first message
-  # of any type if no user-type message exists).
+  # Returns { customer_id => { first_name:, last_name:, actor_id:, reference_id: } }
+  # by scanning messages. Picks the first user-type message per customer (falls
+  # back to first message of any type if no user-type message exists).
   def derive_customer_info(source_convs, msgs_by_conv)
     info = {}
     source_convs.each do |conv|
@@ -128,11 +135,44 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       msgs = msgs_by_conv[conv.id] || []
       ref = msgs.find { |m| m.actor_type.to_s.casecmp('user').zero? } || msgs.first
       info[conv.customer_id] = {
-        name: ref&.actor_first_name.to_s,
-        actor_id: ref&.actor_id
+        first_name: ref&.actor_first_name.to_s,
+        last_name: ref&.actor_last_name.to_s,
+        actor_id: ref&.actor_id,
+        reference_id: ref&.reference_id
       }
     end
     info
+  end
+
+  # Full display name from first + last, deduped (some Freshchat rows have
+  # first==last, e.g. "Namfha Namfha").
+  def build_full_name(info)
+    first = info[:first_name].to_s.strip
+    last  = info[:last_name].to_s.strip
+    return first if last.empty? || first.casecmp(last).zero?
+    return last if first.empty?
+
+    "#{first} #{last}"
+  end
+
+  # Channel-aware mapping of source_id used both for ContactInbox creation
+  # and for live-contact merge lookups.
+  def compute_source_id_for(info, customer_id)
+    return "freshchat-customer-#{customer_id}" if info.nil?
+
+    case inbox.channel_type
+    when 'Channel::FacebookPage', 'Channel::Tiktok', 'Channel::TiktokShop'
+      info[:reference_id].presence || "freshchat-customer-#{customer_id}"
+    when 'Channel::Lazada'
+      stripped = info[:reference_id].to_s.delete_prefix('lazada_').presence
+      stripped || "freshchat-customer-#{customer_id}"
+    else
+      # Channel::Line, Channel::Instagram — platform-native ID not preserved
+      # by Freshchat. Use a fallback unique per Freshchat customer so re-imports
+      # are idempotent. Live messages on these channels create a separate
+      # Contact (no continuity) — documented limitation.
+      "freshchat-customer-#{customer_id}"
+    end
   end
 
   def load_messages_for_batch(conv_ids, effective_since)
@@ -160,16 +200,73 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     customer_ids = customer_info.keys
     return {} if customer_ids.empty?
 
-    existing = pluck_lookup(Contact, 'freshchat_customer_id', customer_ids)
-    missing_ids = customer_ids - existing.keys
-    return existing if missing_ids.empty?
+    # Phase 1: existing imported contacts (re-import idempotency)
+    contact_id_by_customer = pluck_lookup(Contact, 'freshchat_customer_id', customer_ids)
+
+    # Phase 2: merge with already-existing LIVE contacts that have the same
+    # platform-native source_id. Only attempted on continuity-capable channels —
+    # for LINE/IG the computed source_id is the freshchat-customer-<uuid>
+    # fallback which can never collide with a live contact anyway.
+    merge_with_live_contacts(customer_info, contact_id_by_customer)
+
+    # Phase 3: create fresh contacts for everyone still unresolved
+    create_new_contacts(customer_info, contact_id_by_customer)
+
+    contact_id_by_customer
+  end
+
+  def merge_with_live_contacts(customer_info, contact_id_by_customer)
+    return unless CONTINUITY_CAPABLE_CHANNELS.include?(inbox.channel_type)
+
+    unresolved = customer_info.keys - contact_id_by_customer.keys
+    return if unresolved.empty?
+
+    sid_by_cust = {}
+    unresolved.each do |cust_id|
+      sid = compute_source_id_for(customer_info[cust_id], cust_id)
+      sid_by_cust[cust_id] = sid if sid && !sid.start_with?('freshchat-customer-')
+    end
+    return if sid_by_cust.empty?
+
+    ci_matches = ContactInbox.where(inbox_id: inbox.id, source_id: sid_by_cust.values)
+                             .pluck(:source_id, :contact_id)
+                             .to_h
+    return if ci_matches.empty?
+
+    sid_by_cust.each do |cust_id, sid|
+      live_contact_id = ci_matches[sid]
+      next unless live_contact_id
+
+      contact_id_by_customer[cust_id] = live_contact_id
+      tag_existing_contact_with_freshchat_ids(live_contact_id, cust_id, customer_info[cust_id])
+      stats[:contacts_merged_with_live] += 1
+    end
+  end
+
+  def tag_existing_contact_with_freshchat_ids(contact_id, customer_id, info)
+    patch = {
+      'freshchat_customer_id' => customer_id,
+      'freshchat_actor_id' => info[:actor_id]
+    }.compact
+
+    Contact.where(id: contact_id).update_all( # rubocop:disable Rails/SkipsModelValidations
+      [
+        "additional_attributes = COALESCE(additional_attributes, '{}'::jsonb) || ?::jsonb",
+        patch.to_json
+      ]
+    )
+  end
+
+  def create_new_contacts(customer_info, contact_id_by_customer)
+    missing_ids = customer_info.keys - contact_id_by_customer.keys
+    return if missing_ids.empty?
 
     now = Time.current
     rows = missing_ids.map do |cid|
       info = customer_info[cid]
       {
         account_id: inbox.account_id,
-        name: info[:name].presence || '',
+        name: build_full_name(info),
         additional_attributes: { 'freshchat_customer_id' => cid, 'freshchat_actor_id' => info[:actor_id] }.compact,
         created_at: now,
         updated_at: now
@@ -177,10 +274,8 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     end
 
     result = Contact.insert_all(rows, returning: Arel.sql("id, additional_attributes->>'freshchat_customer_id' AS fc_customer_id")) # rubocop:disable Rails/SkipsModelValidations
-    result.each { |row| existing[row['fc_customer_id']] = row['id'] }
+    result.each { |row| contact_id_by_customer[row['fc_customer_id']] = row['id'] }
     stats[:contacts_created] += result.length
-
-    existing
   end
 
   def upsert_contact_inboxes(source_convs, contact_id_by_customer, customer_info)
@@ -206,8 +301,7 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   end
 
   def contact_inbox_source_id(source_conv, customer_info)
-    info = customer_info[source_conv.customer_id]
-    info&.dig(:actor_id).presence || "freshchat-customer-#{source_conv.customer_id}"
+    compute_source_id_for(customer_info[source_conv.customer_id], source_conv.customer_id)
   end
 
   def load_contact_inbox_ids(contact_ids)
