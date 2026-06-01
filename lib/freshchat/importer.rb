@@ -113,6 +113,16 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     stats[:source_conversations_seen] += source_convs.size
 
     msgs_by_conv = load_messages_for_batch(source_convs.map(&:id), effective_since)
+
+    # Drop source convs that have ZERO real (non-system) messages — they are
+    # workflow-only stubs (e.g. a Freshchat conv that was opened then immediately
+    # marked-resolved with no actual chat content). Importing them would create
+    # an empty Chatwoot conversation + a nameless contact.
+    kept = source_convs.select { |c| msgs_by_conv[c.id].present? }
+    stats[:source_conversations_skipped_empty] += source_convs.size - kept.size
+    source_convs = kept
+    return if source_convs.empty?
+
     customer_info = derive_customer_info(source_convs, msgs_by_conv)
 
     contact_id_by_customer = upsert_contacts(customer_info)
