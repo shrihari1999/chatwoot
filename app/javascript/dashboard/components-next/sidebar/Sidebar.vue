@@ -340,7 +340,8 @@ const menuItems = computed(() => {
         },
       ],
     },
-    {
+    // Hidden in this fork — Captain is unused.
+    /* {
       name: 'Captain',
       icon: 'i-woot-captain',
       label: t('SIDEBAR.CAPTAIN'),
@@ -410,7 +411,7 @@ const menuItems = computed(() => {
           }),
         },
       ],
-    },
+    }, */
     {
       name: 'Contacts',
       label: t('SIDEBAR.CONTACTS'),
@@ -605,12 +606,12 @@ const menuItems = computed(() => {
           icon: 'i-lucide-briefcase',
           to: accountScopedRoute('general_settings_index'),
         },
-        {
-          name: 'Settings Captain',
-          label: t('SIDEBAR.CAPTAIN_AI'),
-          icon: 'i-woot-captain',
-          to: accountScopedRoute('captain_settings_index'),
-        },
+        // {
+        //   name: 'Settings Captain',
+        //   label: t('SIDEBAR.CAPTAIN_AI'),
+        //   icon: 'i-woot-captain',
+        //   to: accountScopedRoute('captain_settings_index'),
+        // },
         {
           name: 'Settings Agents',
           label: t('SIDEBAR.AGENTS'),
