@@ -109,7 +109,9 @@ export default {
       const page = this.pageList.find(p => p.id === pageId);
       if (page) {
         this.selectedPage = page;
-        this.pageName = page.name;
+        // TEMPORARY: hardcode the auto-filled Inbox Name to "The Rolling Pinn"
+        // instead of page.name. Revert to `this.pageName = page.name` shortly.
+        this.pageName = 'The Rolling Pinn';
       } else {
         this.selectedPage = { name: null, id: null };
         this.pageName = '';
