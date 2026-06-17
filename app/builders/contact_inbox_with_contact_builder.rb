@@ -15,7 +15,12 @@ class ContactInboxWithContactBuilder
 
   def find_or_create_contact_and_contact_inbox
     @contact_inbox = inbox.contact_inboxes.find_by(source_id: source_id) if source_id.present?
-    return @contact_inbox if @contact_inbox
+    if @contact_inbox
+      # Self-heal contacts that never got an avatar (e.g. imported contacts whose
+      # contact_inbox already existed, so the create path below was never reached).
+      update_contact_avatar(@contact_inbox.contact) unless @contact_inbox.contact.avatar.attached?
+      return @contact_inbox
+    end
 
     ActiveRecord::Base.transaction(requires_new: true) do
       build_contact_with_contact_inbox
@@ -45,7 +50,13 @@ class ContactInboxWithContactBuilder
   end
 
   def update_contact_avatar(contact)
-    ::Avatar::AvatarFromUrlJob.perform_later(contact, contact_attributes[:avatar_url]) if contact_attributes[:avatar_url]
+    return if contact_attributes[:avatar_url].blank?
+
+    # Delay the enqueue so the wrapping message-builder transaction (which may stay
+    # open while an inbound media attachment downloads inline) commits the contact
+    # first. Without this the worker can dequeue before commit and discard the job
+    # with a Couldn't-find-Contact DeserializationError. Mirrors AvatarFromGravatarJob.
+    ::Avatar::AvatarFromUrlJob.set(wait: 10.seconds).perform_later(contact, contact_attributes[:avatar_url])
   end
 
   def create_contact
