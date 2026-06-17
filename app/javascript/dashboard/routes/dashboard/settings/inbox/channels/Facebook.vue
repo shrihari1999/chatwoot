@@ -70,9 +70,12 @@ export default {
       return this.pageList.filter(item => !item.exists);
     },
     comboBoxPageOptions() {
-      return this.getSelectablePages.map(({ id, name }) => ({
+      // TEMPORARY: hardcode the displayed page name to "The Rolling Pinn".
+      // Revert to `label: name` shortly. Only the dropdown label is affected;
+      // the real page name still flows through setPageName for inbox creation.
+      return this.getSelectablePages.map(({ id }) => ({
         value: id,
-        label: name,
+        label: 'The Rolling Pinn',
       }));
     },
   },
