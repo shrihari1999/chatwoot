@@ -96,6 +96,39 @@ describe ContactInboxWithContactBuilder do
       expect(contact_inbox.contact.id).to be(contact.id)
     end
 
+    it 'enqueues a delayed avatar fetch when creating a contact with an avatar_url' do
+      expect do
+        described_class.new(
+          source_id: '123456',
+          inbox: inbox,
+          contact_attributes: { name: 'Contact', avatar_url: 'https://example.com/avatar.jpg' }
+        ).perform
+      end.to have_enqueued_job(Avatar::AvatarFromUrlJob).at(a_value_within(1.second).of(10.seconds.from_now))
+    end
+
+    it 'self-heals by enqueuing an avatar fetch for an existing contact_inbox whose contact has no avatar' do
+      expect do
+        described_class.new(
+          source_id: existing_contact_inbox.source_id,
+          inbox: inbox,
+          contact_attributes: { name: 'Contact', avatar_url: 'https://example.com/avatar.jpg' }
+        ).perform
+      end.to have_enqueued_job(Avatar::AvatarFromUrlJob).with(contact, 'https://example.com/avatar.jpg')
+    end
+
+    it 'does not enqueue an avatar fetch for an existing contact_inbox whose contact already has an avatar' do
+      contact.avatar.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'avatar.png', content_type: 'image/png')
+      existing_contact_inbox
+
+      expect do
+        described_class.new(
+          source_id: existing_contact_inbox.source_id,
+          inbox: inbox,
+          contact_attributes: { name: 'Contact', avatar_url: 'https://example.com/avatar.jpg' }
+        ).perform
+      end.not_to have_enqueued_job(Avatar::AvatarFromUrlJob)
+    end
+
     it 'reuses contact if it exists with the same source_id in a Facebook inbox when creating for Instagram inbox' do
       instagram_source_id = '123456789'
 
