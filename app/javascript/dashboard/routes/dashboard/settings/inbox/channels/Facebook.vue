@@ -70,12 +70,9 @@ export default {
       return this.pageList.filter(item => !item.exists);
     },
     comboBoxPageOptions() {
-      // TEMPORARY: hardcode the displayed page name to "The Rolling Pinn".
-      // Revert to `label: name` shortly. Only the dropdown label is affected;
-      // the real page name still flows through setPageName for inbox creation.
-      return this.getSelectablePages.map(({ id }) => ({
+      return this.getSelectablePages.map(({ id, name }) => ({
         value: id,
-        label: 'The Rolling Pinn',
+        label: name,
       }));
     },
   },
@@ -109,9 +106,7 @@ export default {
       const page = this.pageList.find(p => p.id === pageId);
       if (page) {
         this.selectedPage = page;
-        // TEMPORARY: hardcode the auto-filled Inbox Name to "The Rolling Pinn"
-        // instead of page.name. Revert to `this.pageName = page.name` shortly.
-        this.pageName = 'The Rolling Pinn';
+        this.pageName = page.name;
       } else {
         this.selectedPage = { name: null, id: null };
         this.pageName = '';
