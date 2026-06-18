@@ -9,13 +9,14 @@ import TeamName from '../TeamName.vue';
 import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
+import ConversationCallButton from './ConversationCallButton.vue';
 import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
 import { useInbox } from 'dashboard/composables/useInbox';
+import { useAlert } from 'dashboard/composables';
 import { useI18n } from 'vue-i18n';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
-import { useAlert } from 'dashboard/composables';
 
 const props = defineProps({
   chat: {
@@ -126,7 +127,6 @@ const copyConversationId = async () => {
         :size="32"
         :status="currentContact.availability_status"
         hide-offline-status
-        rounded-full
       />
       <div
         class="flex flex-col items-start min-w-0 ml-2 overflow-hidden rtl:ml-0 rtl:mr-2"
@@ -176,6 +176,7 @@ const copyConversationId = async () => {
         :parent-width="width"
         class="hidden md:flex"
       />
+      <ConversationCallButton :inbox="inbox" :chat="currentChat" />
       <MoreActions :conversation-id="currentChat.id" />
     </div>
   </div>

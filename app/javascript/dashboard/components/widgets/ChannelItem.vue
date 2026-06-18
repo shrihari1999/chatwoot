@@ -66,6 +66,14 @@ const isActive = computed(() => {
     return props.enabledFeatures.channel_voice;
   }
 
+  if (key === 'whatsapp_call') {
+    return (
+      props.enabledFeatures.channel_voice &&
+      !!window.chatwootConfig?.whatsappAppId &&
+      window.chatwootConfig.whatsappAppId !== 'none'
+    );
+  }
+
   return [
     'website',
     'twilio',
@@ -90,7 +98,14 @@ const isComingSoon = computed(() => {
 });
 
 const isBeta = computed(() => {
-  return ['tiktok', 'voice'].includes(props.channel.key);
+  return ['tiktok', 'voice', 'whatsapp_call'].includes(props.channel.key);
+});
+
+const hasVoiceBadge = computed(() => {
+  return (
+    ['voice', 'whatsapp_call'].includes(props.channel.key) &&
+    !!props.enabledFeatures.channel_voice
+  );
 });
 
 const onItemClick = () => {
@@ -107,6 +122,7 @@ const onItemClick = () => {
     :icon="channel.icon"
     :is-coming-soon="isComingSoon"
     :is-beta="isBeta"
+    :has-voice-badge="hasVoiceBadge"
     :disabled="!isActive"
     @click="onItemClick"
   />

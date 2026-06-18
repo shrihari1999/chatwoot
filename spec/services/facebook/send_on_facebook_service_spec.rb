@@ -89,6 +89,16 @@ describe Facebook::SendOnFacebookService do
                                                     }, { page_id: facebook_channel.page_id })
       end
 
+      it 'sends as a standard RESPONSE without a tag by default' do
+        message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: conversation)
+        described_class.new(message: message).perform
+        expect(bot).to have_received(:deliver).with(
+          hash_including(messaging_type: 'RESPONSE'),
+          { page_id: facebook_channel.page_id }
+        )
+        expect(bot).not_to have_received(:deliver).with(hash_including(:tag), anything)
+      end
+
       it 'sends with HUMAN_AGENT tag outside the 24h window when ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT is enabled' do
         with_modified_env ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT: 'true' do
           conversation.messages.incoming.update_all(created_at: 25.hours.ago) # rubocop:disable Rails/SkipsModelValidations

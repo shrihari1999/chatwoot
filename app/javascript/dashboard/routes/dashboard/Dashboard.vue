@@ -17,7 +17,7 @@ const CommandBar = defineAsyncComponent(
 );
 
 const FloatingCallWidget = defineAsyncComponent(
-  () => import('dashboard/components/widgets/FloatingCallWidget.vue')
+  () => import('dashboard/components-next/call/FloatingCallWidget.vue')
 );
 
 // Copilot hidden in this fork (Captain feature unused).
