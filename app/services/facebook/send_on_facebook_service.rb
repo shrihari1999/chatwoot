@@ -47,9 +47,10 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
   def fb_text_message_params
     params = {
       recipient: { id: contact.get_source_id(inbox.id) },
-      message: fb_text_message_payload,
-      **messaging_type_params
-    }.merge(reply_to_payload)
+      message: fb_text_message_payload
+    }
+
+    merge_human_agent_tag(params).merge(reply_to_payload)
   end
 
   def fb_text_message_payload
@@ -101,31 +102,21 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
             url: attachment.download_url
           }
         }
-      },
-      **messaging_type_params
-    }.merge(reply_to_payload)
+      }
+    }
+
+    merge_human_agent_tag(params).merge(reply_to_payload)
   end
 
-  # Within Meta's 24-hour standard messaging window, replies must be sent as
-  # `RESPONSE` with NO message tag — that only needs standard pages_messaging.
-  # Outside the window a tag is required (HUMAN_AGENT extends to 7 days when the
-  # app is approved for it). The legacy `ACCOUNT_UPDATE` tag has been deprecated
-  # by Meta and is now rejected with code 100 / subcode 1893061
-  # ("Deprecated message tag not allowed"), so it must never be sent inside the
-  # window where a tag isn't needed in the first place.
-  def messaging_type_params
-    return { messaging_type: 'RESPONSE' } if within_standard_messaging_window?
+  def merge_human_agent_tag(params)
+    unless GlobalConfigService.load('ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT', nil)
+      params[:messaging_type] = 'RESPONSE'
+      return params
+    end
 
-    { messaging_type: 'MESSAGE_TAG', tag: message_tag }
-  end
-
-  def within_standard_messaging_window?
-    last_incoming = conversation.last_incoming_message
-    last_incoming.present? && last_incoming.created_at > 24.hours.ago
-  end
-
-  def message_tag
-    @message_tag ||= GlobalConfigService.load('ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT', nil) ? 'HUMAN_AGENT' : 'ACCOUNT_UPDATE'
+    params[:messaging_type] = 'MESSAGE_TAG'
+    params[:tag] = 'HUMAN_AGENT'
+    params
   end
 
   def attachment_type(attachment)
