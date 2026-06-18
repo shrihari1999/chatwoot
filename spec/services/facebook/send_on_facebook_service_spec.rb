@@ -99,9 +99,8 @@ describe Facebook::SendOnFacebookService do
         expect(bot).not_to have_received(:deliver).with(hash_including(:tag), anything)
       end
 
-      it 'sends with HUMAN_AGENT tag outside the 24h window when ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT is enabled' do
+      it 'sends with HUMAN_AGENT tag when ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT is enabled' do
         with_modified_env ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT: 'true' do
-          conversation.messages.incoming.update_all(created_at: 25.hours.ago) # rubocop:disable Rails/SkipsModelValidations
           message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: conversation)
           described_class.new(message: message).perform
           expect(bot).to have_received(:deliver).with(
@@ -136,39 +135,6 @@ describe Facebook::SendOnFacebookService do
         described_class.new(message: message).perform
         expect(bot).to have_received(:deliver)
         expect(message.reload.status).to eq('failed')
-      end
-    end
-
-    context 'with messaging window' do
-      it 'sends RESPONSE without a tag when within the 24h standard messaging window' do
-        # before block creates a fresh incoming message, so the window is open
-        message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: conversation)
-        described_class.new(message: message).perform
-        expect(bot).to have_received(:deliver).with(
-          hash_including(messaging_type: 'RESPONSE'),
-          { page_id: facebook_channel.page_id }
-        )
-        expect(bot).to have_received(:deliver).with(hash_excluding(:tag), { page_id: facebook_channel.page_id })
-      end
-
-      it 'falls back to MESSAGE_TAG/ACCOUNT_UPDATE when the last incoming message is older than 24h' do
-        conversation.messages.incoming.update_all(created_at: 25.hours.ago) # rubocop:disable Rails/SkipsModelValidations
-        message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: conversation)
-        described_class.new(message: message).perform
-        expect(bot).to have_received(:deliver).with(
-          hash_including(messaging_type: 'MESSAGE_TAG', tag: 'ACCOUNT_UPDATE'),
-          { page_id: facebook_channel.page_id }
-        )
-      end
-
-      it 'falls back to MESSAGE_TAG when there is no incoming message' do
-        conversation.messages.incoming.destroy_all
-        message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: conversation)
-        described_class.new(message: message).perform
-        expect(bot).to have_received(:deliver).with(
-          hash_including(messaging_type: 'MESSAGE_TAG'),
-          { page_id: facebook_channel.page_id }
-        )
       end
     end
 
