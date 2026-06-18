@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_20_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_11_184600) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -387,7 +387,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_000002) do
 
   create_table "captain_documents", force: :cascade do |t|
     t.string "name"
-    t.string "external_link", null: false
+    t.text "external_link", null: false
     t.text "content"
     t.bigint "assistant_id", null: false
     t.bigint "account_id", null: false
@@ -398,10 +398,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_000002) do
     t.integer "sync_status"
     t.datetime "last_synced_at"
     t.datetime "last_sync_attempted_at"
+    t.index "assistant_id, md5(external_link)", name: "idx_captain_documents_on_assistant_id_and_external_link_md5", unique: true
     t.index ["account_id", "assistant_id", "sync_status", "last_synced_at"], name: "idx_captain_documents_on_account_assistant_sync_stats"
     t.index ["account_id", "sync_status"], name: "index_captain_documents_on_account_id_and_sync_status"
     t.index ["account_id"], name: "index_captain_documents_on_account_id"
-    t.index ["assistant_id", "external_link"], name: "index_captain_documents_on_assistant_id_and_external_link", unique: true
     t.index ["assistant_id"], name: "index_captain_documents_on_assistant_id"
     t.index ["status"], name: "index_captain_documents_on_status"
   end
@@ -445,6 +445,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_000002) do
     t.bigint "parent_category_id"
     t.bigint "associated_category_id"
     t.string "icon", default: ""
+    t.string "icon_color", default: ""
     t.index ["associated_category_id"], name: "index_categories_on_associated_category_id"
     t.index ["locale", "account_id"], name: "index_categories_on_locale_and_account_id"
     t.index ["locale"], name: "index_categories_on_locale"
@@ -585,6 +586,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_000002) do
     t.boolean "voice_enabled", default: false, null: false
     t.string "twiml_app_sid"
     t.string "api_key_secret"
+    t.jsonb "provider_config", default: {}
     t.index ["account_sid", "phone_number"], name: "index_channel_twilio_sms_on_account_sid_and_phone_number", unique: true
     t.index ["messaging_service_sid"], name: "index_channel_twilio_sms_on_messaging_service_sid", unique: true
     t.index ["phone_number"], name: "index_channel_twilio_sms_on_phone_number", unique: true
@@ -1296,6 +1298,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_000002) do
     t.datetime "updated_at", precision: nil, null: false
   end
 
+  create_table "user_sessions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "client_id", null: false
+    t.string "ip_address"
+    t.string "user_agent"
+    t.string "browser_name"
+    t.string "browser_version"
+    t.string "device_name"
+    t.string "platform_name"
+    t.string "platform_version"
+    t.string "city"
+    t.string "country"
+    t.string "country_code"
+    t.datetime "last_activity_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "client_id"], name: "index_user_sessions_on_user_id_and_client_id", unique: true
+    t.index ["user_id"], name: "index_user_sessions_on_user_id"
+  end
+
   create_table "users", id: :serial, force: :cascade do |t|
     t.string "provider", default: "email", null: false
     t.string "uid", default: "", null: false
@@ -1365,7 +1387,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_20_000002) do
     t.index ["inbox_id"], name: "index_working_hours_on_inbox_id"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "canned_responses", "canned_response_categories", column: "category_id", on_delete: :restrict
+  add_foreign_key "inboxes", "portals"
+  add_foreign_key "user_sessions", "users"
 
   # Function must be defined before the trigger that references it. The
   # hairtrigger gem's schema dumper emits these in the wrong order; manually
