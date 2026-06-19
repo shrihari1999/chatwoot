@@ -1422,6 +1422,7 @@ CREATE OR REPLACE FUNCTION public.chatwoot_account_dpid_create_seq()
 AS $function$
 BEGIN
   EXECUTE format('CREATE SEQUENCE IF NOT EXISTS conv_dpid_seq_%s', NEW.id);
+  EXECUTE format('CREATE SEQUENCE IF NOT EXISTS camp_dpid_seq_%s', NEW.id);
   RETURN NEW;
 END;
 $function$
@@ -1444,5 +1445,21 @@ $function$
 
   # no candidate create_trigger statement could be found, creating an adapter-specific one
   execute("CREATE TRIGGER conversations_before_insert_row_tr BEFORE INSERT ON \"conversations\" FOR EACH ROW EXECUTE FUNCTION chatwoot_conv_dpid_set()")
+
+  # no candidate create_trigger statement could be found, creating an adapter-specific one
+  execute(<<-SQL)
+CREATE OR REPLACE FUNCTION public.chatwoot_camp_dpid_set()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.display_id := nextval('camp_dpid_seq_' || NEW.account_id);
+  RETURN NEW;
+END;
+$function$
+  SQL
+
+  # no candidate create_trigger statement could be found, creating an adapter-specific one
+  execute("CREATE TRIGGER campaigns_before_insert_row_tr BEFORE INSERT ON \"campaigns\" FOR EACH ROW EXECUTE FUNCTION chatwoot_camp_dpid_set()")
 
 end
