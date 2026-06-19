@@ -571,6 +571,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_11_184600) do
     t.index ["business_id"], name: "index_channel_tiktok_on_business_id", unique: true
   end
 
+  create_table "channel_tiktok_shop", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.string "shop_id", null: false
+    t.string "shop_cipher", null: false
+    t.string "seller_name"
+    t.string "region", default: "others"
+    t.text "access_token", null: false
+    t.text "refresh_token", null: false
+    t.datetime "access_token_expires_at"
+    t.datetime "refresh_token_expires_at"
+    t.integer "authorization_error_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_channel_tiktok_shop_on_account_id"
+    t.index ["shop_cipher"], name: "index_channel_tiktok_shop_on_shop_cipher", unique: true
+    t.index ["shop_id"], name: "index_channel_tiktok_shop_on_shop_id", unique: true
+  end
+
   create_table "channel_twilio_sms", force: :cascade do |t|
     t.string "phone_number"
     t.string "auth_token", null: false

@@ -121,11 +121,18 @@ class Lazada::IncomingMessageService
     img_url = content_json['imgUrl']
     return if img_url.blank?
 
-    @message.attachments.new(
-      account_id: inbox.account_id,
-      file_type: :image,
-      external_url: img_url
-    )
+    # Lazada CDN image URLs are time-limited, so download the bytes into storage
+    # rather than persisting the ephemeral URL. Falls back to the remote URL if the
+    # download fails, so a CDN hiccup never drops the message.
+    file = Down.download(img_url)
+    build_image_attachment(file: { io: file, filename: file.original_filename, content_type: file.content_type })
+  rescue StandardError => e
+    Rails.logger.error("Lazada image download failed: #{e.class}: #{e.message}")
+    build_image_attachment(external_url: img_url)
+  end
+
+  def build_image_attachment(attrs)
+    @message.attachments.new({ account_id: inbox.account_id, file_type: :image }.merge(attrs))
   end
 
   def safe_parse_json(str)
