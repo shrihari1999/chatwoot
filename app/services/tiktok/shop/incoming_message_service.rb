@@ -18,9 +18,17 @@ class Tiktok::Shop::IncomingMessageService
   include ::FileTypeHelper
   pattr_initialize [:channel!, :payload!]
 
+  # Buyer "enter" events that carry useful context (which product/order/transfer
+  # the buyer arrived from). These are surfaced even when the sender role is not
+  # strictly BUYER, since the platform may emit them with a system-ish role.
+  CONTEXT_ENTER_TYPES = %w[BUYER_ENTER_FROM_PRODUCT BUYER_ENTER_FROM_ORDER BUYER_ENTER_FROM_TRANSFER].freeze
+
+  # Types whose content is plain conversational text carried in content['content'].
+  TEXT_LIKE_TYPES = %w[TEXT ALLOCATED_SERVICE NOTIFICATION BUYER_ENTER_FROM_TRANSFER OTHER].freeze
+
   def perform
     return if data.blank?
-    return unless buyer_message?     # only ingest buyer-originated traffic
+    return unless ingestible?        # buyer-originated traffic + buyer-context enter events
     return unless visible_message?   # skip rating-request and similar system noise
 
     set_contact
@@ -37,8 +45,16 @@ class Tiktok::Shop::IncomingMessageService
     @data ||= payload[:data] || payload
   end
 
+  def ingestible?
+    buyer_message? || context_enter_message?
+  end
+
   def buyer_message?
     data[:sender].is_a?(Hash) && data[:sender][:role].to_s == 'BUYER'
+  end
+
+  def context_enter_message?
+    CONTEXT_ENTER_TYPES.include?(msg_type)
   end
 
   def visible_message?
@@ -127,15 +143,22 @@ class Tiktok::Shop::IncomingMessageService
   end
 
   def parsed_content
+    return content_hash['content'].to_s if TEXT_LIKE_TYPES.include?(msg_type)
+    return '' if %w[IMAGE VIDEO].include?(msg_type) # rendered via attachment
+
+    card_summary
+  end
+
+  def card_summary
     case msg_type
-    when 'TEXT', 'ALLOCATED_SERVICE', 'NOTIFICATION', 'BUYER_ENTER_FROM_TRANSFER', 'OTHER'
-      content_hash['content'].to_s
-    when 'IMAGE', 'VIDEO'
-      '' # rendered via attachment
-    when 'PRODUCT_CARD', 'BUYER_ENTER_FROM_PRODUCT'
+    when 'PRODUCT_CARD'
       "Product: #{content_hash['product_id']}"
-    when 'ORDER_CARD', 'BUYER_ENTER_FROM_ORDER'
+    when 'BUYER_ENTER_FROM_PRODUCT'
+      "Buyer started chat from product #{content_hash['product_id']}"
+    when 'ORDER_CARD'
       "Order: #{content_hash['order_id']}"
+    when 'BUYER_ENTER_FROM_ORDER'
+      "Buyer started chat from order #{content_hash['order_id']}"
     when 'LOGISTICS_CARD'
       "Logistics: order #{content_hash['order_id']}"
     when 'RETURN_REFUND_CARD'
@@ -148,24 +171,28 @@ class Tiktok::Shop::IncomingMessageService
   end
 
   def attach_image
-    url = content_hash['url']
-    return if url.blank?
-
-    @message.attachments.new(
-      account_id: channel.inbox.account_id,
-      file_type: :image,
-      external_url: url
-    )
+    download_and_attach(:image)
   end
 
   def attach_video
+    download_and_attach(:video)
+  end
+
+  # TikTok Shop media URLs are time-limited signed CDN links, so we download the
+  # bytes into storage rather than persisting the ephemeral URL. Falls back to the
+  # remote URL if the download fails, so a CDN hiccup never drops the message.
+  def download_and_attach(file_type)
     url = content_hash['url']
     return if url.blank?
 
-    @message.attachments.new(
-      account_id: channel.inbox.account_id,
-      file_type: :video,
-      external_url: url
-    )
+    file = Down.download(url)
+    build_attachment(file_type, file: { io: file, filename: file.original_filename, content_type: file.content_type })
+  rescue StandardError => e
+    Rails.logger.error("TikTok Shop #{file_type} download failed for message #{data[:message_id]}: #{e.class}: #{e.message}")
+    build_attachment(file_type, external_url: url)
+  end
+
+  def build_attachment(file_type, attrs)
+    @message.attachments.new({ account_id: channel.inbox.account_id, file_type: file_type }.merge(attrs))
   end
 end

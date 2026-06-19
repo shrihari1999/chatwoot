@@ -55,4 +55,38 @@ RSpec.describe Lazada::IncomingMessageService do
       described_class.new(inbox: inbox, params: params).perform
     end
   end
+
+  describe 'image attachment' do
+    let(:img_url) { 'https://lazada-cdn.local/sample.png' }
+    let(:params) do
+      {
+        data: {
+          template_id: 3, from_account_type: 1, from_user_id: 'u1', message_id: 'm10',
+          content: { imgUrl: img_url }.to_json
+        }
+      }
+    end
+
+    it 'downloads the image bytes into storage instead of persisting the remote url' do
+      stub_request(:get, img_url)
+        .to_return(status: 200, body: 'imagedata', headers: { 'Content-Type' => 'image/png' })
+
+      described_class.new(inbox: inbox, params: params).perform
+
+      attachment = inbox.conversations.last.messages.last.attachments.last
+      expect(attachment.file_type).to eq('image')
+      expect(attachment.file.attached?).to be(true)
+      expect(attachment.external_url).to be_nil
+    end
+
+    it 'falls back to external_url when the download fails' do
+      stub_request(:get, img_url).to_raise(Down::Error.new('boom'))
+
+      described_class.new(inbox: inbox, params: params).perform
+
+      attachment = inbox.conversations.last.messages.last.attachments.last
+      expect(attachment.file_type).to eq('image')
+      expect(attachment.external_url).to eq(img_url)
+    end
+  end
 end
