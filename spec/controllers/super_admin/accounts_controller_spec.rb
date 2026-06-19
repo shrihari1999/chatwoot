@@ -95,4 +95,40 @@ RSpec.describe 'Super Admin accounts API', type: :request do
       end
     end
   end
+
+  describe 'PATCH /super_admin/accounts/{account_id} feature flags' do
+    before { sign_in(super_admin, scope: :super_admin) }
+
+    it 'enables a checked flag that lives in the extended bitmask column without raising' do
+      # advanced_assignment (index 64) lives in feature_flags_extended. Checking it
+      # via the admin form previously routed through the single-column bulk setter
+      # and raised ArgumentError "Invalid flag". With a Business plan + assignment_v2
+      # the enterprise sync keeps it enabled.
+      account.update!(custom_attributes: { 'plan_name' => 'Business' })
+
+      patch "/super_admin/accounts/#{account.id}", params: {
+        account: { name: account.name },
+        enabled_features: { 'feature_assignment_v2' => 'true', 'feature_advanced_assignment' => 'true' }
+      }
+
+      expect(response).to have_http_status(:redirect)
+      account.reload
+      expect(account.feature_advanced_assignment?).to be(true)
+      expect(account.feature_flags_extended).to eq(1)
+    end
+
+    it 'enables checked primary-column flags and disables the unchecked ones' do
+      account.enable_features!('macros')
+
+      patch "/super_admin/accounts/#{account.id}", params: {
+        account: { name: account.name },
+        enabled_features: { 'feature_channel_email' => 'true' }
+      }
+
+      expect(response).to have_http_status(:redirect)
+      account.reload
+      expect(account.feature_channel_email?).to be(true)
+      expect(account.feature_macros?).to be(false)
+    end
+  end
 end
