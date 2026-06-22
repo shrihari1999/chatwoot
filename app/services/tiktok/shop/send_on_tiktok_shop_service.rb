@@ -57,7 +57,12 @@ class Tiktok::Shop::SendOnTiktokShopService < Base::SendOnChannelService
     if response.success?
       message_id = response.body.dig('data', 'message_id')
       message.update!(source_id: message_id) if message_id.present?
-      Messages::StatusUpdateService.new(message, 'sent').perform
+      # TikTok Shop sends NO delivery/read webhooks (its event catalog has only
+      # 13/14/33 — new conversation / new message / creator message). A successful
+      # send returns a message_id, the strongest confirmation we will get that
+      # TikTok accepted and posted the message, so mark it delivered rather than
+      # leaving it perpetually at "sent" (which renders as a pending clock).
+      Messages::StatusUpdateService.new(message, 'delivered').perform
     else
       error_msg = response.body&.dig('message') || "TikTok Shop API error: #{response.code}"
       Rails.logger.error "[TikTok Shop] Send failed: #{error_msg}"
