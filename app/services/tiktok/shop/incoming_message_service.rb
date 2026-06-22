@@ -104,6 +104,22 @@ class Tiktok::Shop::IncomingMessageService
 
     @contact_inbox = contact_inbox
     @contact = contact_inbox.contact
+    enqueue_profile_enrichment
+  end
+
+  # The webhook only carries the buyer's im_user_id (no name/avatar), so the
+  # contact is created with the id as a placeholder name. Fetch the buyer's
+  # nickname + avatar from the API in the background, once per buyer.
+  def enqueue_profile_enrichment
+    return if data[:conversation_id].blank?
+    return unless @contact.name.blank? || @contact.name == im_user_id || !@contact.avatar.attached?
+
+    Tiktok::Shop::ContactProfileJob.perform_later(
+      channel_id: channel.id,
+      contact_id: @contact.id,
+      conversation_id: data[:conversation_id].to_s,
+      im_user_id: im_user_id
+    )
   end
 
   def set_conversation

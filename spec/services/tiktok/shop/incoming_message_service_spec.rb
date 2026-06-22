@@ -27,6 +27,17 @@ RSpec.describe Tiktok::Shop::IncomingMessageService do
       expect(last_message.message_type).to eq('incoming')
     end
 
+    it 'enqueues contact profile enrichment for the buyer (webhook lacks name/avatar)' do
+      expect(Tiktok::Shop::ContactProfileJob).to receive(:perform_later)
+        .with(hash_including(conversation_id: 'c1', im_user_id: 'u1'))
+
+      perform(
+        conversation_id: 'c1', message_id: 'm1', index: '1', type: 'TEXT',
+        content: { content: 'hi' }.to_json, is_visible: true,
+        sender: { im_user_id: 'u1', role: 'BUYER' }
+      )
+    end
+
     it 'ignores messages from non-buyer roles that are not context events' do
       perform(
         conversation_id: 'c1', message_id: 'm2', index: '2', type: 'TEXT',
