@@ -18,6 +18,7 @@ vi.mock('dashboard/composables/useInbox', () => ({
     isAnEmailChannel: ref(false),
     isAnInstagramChannel: ref(false),
     isATiktokChannel: ref(false),
+    isATiktokShopChannel: ref(false),
   }),
 }));
 
