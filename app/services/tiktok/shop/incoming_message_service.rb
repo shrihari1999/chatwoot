@@ -18,17 +18,12 @@ class Tiktok::Shop::IncomingMessageService
   include ::FileTypeHelper
   pattr_initialize [:channel!, :payload!]
 
-  # Buyer "enter" events that carry useful context (which product/order/transfer
-  # the buyer arrived from). These are surfaced even when the sender role is not
-  # strictly BUYER, since the platform may emit them with a system-ish role.
-  CONTEXT_ENTER_TYPES = %w[BUYER_ENTER_FROM_PRODUCT BUYER_ENTER_FROM_ORDER BUYER_ENTER_FROM_TRANSFER].freeze
-
   # Types whose content is plain conversational text carried in content['content'].
-  TEXT_LIKE_TYPES = %w[TEXT ALLOCATED_SERVICE NOTIFICATION BUYER_ENTER_FROM_TRANSFER OTHER].freeze
+  TEXT_LIKE_TYPES = %w[TEXT OTHER].freeze
 
   def perform
     return if data.blank?
-    return unless ingestible?        # buyer-originated traffic + buyer-context enter events
+    return unless buyer_message?     # only ingest real buyer messages
     return unless visible_message?   # skip rating-request and similar system noise
 
     set_contact
@@ -45,16 +40,8 @@ class Tiktok::Shop::IncomingMessageService
     @data ||= payload[:data] || payload
   end
 
-  def ingestible?
-    buyer_message? || context_enter_message?
-  end
-
   def buyer_message?
     data[:sender].is_a?(Hash) && data[:sender][:role].to_s == 'BUYER'
-  end
-
-  def context_enter_message?
-    CONTEXT_ENTER_TYPES.include?(msg_type)
   end
 
   def visible_message?
@@ -169,12 +156,8 @@ class Tiktok::Shop::IncomingMessageService
     case msg_type
     when 'PRODUCT_CARD'
       "Product: #{content_hash['product_id']}"
-    when 'BUYER_ENTER_FROM_PRODUCT'
-      "Buyer started chat from product #{content_hash['product_id']}"
     when 'ORDER_CARD'
       "Order: #{content_hash['order_id']}"
-    when 'BUYER_ENTER_FROM_ORDER'
-      "Buyer started chat from order #{content_hash['order_id']}"
     when 'LOGISTICS_CARD'
       "Logistics: order #{content_hash['order_id']}"
     when 'RETURN_REFUND_CARD'
