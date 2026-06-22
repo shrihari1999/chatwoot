@@ -27,7 +27,10 @@ class Tiktok::Shop::ContactProfileJob < ApplicationJob
   private
 
   def fetch_buyer_profile(channel, conversation_id, im_user_id)
-    response = Tiktok::Shop::Client.new(channel: channel).get_conversation_messages(conversation_id, page_size: 20)
+    # The Get Conversation Messages endpoint caps page_size at 10 (error 36009004
+    # otherwise). The buyer's own (just-received) message is among the latest, so
+    # 10 is plenty to find a BUYER sender.
+    response = Tiktok::Shop::Client.new(channel: channel).get_conversation_messages(conversation_id, page_size: 10)
     return unless response.success?
 
     buyer = find_buyer_sender(response.body.dig('data', 'messages'), im_user_id)

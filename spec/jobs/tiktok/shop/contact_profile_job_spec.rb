@@ -26,7 +26,9 @@ RSpec.describe Tiktok::Shop::ContactProfileJob do
   end
 
   it 'sets the contact name from the buyer nickname and enqueues the avatar download' do
-    allow(client).to receive(:get_conversation_messages).and_return(api_response(messages: [buyer_message]))
+    # page_size must be <= 10 — the API rejects larger values (error 36009004).
+    expect(client).to receive(:get_conversation_messages)
+      .with(conversation_id, page_size: 10).and_return(api_response(messages: [buyer_message]))
     expect(Avatar::AvatarFromUrlJob).to receive(:perform_later).with(contact, 'https://cdn.example/avatar.png')
 
     run
