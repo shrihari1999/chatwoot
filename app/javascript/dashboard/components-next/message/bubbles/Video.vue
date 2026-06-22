@@ -12,7 +12,20 @@ const hasError = ref(false);
 const showGallery = ref(false);
 const { filteredCurrentChatAttachments, attachments } = useMessageContext();
 
+// A just-received video can briefly fail its first load (the stored blob URL
+// isn't servable the instant the real-time message renders), which the browser
+// surfaces as "no supported format". Retry the load a few times with backoff
+// before giving up, so the video doesn't require a manual page refresh.
+const videoEl = ref(null);
+const retryCount = ref(0);
+const MAX_RETRIES = 3;
+
 const handleError = () => {
+  if (retryCount.value < MAX_RETRIES) {
+    retryCount.value += 1;
+    setTimeout(() => videoEl.value?.load(), retryCount.value * 1000);
+    return;
+  }
   hasError.value = true;
   emit('error');
 };
@@ -40,6 +53,7 @@ const isReel = computed(() => {
         <Icon icon="i-lucide-instagram" class="text-white shadow-lg" />
       </div>
       <video
+        ref="videoEl"
         controls
         class="rounded-lg skip-context-menu"
         :src="attachment.dataUrl"
