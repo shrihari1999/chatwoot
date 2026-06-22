@@ -42,4 +42,14 @@ RSpec.describe Tiktok::Shop::SendOnTiktokShopService do
 
     expect(message.reload.status).to eq('failed')
   end
+
+  it 'marks the message FAILED-unsupported for a non-image attachment instead of silently dropping it' do
+    message.attachments.create!(account_id: account.id, file_type: :video, external_url: 'https://cdn.example/v.mp4')
+    expect(client).not_to receive(:upload_image)
+    expect(client).not_to receive(:send_text)
+
+    described_class.new(message: message).perform
+
+    expect(message.reload.status).to eq('failed')
+  end
 end

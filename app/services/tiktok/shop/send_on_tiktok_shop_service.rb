@@ -34,23 +34,30 @@ class Tiktok::Shop::SendOnTiktokShopService < Base::SendOnChannelService
   end
 
   def send_attachments(conversation_id)
-    message.attachments.each do |attachment|
-      next unless attachment.file_type == 'image'
+    # Only images are supported for sending today. Video/file/audio sending needs
+    # the chunked Upload File Init -> vid flow (not yet implemented), so surface a
+    # clear failure instead of silently dropping the attachment.
+    unsupported = message.attachments.reject { |a| a.file_type == 'image' }
+    return mark_unsupported_attachments(unsupported) if unsupported.any?
 
-      uploaded = client.upload_image(attachment.file.download)
-      next handle_failed_upload(uploaded) unless uploaded.success?
-
-      data = uploaded.body['data'] || {}
-      response = client.send_image(
-        conversation_id,
-        url: data['url'],
-        width: data['width'],
-        height: data['height']
-      )
-      handle_response(response)
-    end
-
+    message.attachments.each { |attachment| send_image_attachment(conversation_id, attachment) }
     send_text(conversation_id) if message.outgoing_content.present?
+  end
+
+  def send_image_attachment(conversation_id, attachment)
+    uploaded = client.upload_image(attachment.file.download)
+    return handle_failed_upload(uploaded) unless uploaded.success?
+
+    data = uploaded.body['data'] || {}
+    response = client.send_image(conversation_id, url: data['url'], width: data['width'], height: data['height'])
+    handle_response(response)
+  end
+
+  def mark_unsupported_attachments(attachments)
+    types = attachments.map(&:file_type).uniq.join(', ')
+    error_msg = "TikTok Shop does not support sending #{types} attachments"
+    Rails.logger.warn("[TikTok Shop] #{error_msg} (message #{message.id})")
+    Messages::StatusUpdateService.new(message, 'failed', error_msg).perform
   end
 
   def handle_response(response)
