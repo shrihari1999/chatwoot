@@ -71,4 +71,16 @@ RSpec.describe Webhooks::TiktokShopEventsJob do
 
     described_class.perform_now(raw_body: body, signature: signature)
   end
+
+  it 'flags the channel for re-authorization on an upcoming-expiration (type 7) event' do
+    body = {
+      type: 7, shop_id: channel.shop_id,
+      data: { message: 'Authorization expiring in 30 days', expiration_time: '1700000000' }
+    }.to_json
+    signature = OpenSSL::HMAC.hexdigest('SHA256', app_secret, "#{app_key}#{body}")
+    allow(Channel::TiktokShop).to receive(:find_by).with(shop_id: channel.shop_id).and_return(channel)
+    expect(channel).to receive(:prompt_reauthorization!)
+
+    described_class.perform_now(raw_body: body, signature: signature)
+  end
 end
