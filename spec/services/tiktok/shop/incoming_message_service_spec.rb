@@ -38,7 +38,7 @@ RSpec.describe Tiktok::Shop::IncomingMessageService do
       )
     end
 
-    it 'ignores messages from non-buyer roles that are not context events' do
+    it 'ignores messages from non-buyer roles' do
       perform(
         conversation_id: 'c1', message_id: 'm2', index: '2', type: 'TEXT',
         content: { content: 'agent reply' }.to_json, is_visible: true,
@@ -93,35 +93,19 @@ RSpec.describe Tiktok::Shop::IncomingMessageService do
     end
   end
 
-  describe 'buyer-context enter events' do
-    it 'ingests BUYER_ENTER_FROM_PRODUCT even when the sender role is not BUYER' do
-      perform(
-        conversation_id: 'c1', message_id: 'm5', index: '5', type: 'BUYER_ENTER_FROM_PRODUCT',
-        content: { product_id: '12345' }.to_json,
-        sender: { im_user_id: 'u1', role: 'SYSTEM' }
-      )
+  describe 'service / system enter events' do
+    # These are platform-generated (role SYSTEM) and should NOT create conversations
+    # or messages — they were previously ingested as "context" but are just noise.
+    %w[BUYER_ENTER_FROM_TRANSFER BUYER_ENTER_FROM_PRODUCT BUYER_ENTER_FROM_ORDER ALLOCATED_SERVICE NOTIFICATION].each do |type|
+      it "ignores #{type} system messages" do
+        perform(
+          conversation_id: 'c1', message_id: "m-#{type}", index: '5', type: type,
+          content: { content: 'system note', product_id: '1', order_id: '2' }.to_json,
+          is_visible: true, sender: { im_user_id: 'sys', role: 'SYSTEM' }
+        )
 
-      expect(last_message.content).to eq('Buyer started chat from product 12345')
-    end
-
-    it 'ingests BUYER_ENTER_FROM_ORDER as context' do
-      perform(
-        conversation_id: 'c1', message_id: 'm6', index: '6', type: 'BUYER_ENTER_FROM_ORDER',
-        content: { order_id: '67890' }.to_json,
-        sender: { im_user_id: 'u1', role: 'SYSTEM' }
-      )
-
-      expect(last_message.content).to eq('Buyer started chat from order 67890')
-    end
-
-    it 'ingests BUYER_ENTER_FROM_TRANSFER as context' do
-      perform(
-        conversation_id: 'c1', message_id: 'm7', index: '7', type: 'BUYER_ENTER_FROM_TRANSFER',
-        content: { content: 'transferred to support' }.to_json,
-        sender: { im_user_id: 'u1', role: 'SYSTEM' }
-      )
-
-      expect(last_message.content).to eq('transferred to support')
+        expect(inbox.conversations.last).to be_nil
+      end
     end
   end
 end

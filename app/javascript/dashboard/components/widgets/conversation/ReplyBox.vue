@@ -304,6 +304,7 @@ export default {
         this.isALineChannel ||
         this.isALazadaChannel ||
         this.isAnInstagramChannel ||
+        this.isATiktokShopChannel ||
         (this.isATiktokChannel && tiktokAttachmentSupported)
       );
     },
