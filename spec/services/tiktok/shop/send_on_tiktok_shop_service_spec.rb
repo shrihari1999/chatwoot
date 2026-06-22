@@ -43,10 +43,45 @@ RSpec.describe Tiktok::Shop::SendOnTiktokShopService do
     expect(message.reload.status).to eq('failed')
   end
 
-  it 'marks the message FAILED-unsupported for a non-image attachment instead of silently dropping it' do
-    message.attachments.create!(account_id: account.id, file_type: :video, external_url: 'https://cdn.example/v.mp4')
+  it 'marks the message FAILED-unsupported for a non-sendable attachment (e.g. audio)' do
+    message.attachments.create!(
+      account_id: account.id, file_type: :audio,
+      file: { io: Rails.root.join('spec/assets/sample.mp3').open, filename: 'a.mp3', content_type: 'audio/mpeg' }
+    )
     expect(client).not_to receive(:upload_image)
-    expect(client).not_to receive(:send_text)
+    expect(Tiktok::Shop::VideoUploadService).not_to receive(:new)
+
+    described_class.new(message: message).perform
+
+    expect(message.reload.status).to eq('failed')
+  end
+
+  it 'uploads a video attachment and sends it as a VIDEO message with the returned vid' do
+    message.update!(content: nil)
+    message.attachments.create!(
+      account_id: account.id, file_type: :video,
+      file: { io: Rails.root.join('spec/assets/sample.mov').open, filename: 'v.mov', content_type: 'video/quicktime' }
+    )
+    uploader = instance_double(Tiktok::Shop::VideoUploadService, perform: 'vid-xyz')
+    allow(Tiktok::Shop::VideoUploadService).to receive(:new).and_return(uploader)
+    expect(client).to receive(:send_message)
+      .with('tts-conv-1', type: 'VIDEO', content_payload: { vid: 'vid-xyz' })
+      .and_return(OpenStruct.new(success?: true, body: { 'data' => { 'message_id' => 'm-v' } }))
+
+    described_class.new(message: message).perform
+
+    expect(message.reload.status).to eq('delivered')
+  end
+
+  it 'marks the message FAILED when the video upload returns no vid' do
+    message.update!(content: nil)
+    message.attachments.create!(
+      account_id: account.id, file_type: :video,
+      file: { io: Rails.root.join('spec/assets/sample.mov').open, filename: 'v.mov', content_type: 'video/quicktime' }
+    )
+    uploader = instance_double(Tiktok::Shop::VideoUploadService, perform: nil)
+    allow(Tiktok::Shop::VideoUploadService).to receive(:new).and_return(uploader)
+    expect(client).not_to receive(:send_message)
 
     described_class.new(message: message).perform
 

@@ -27,22 +27,21 @@ class Tiktok::Shop::ContactProfileJob < ApplicationJob
   private
 
   def fetch_buyer_profile(channel, conversation_id, im_user_id)
-    # The Get Conversation Messages endpoint caps page_size at 10 (error 36009004
-    # otherwise). The buyer's own (just-received) message is among the latest, so
-    # 10 is plenty to find a BUYER sender.
-    response = Tiktok::Shop::Client.new(channel: channel).get_conversation_messages(conversation_id, page_size: 10)
+    # Get Conversation (202601) returns the participant list directly, each with
+    # role/nickname/avatar — cleaner than paging through messages.
+    response = Tiktok::Shop::Client.new(channel: channel).get_conversation(conversation_id)
     return unless response.success?
 
-    buyer = find_buyer_sender(response.body.dig('data', 'messages'), im_user_id)
+    buyer = find_buyer(response.body.dig('data', 'conversation', 'participants'), im_user_id)
     return if buyer.blank?
 
     { nickname: buyer['nickname'], avatar: buyer['avatar'] }
   end
 
-  # Prefer the sender matching our im_user_id; fall back to any BUYER-role sender.
-  def find_buyer_sender(messages, im_user_id)
-    buyers = Array(messages).filter_map { |m| m['sender'] }.select { |s| s['role'] == 'BUYER' }
-    buyers.find { |s| s['im_user_id'].to_s == im_user_id.to_s } || buyers.first
+  # Prefer the participant matching our im_user_id; fall back to any BUYER-role one.
+  def find_buyer(participants, im_user_id)
+    buyers = Array(participants).select { |p| p['role'] == 'BUYER' }
+    buyers.find { |p| p['im_user_id'].to_s == im_user_id.to_s } || buyers.first
   end
 
   def apply_name(contact, nickname, im_user_id)

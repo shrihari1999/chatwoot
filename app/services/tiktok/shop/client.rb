@@ -16,28 +16,40 @@ class Tiktok::Shop::Client
 
   # ---- Customer Service endpoints ----------------------------------------
 
-  def get_conversations(page_size: 20, page_token: nil, need_session_id: false, locale: 'en')
+  def get_conversations(page_size: 20, page_token: nil, need_session_id: false, need_session_info: false, locale: 'en')
     request(:get, '/customer_service/202309/conversations', query: {
-              page_size: page_size,
-              page_token: page_token,
-              need_session_id: need_session_id,
-              locale: locale
-            }.compact)
+      page_size: page_size,
+      page_token: page_token,
+      need_session_id: need_session_id,
+      need_session_info: need_session_info,
+      locale: locale
+    }.compact)
+  end
+
+  # Fetch a single conversation (202601). Response includes data.conversation.participants[]
+  # with each participant's role/nickname/avatar — used for contact enrichment.
+  def get_conversation(conversation_id, need_session_id: false, need_session_info: false)
+    request(:get, "/customer_service/202601/conversations/#{conversation_id}", query: {
+      need_session_id: need_session_id,
+      need_session_info: need_session_info
+    }.compact)
   end
 
   def get_conversation_messages(conversation_id, page_size: 10, page_token: nil, sort_order: 'DESC')
     request(:get, "/customer_service/202309/conversations/#{conversation_id}/messages", query: {
-              page_size: page_size, page_token: page_token, sort_order: sort_order
-            }.compact)
+      page_size: page_size, page_token: page_token, sort_order: sort_order
+    }.compact)
   end
 
   # type: TEXT, IMAGE, VIDEO, PRODUCT_CARD, ORDER_CARD, RETURN_REFUND_CARD,
   #       COUPON_CARD, LOGISTICS_CARD
   # content_payload: a Hash that will be JSON-encoded and assigned to `content`.
   # Per the docs, the `content` body field is itself a JSON-serialized string.
+  # Uses the current Send Message version (202606); `sender_role` attributes the
+  # reply to the customer-service agent.
   def send_message(conversation_id, type:, content_payload:)
-    body = { type: type, content: content_payload.to_json }
-    request(:post, "/customer_service/202309/conversations/#{conversation_id}/messages", body: body)
+    body = { type: type, content: content_payload.to_json, sender_role: 'CUSTOMER_SERVICE' }
+    request(:post, "/customer_service/202606/conversations/#{conversation_id}/messages", body: body)
   end
 
   # Marks all buyer-sent messages in this conversation as read.
@@ -53,6 +65,30 @@ class Tiktok::Shop::Client
 
   def create_conversation(buyer_user_id)
     request(:post, '/customer_service/202309/conversations', body: { buyer_user_id: buyer_user_id })
+  end
+
+  # ---- Large file (video) upload ---------------------------------------
+  # Three-step flow per the Large File Uploads guide:
+  #   1. init  -> upload_url + upload_token
+  #   2. PUT each chunk to upload_url (final chunk response carries resource_id)
+  #   3. resource_id is sent as the `vid` in send_message(type: VIDEO)
+
+  def init_file_upload(file_name:, file_size:, total_chunk_count:, target_path:, file_type: 'video')
+    request(:post, '/open/202512/file/init', body: {
+              file_name: file_name, file_type: file_type, file_size: file_size,
+              total_chunk_count: total_chunk_count, target_path: target_path
+            })
+  end
+
+  # PUT a single chunk to the upload_url returned by init. Auth is the upload_token
+  # (+ access-token header); no `sign` is required for this gateway endpoint. The
+  # final chunk's response carries `resource_id`.
+  def upload_file_chunk(upload_url:, upload_token:, chunk_num:, content_type:, bytes:)
+    query = { upload_token: upload_token, chunk_num: chunk_num, app_key: app_key }
+    query[:shop_cipher] = channel.shop_cipher if channel.shop_cipher.present?
+    headers = { 'Content-Type' => content_type, 'x-tts-access-token' => channel.validated_access_token }
+    response = HTTParty.put(upload_url, query: query, body: bytes, headers: headers, timeout: 120)
+    parse_response(response)
   end
 
   # ---- Webhook subscription (per-shop) ---------------------------------
@@ -92,7 +128,7 @@ class Tiktok::Shop::Client
     sys[:shop_cipher] = channel.shop_cipher if channel.shop_cipher.present?
     full_query = sys.merge(query.transform_keys(&:to_sym).compact)
 
-    body_string = body.is_a?(String) ? body : (body.nil? ? nil : body.to_json)
+    body_string = body.is_a?(String) ? body : body&.to_json
     full_query[:sign] = Tiktok::Shop::SignatureService.generate(
       path: path, query: full_query, body: body_string, app_secret: app_secret
     )

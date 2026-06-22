@@ -23,8 +23,8 @@ class Tiktok::Shop::SendOnTiktokShopService < Base::SendOnChannelService
 
     if message.attachments.present?
       send_attachments(conversation_id)
-    else
-      send_text(conversation_id) if message.outgoing_content.present?
+    elsif message.outgoing_content.present?
+      send_text(conversation_id)
     end
   end
 
@@ -33,15 +33,20 @@ class Tiktok::Shop::SendOnTiktokShopService < Base::SendOnChannelService
     handle_response(response)
   end
 
+  SENDABLE_ATTACHMENT_TYPES = %w[image video].freeze
+
   def send_attachments(conversation_id)
-    # Only images are supported for sending today. Video/file/audio sending needs
-    # the chunked Upload File Init -> vid flow (not yet implemented), so surface a
-    # clear failure instead of silently dropping the attachment.
-    unsupported = message.attachments.reject { |a| a.file_type == 'image' }
+    # Images and videos are sendable; other types (audio/file) aren't supported by
+    # the TikTok Shop API, so surface a clear failure instead of silently dropping.
+    unsupported = message.attachments.reject { |a| SENDABLE_ATTACHMENT_TYPES.include?(a.file_type) }
     return mark_unsupported_attachments(unsupported) if unsupported.any?
 
-    message.attachments.each { |attachment| send_image_attachment(conversation_id, attachment) }
+    message.attachments.each { |attachment| send_attachment(conversation_id, attachment) }
     send_text(conversation_id) if message.outgoing_content.present?
+  end
+
+  def send_attachment(conversation_id, attachment)
+    attachment.file_type == 'video' ? send_video_attachment(conversation_id, attachment) : send_image_attachment(conversation_id, attachment)
   end
 
   def send_image_attachment(conversation_id, attachment)
@@ -50,6 +55,18 @@ class Tiktok::Shop::SendOnTiktokShopService < Base::SendOnChannelService
 
     data = uploaded.body['data'] || {}
     response = client.send_image(conversation_id, url: data['url'], width: data['width'], height: data['height'])
+    handle_response(response)
+  end
+
+  def send_video_attachment(conversation_id, attachment)
+    vid = Tiktok::Shop::VideoUploadService.new(
+      channel: channel, conversation_id: conversation_id,
+      bytes: attachment.file.download, filename: attachment.file.filename.to_s,
+      content_type: attachment.file.content_type
+    ).perform
+    return handle_failed_video(attachment) if vid.blank?
+
+    response = client.send_message(conversation_id, type: 'VIDEO', content_payload: { vid: vid })
     handle_response(response)
   end
 
@@ -80,6 +97,12 @@ class Tiktok::Shop::SendOnTiktokShopService < Base::SendOnChannelService
   def handle_failed_upload(response)
     error_msg = response.body&.dig('message') || "TikTok Shop image upload error: #{response.code}"
     Rails.logger.error "[TikTok Shop] Image upload failed: #{error_msg}"
+    Messages::StatusUpdateService.new(message, 'failed', error_msg).perform
+  end
+
+  def handle_failed_video(attachment)
+    error_msg = 'TikTok Shop video upload failed'
+    Rails.logger.error "[TikTok Shop] #{error_msg} (message #{message.id}, attachment #{attachment.id})"
     Messages::StatusUpdateService.new(message, 'failed', error_msg).perform
   end
 

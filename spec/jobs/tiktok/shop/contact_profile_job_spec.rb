@@ -12,12 +12,13 @@ RSpec.describe Tiktok::Shop::ContactProfileJob do
 
   before { allow(Tiktok::Shop::Client).to receive(:new).with(channel: channel).and_return(client) }
 
-  def api_response(messages:, success: true)
-    OpenStruct.new(success?: success, body: { 'data' => { 'messages' => messages } })
+  # Get Conversation (202601) shape: data.conversation.participants[]
+  def api_response(participants:, success: true)
+    OpenStruct.new(success?: success, body: { 'data' => { 'conversation' => { 'participants' => participants } } })
   end
 
-  def buyer_message(uid: 'u123', nickname: 'Albert', avatar: 'https://cdn.example/avatar.png')
-    { 'sender' => { 'im_user_id' => uid, 'role' => 'BUYER', 'nickname' => nickname, 'avatar' => avatar } }
+  def buyer(uid: 'u123', nickname: 'Albert', avatar: 'https://cdn.example/avatar.png')
+    { 'im_user_id' => uid, 'role' => 'BUYER', 'nickname' => nickname, 'avatar' => avatar }
   end
 
   def run
@@ -25,20 +26,17 @@ RSpec.describe Tiktok::Shop::ContactProfileJob do
                                 conversation_id: conversation_id, im_user_id: im_user_id)
   end
 
-  it 'sets the contact name from the buyer nickname and enqueues the avatar download' do
-    # page_size must be <= 10 — the API rejects larger values (error 36009004).
-    expect(client).to receive(:get_conversation_messages)
-      .with(conversation_id, page_size: 10).and_return(api_response(messages: [buyer_message]))
+  it 'sets the contact name from the buyer participant and enqueues the avatar download' do
+    expect(client).to receive(:get_conversation).with(conversation_id).and_return(api_response(participants: [buyer]))
     expect(Avatar::AvatarFromUrlJob).to receive(:perform_later).with(contact, 'https://cdn.example/avatar.png')
 
     run
     expect(contact.reload.name).to eq('Albert')
   end
 
-  it 'matches the buyer by im_user_id when multiple participants are present' do
-    other = { 'sender' => { 'im_user_id' => 'shop1', 'role' => 'SHOP', 'nickname' => 'Shop', 'avatar' => 'x' } }
-    allow(client).to receive(:get_conversation_messages)
-      .and_return(api_response(messages: [other, buyer_message(uid: 'u123', nickname: 'Buyer123')]))
+  it 'matches the buyer by im_user_id among multiple participants' do
+    shop = { 'im_user_id' => 'shop1', 'role' => 'SHOP', 'nickname' => 'Shop', 'avatar' => 'x' }
+    allow(client).to receive(:get_conversation).and_return(api_response(participants: [shop, buyer(uid: 'u123', nickname: 'Buyer123')]))
     allow(Avatar::AvatarFromUrlJob).to receive(:perform_later)
 
     run
@@ -47,7 +45,7 @@ RSpec.describe Tiktok::Shop::ContactProfileJob do
 
   it 'does not overwrite a name that is no longer the placeholder' do
     contact.update!(name: 'Renamed By Agent')
-    allow(client).to receive(:get_conversation_messages).and_return(api_response(messages: [buyer_message]))
+    allow(client).to receive(:get_conversation).and_return(api_response(participants: [buyer]))
     allow(Avatar::AvatarFromUrlJob).to receive(:perform_later)
 
     run
@@ -55,16 +53,16 @@ RSpec.describe Tiktok::Shop::ContactProfileJob do
   end
 
   it 'no-ops when the API call fails' do
-    allow(client).to receive(:get_conversation_messages).and_return(api_response(messages: [], success: false))
+    allow(client).to receive(:get_conversation).and_return(api_response(participants: [], success: false))
     expect(Avatar::AvatarFromUrlJob).not_to receive(:perform_later)
 
     run
     expect(contact.reload.name).to eq('u123')
   end
 
-  it 'no-ops when no buyer sender is present' do
-    shop = { 'sender' => { 'im_user_id' => 's1', 'role' => 'SHOP', 'nickname' => 'Shop', 'avatar' => 'x' } }
-    allow(client).to receive(:get_conversation_messages).and_return(api_response(messages: [shop]))
+  it 'no-ops when no buyer participant is present' do
+    shop = { 'im_user_id' => 's1', 'role' => 'SHOP', 'nickname' => 'Shop', 'avatar' => 'x' }
+    allow(client).to receive(:get_conversation).and_return(api_response(participants: [shop]))
     expect(Avatar::AvatarFromUrlJob).not_to receive(:perform_later)
 
     run
@@ -72,8 +70,7 @@ RSpec.describe Tiktok::Shop::ContactProfileJob do
   end
 
   it 'does not enqueue an avatar download when the avatar is blank' do
-    allow(client).to receive(:get_conversation_messages)
-      .and_return(api_response(messages: [buyer_message(avatar: nil)]))
+    allow(client).to receive(:get_conversation).and_return(api_response(participants: [buyer(avatar: nil)]))
     expect(Avatar::AvatarFromUrlJob).not_to receive(:perform_later)
 
     run
