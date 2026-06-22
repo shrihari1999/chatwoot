@@ -328,7 +328,13 @@ export default {
       return this.attachedFiles.length;
     },
     showAudioRecorder() {
-      return !this.isOnPrivateNote && this.showFileUpload;
+      // TikTok Shop supports image/video attachments but not audio messages, so
+      // keep the attach button while hiding the voice recorder.
+      return (
+        !this.isOnPrivateNote &&
+        this.showFileUpload &&
+        !this.isATiktokShopChannel
+      );
     },
     showAudioRecorderEditor() {
       return this.showAudioRecorder && this.isRecordingAudio;
