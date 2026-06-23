@@ -55,6 +55,21 @@ class Lazada::IncomingMessageService
 
     @contact_inbox = contact_inbox
     @contact = contact_inbox.contact
+    enqueue_contact_profile(data)
+  end
+
+  # The PUSH carries no avatar, so fetch the buyer's head_url from the API in the
+  # background. Buyer messages only (seller messages return earlier), and only
+  # while the avatar is missing so it runs effectively once per contact.
+  def enqueue_contact_profile(data)
+    return if data[:session_id].blank?
+    return if @contact.avatar.attached?
+
+    Lazada::ContactProfileJob.perform_later(
+      channel_id: inbox.channel.id,
+      contact_id: @contact.id,
+      session_id: data[:session_id].to_s
+    )
   end
 
   def set_conversation(data)
