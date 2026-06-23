@@ -19,6 +19,19 @@ class Tiktok::Client
     }.with_indifferent_access
   end
 
+  # https://business-api.tiktok.com/portal/docs?id=1832184425841170
+  # Returns the conversation's `data.participants[]`, each carrying the
+  # participant's role/id/display_name and a temporary `profile_image` URL —
+  # used to backfill the contact avatar (the webhook carries no avatar).
+  def list_conversation_messages(conversation_id)
+    endpoint = "#{api_base_url}/business/message/content/list/"
+    headers = { 'Access-Token': access_token }
+    params = { business_id: business_id, conversation_id: conversation_id }
+    response = HTTParty.get(endpoint, query: params, headers: headers)
+
+    process_json_response(response, 'Failed to fetch TikTok conversation messages')
+  end
+
   def file_download_url(conversation_id, message_id, media_id, media_type = 'IMAGE')
     endpoint = "#{api_base_url}/business/message/media/download/"
     headers = { 'Access-Token': access_token, 'Content-Type': 'application/json', Accept: 'application/json' }
