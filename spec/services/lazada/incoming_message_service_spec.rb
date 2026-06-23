@@ -56,6 +56,32 @@ RSpec.describe Lazada::IncomingMessageService do
     end
   end
 
+  describe 'contact profile enrichment' do
+    let(:params) do
+      {
+        data: {
+          template_id: 1, from_account_type: 1, from_user_id: 'u1', message_id: 'm20',
+          session_id: 'sess-1', content: { txt: 'hi' }.to_json
+        }
+      }
+    end
+
+    it 'enqueues an avatar fetch for an incoming buyer message with a session_id' do
+      expect(Lazada::ContactProfileJob).to receive(:perform_later).with(
+        channel_id: lazada_channel.id, contact_id: kind_of(Integer), session_id: 'sess-1'
+      )
+
+      described_class.new(inbox: inbox, params: params).perform
+    end
+
+    it 'does not enqueue when the session_id is missing' do
+      params[:data].delete(:session_id)
+      expect(Lazada::ContactProfileJob).not_to receive(:perform_later)
+
+      described_class.new(inbox: inbox, params: params).perform
+    end
+  end
+
   describe 'image attachment' do
     let(:img_url) { 'https://lazada-cdn.local/sample.png' }
     let(:params) do

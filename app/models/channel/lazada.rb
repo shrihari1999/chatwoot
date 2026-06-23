@@ -42,6 +42,13 @@ class Channel::Lazada < ApplicationRecord
     })
   end
 
+  # Synchronize a single session by id. Per the IM API best practices this is the
+  # sanctioned per-PUSH call (unlike /im/session/list, which must not be polled).
+  # Response data includes the buyer's head_url (avatar) and title.
+  def get_session_detail(session_id:)
+    lazada_api_request('/im/session/get', 'GET', { session_id: session_id })
+  end
+
   def read_session(session_id:)
     lazada_api_request('/im/session/read', 'POST', { session_id: session_id })
   end
