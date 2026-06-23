@@ -158,6 +158,39 @@ RSpec.describe Tiktok::MessageService do
       end
     end
 
+    context 'when enriching the contact profile' do
+      it 'enqueues an avatar fetch for an incoming message when the contact has no avatar' do
+        service = described_class.new(channel: channel, content: text_content)
+        allow(service).to receive(:create_contact_inbox).and_return(contact_inbox)
+
+        expect(Tiktok::ContactProfileJob).to receive(:perform_later).with(
+          channel_id: channel.id, contact_id: contact.id, conversation_id: 'tt-conv-1', from_id: 'user-1'
+        )
+
+        service.perform
+      end
+
+      it 'does not enqueue when the contact already has an avatar' do
+        contact.avatar.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'avatar.png')
+        service = described_class.new(channel: channel, content: text_content)
+        allow(service).to receive(:create_contact_inbox).and_return(contact_inbox)
+
+        expect(Tiktok::ContactProfileJob).not_to receive(:perform_later)
+
+        service.perform
+      end
+
+      it 'does not enqueue for an outgoing message' do
+        outgoing = text_content.merge(message_id: 'tt-msg-out', from_user: { id: 'biz-123' }, to_user: { id: 'user-1' })
+        service = described_class.new(channel: channel, content: outgoing)
+        allow(service).to receive(:create_contact_inbox).and_return(contact_inbox)
+
+        expect(Tiktok::ContactProfileJob).not_to receive(:perform_later)
+
+        service.perform
+      end
+    end
+
     it 'creates a conversation even when capability lookup fails' do
       allow(tiktok_client).to receive(:image_send_capable?).and_raise('TikTok capability API error')
 

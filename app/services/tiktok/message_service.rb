@@ -12,6 +12,7 @@ class Tiktok::MessageService
     end
 
     create_message
+    enqueue_contact_profile
   end
 
   private
@@ -50,6 +51,21 @@ class Tiktok::MessageService
 
     create_message_attachments(message)
     message.save!
+  end
+
+  # The webhook carries no avatar URL, so fetch the sender's profile picture from
+  # the API in the background. Incoming only (the contact is the sender), and
+  # only while the avatar is missing so it runs effectively once per contact.
+  def enqueue_contact_profile
+    return unless incoming_message? && !outgoing_echo
+    return if contact.avatar.attached?
+
+    Tiktok::ContactProfileJob.perform_later(
+      channel_id: channel.id,
+      contact_id: contact.id,
+      conversation_id: tt_conversation_id,
+      from_id: from_id
+    )
   end
 
   def message_content

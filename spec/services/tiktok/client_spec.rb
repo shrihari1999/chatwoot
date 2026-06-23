@@ -59,6 +59,30 @@ RSpec.describe Tiktok::Client do
     end
   end
 
+  describe '#list_conversation_messages' do
+    before do
+      allow(HTTParty).to receive(:get).and_return(response)
+      allow(GlobalConfigService).to receive(:load).with('TIKTOK_API_VERSION', 'v1.3').and_return('v1.3')
+    end
+
+    it 'fetches the conversation content and returns the parsed body' do
+      parsed = { 'data' => { 'participants' => [{ 'id' => 'u1', 'profile_image' => 'https://cdn/a.png' }] } }
+      allow(client).to receive(:process_json_response).with(
+        response,
+        'Failed to fetch TikTok conversation messages'
+      ).and_return(parsed)
+
+      result = client.list_conversation_messages('tt-conv-1')
+
+      expect(result).to eq(parsed)
+      expect(HTTParty).to have_received(:get).with(
+        'https://business-api.tiktok.com/open_api/v1.3/business/message/content/list/',
+        query: { business_id: 'biz-123', conversation_id: 'tt-conv-1' },
+        headers: { 'Access-Token': 'token-123' }
+      )
+    end
+  end
+
   describe '#upload_media' do
     let(:connection) { instance_double(Faraday::Connection) }
     let(:request) { instance_double(Faraday::Request, headers: {}) }
