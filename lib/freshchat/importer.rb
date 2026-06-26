@@ -24,12 +24,22 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     message image_url video_url reference_id
   ].freeze
 
-  # Channels where Freshchat's reference_id is the platform-native ID that
-  # Chatwoot's live webhook handler also uses for ContactInbox.source_id. For
-  # these, imported and live contacts will merge cleanly. Everything else
-  # (LINE, IG) gets the Freshchat-UUID fallback — no live continuity, two
-  # Contacts per real-life human when live traffic starts.
-  CONTINUITY_CAPABLE_CHANNELS = %w[Channel::FacebookPage Channel::Tiktok Channel::TiktokShop Channel::Lazada].freeze
+  # Channels where Freshchat's reference_id is the same user-level platform
+  # identifier that Chatwoot's live webhook handler uses for ContactInbox.source_id.
+  # For these, imported and live contacts merge cleanly via reference_id.
+  #
+  # Channels NOT listed here use a Freshchat-UUID fallback as source_id, which
+  # cannot collide with live data — accepting duplicate contacts when live
+  # traffic starts.
+  #
+  # Excluded:
+  #   Channel::TiktokShop / Channel::Tiktok — Freshchat's reference_id is the
+  #     per-conversation tiktok_shop_conversation_id, NOT the user-level
+  #     im_user_id that Chatwoot's live TikTok Shop handler uses. The im_user_id
+  #     is not preserved anywhere in the Freshchat source data, same gap as
+  #     LINE/IG. (Could be recovered via TikTok IM API as a separate enhancement.)
+  #   Channel::Line / Channel::Instagram — reference_id is NULL in source.
+  CONTINUITY_CAPABLE_CHANNELS = %w[Channel::FacebookPage Channel::Lazada].freeze
 
   INSERT_SLICE = 2_000
 
@@ -171,16 +181,18 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     return "freshchat-customer-#{customer_id}" if info.nil?
 
     case inbox.channel_type
-    when 'Channel::FacebookPage', 'Channel::Tiktok', 'Channel::TiktokShop'
+    when 'Channel::FacebookPage'
       info[:reference_id].presence || "freshchat-customer-#{customer_id}"
     when 'Channel::Lazada'
       stripped = info[:reference_id].to_s.delete_prefix('lazada_').presence
       stripped || "freshchat-customer-#{customer_id}"
     else
-      # Channel::Line, Channel::Instagram — platform-native ID not preserved
-      # by Freshchat. Use a fallback unique per Freshchat customer so re-imports
-      # are idempotent. Live messages on these channels create a separate
-      # Contact (no continuity) — documented limitation.
+      # Channel::Line, Channel::Instagram, Channel::Tiktok, Channel::TiktokShop:
+      # platform-native user_id is not preserved by Freshchat (for TikTok the
+      # reference_id is the conversation_id, not the im_user_id). Use a
+      # fallback unique per Freshchat customer so re-imports are idempotent.
+      # Live messages on these channels create a separate Contact —
+      # documented limitation.
       "freshchat-customer-#{customer_id}"
     end
   end
