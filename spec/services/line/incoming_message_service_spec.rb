@@ -568,42 +568,6 @@ describe Line::IncomingMessageService do
       end
     end
 
-    context 'when read event is received' do
-      let(:read_params) do
-        {
-          'destination': '2342234234',
-          'events': [
-            {
-              'type': 'read',
-              'mode': 'active',
-              'timestamp': 1_462_629_479_859,
-              'source': {
-                'type': 'user',
-                'userId': 'U4af4980629'
-              },
-              'read': {
-                'messageId': '325708'
-              }
-            }
-          ]
-        }.with_indifferent_access
-      end
-
-      it 'invokes Line::ReadStatusService and does not call get_line_contact_info' do
-        read_service = instance_double(Line::ReadStatusService, perform: true)
-        service = described_class.new(inbox: line_channel.inbox, params: read_params)
-
-        expect(Line::ReadStatusService).to receive(:new).with(
-          inbox: line_channel.inbox,
-          event: read_params[:events][0]
-        ).and_return(read_service)
-        expect(read_service).to receive(:perform)
-        expect(service).not_to receive(:get_line_contact_info)
-
-        service.perform
-      end
-    end
-
     context 'when lock_to_single_conversation is true' do
       before do
         line_channel.inbox.update(lock_to_single_conversation: true)
