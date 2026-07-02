@@ -49,8 +49,11 @@ class Channel::Lazada < ApplicationRecord
     lazada_api_request('/im/session/get', 'GET', { session_id: session_id })
   end
 
-  def read_session(session_id:)
-    lazada_api_request('/im/session/read', 'POST', { session_id: session_id })
+  # Sync the seller's read status to the buyer. /im/session/read marks both
+  # session_id and last_read_message_id as required — omitting the latter makes
+  # the read-sync a no-op, so the caller must pass the last read message id.
+  def read_session(session_id:, last_read_message_id:)
+    lazada_api_request('/im/session/read', 'POST', { session_id: session_id, last_read_message_id: last_read_message_id })
   end
 
   def recall_im_message(message_id:)

@@ -20,9 +20,33 @@ RSpec.describe Lazada::MarkAsReadService do
   end
 
   describe '#perform' do
-    context 'when conversation has a lazada_session_id' do
-      it 'calls read_session on the channel with the session id' do
-        expect(lazada_channel).to receive(:read_session).with(session_id: 'sess_abc')
+    context 'when conversation has a lazada_session_id and an incoming message' do
+      before do
+        create(:message, conversation: conversation, inbox: inbox, account: account,
+                         message_type: :incoming, source_id: 'lazada_msg_9')
+      end
+
+      it 'calls read_session with the session id and the last incoming message id' do
+        expect(lazada_channel).to receive(:read_session).with(session_id: 'sess_abc', last_read_message_id: 'lazada_msg_9')
+        described_class.new(conversation: conversation).perform
+      end
+
+      it 'uses the newest incoming message id when several exist' do
+        create(:message, conversation: conversation, inbox: inbox, account: account,
+                         message_type: :incoming, source_id: 'lazada_msg_10')
+
+        expect(lazada_channel).to receive(:read_session).with(session_id: 'sess_abc', last_read_message_id: 'lazada_msg_10')
+        described_class.new(conversation: conversation).perform
+      end
+    end
+
+    context 'when the conversation has no incoming message with a source_id' do
+      it 'does not call read_session (nothing to mark read)' do
+        # An outgoing message alone must not drive a read-sync.
+        create(:message, conversation: conversation, inbox: inbox, account: account,
+                         message_type: :outgoing, source_id: 'lazada_out_1')
+
+        expect(lazada_channel).not_to receive(:read_session)
         described_class.new(conversation: conversation).perform
       end
     end
