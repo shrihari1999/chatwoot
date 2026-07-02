@@ -45,7 +45,7 @@ RSpec.describe Lazada::IncomingRecallService do
       expect(message.reload.attachments.count).to eq(0)
     end
 
-    it 'does nothing when the matched message is outgoing (prevents spurious OutgoingRecallService trigger)' do
+    it 'marks an outgoing message deleted without enqueuing a recall (platform-originated, no API loop)' do
       outgoing_msg = create(:message, conversation: conversation, inbox: inbox, account: account,
                                       message_type: :outgoing, source_id: source_id, content: 'agent sent')
 
@@ -53,8 +53,21 @@ RSpec.describe Lazada::IncomingRecallService do
         described_class.new(inbox: inbox, params: build_params).perform
       end.not_to have_enqueued_job(Lazada::RecallJob)
 
-      # Message must not be modified either
-      expect(outgoing_msg.reload.content).to eq('agent sent')
+      outgoing_msg.reload
+      expect(outgoing_msg.content).to eq(I18n.t('conversations.messages.deleted'))
+      expect(outgoing_msg.content_attributes[:deleted]).to be_truthy
+    end
+
+    it 'reflects a recall of an outgoing external_echo message without enqueuing a recall' do
+      echo_msg = create(:message, conversation: conversation, inbox: inbox, account: account,
+                                  message_type: :outgoing, source_id: source_id, content: 'seller echo',
+                                  content_attributes: { external_echo: true })
+
+      expect do
+        described_class.new(inbox: inbox, params: build_params).perform
+      end.not_to have_enqueued_job(Lazada::RecallJob)
+
+      expect(echo_msg.reload.content).to eq(I18n.t('conversations.messages.deleted'))
     end
 
     it 'does nothing when params data is blank' do

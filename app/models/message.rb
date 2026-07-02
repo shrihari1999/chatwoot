@@ -83,6 +83,11 @@ class Message < ApplicationRecord
   attr_accessor :echo_id
   # Transient flag used to skip waiting_since clearing for specific bot/system messages.
   attr_accessor :preserve_waiting_since
+  # Transient flag set by inbound recall services (e.g. Lazada::IncomingRecallService)
+  # when a recall originated on the platform. It suppresses the outbound recall
+  # callback so we don't call the platform's recall API for a message it already
+  # recalled (which would be a redundant round-trip / loop).
+  attr_accessor :recall_from_platform
 
   enum message_type: { incoming: 0, outgoing: 1, activity: 2, template: 3 }
   enum content_type: {
@@ -509,6 +514,7 @@ class Message < ApplicationRecord
     saved_change_to_content_attributes? &&
       transitioned_to_deleted? &&
       outgoing? &&
+      !recall_from_platform &&
       inbox.channel_type == 'Channel::Lazada'
   end
 
