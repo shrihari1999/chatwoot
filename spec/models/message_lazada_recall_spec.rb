@@ -50,6 +50,14 @@ RSpec.describe Message do
       end.not_to have_enqueued_job(Lazada::RecallJob)
     end
 
+    it 'does not enqueue when recall_from_platform is set (platform-originated recall)' do
+      lazada_message.recall_from_platform = true
+
+      expect do
+        lazada_message.update!(content: I18n.t('conversations.messages.deleted'), deleted: true)
+      end.not_to have_enqueued_job(Lazada::RecallJob)
+    end
+
     it 'does not enqueue for incoming messages' do
       incoming = create(:message, conversation: conversation, inbox: lazada_inbox, account: account,
                                   message_type: :incoming, source_id: 'lazada_src_2')
