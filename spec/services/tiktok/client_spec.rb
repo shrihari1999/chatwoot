@@ -157,4 +157,33 @@ RSpec.describe Tiktok::Client do
       expect(client).to have_received(:send_message).with('tt-conv-1', 'IMAGE', 'media-123')
     end
   end
+
+  describe '#send_typing_action' do
+    let(:response) { instance_double(HTTParty::Response) }
+
+    before do
+      allow(HTTParty).to receive(:post).and_return(response)
+      allow(GlobalConfigService).to receive(:load).with('TIKTOK_API_VERSION', 'v1.3').and_return('v1.3')
+      allow(client).to receive(:process_json_response).with(
+        response,
+        'Failed to send TikTok typing action'
+      ).and_return({ 'code' => 0 })
+    end
+
+    it 'POSTs a SENDER_ACTION TYPING message for the conversation' do
+      client.send_typing_action('tt-conv-1')
+
+      expect(HTTParty).to have_received(:post).with(
+        'https://business-api.tiktok.com/open_api/v1.3/business/message/send/',
+        body: {
+          business_id: 'biz-123',
+          recipient_type: 'CONVERSATION',
+          recipient: 'tt-conv-1',
+          message_type: 'SENDER_ACTION',
+          sender_action: 'TYPING'
+        }.to_json,
+        headers: { 'Access-Token': 'token-123', 'Content-Type': 'application/json' }
+      )
+    end
+  end
 end

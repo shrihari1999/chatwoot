@@ -78,6 +78,19 @@ class Tiktok::Client
   def mark_conversation_read(conversation_id)
     # https://business-api.tiktok.com/portal/docs?id=1832184403754242
     # Displays "Seen" to the Personal Account user in the conversation.
+    send_sender_action(conversation_id, 'MARK_READ', 'Failed to mark TikTok conversation as read')
+  end
+
+  def send_typing_action(conversation_id)
+    # https://business-api.tiktok.com/portal/docs?id=1832184403754242
+    # Displays a "Typing" icon to the Personal Account user. TikTok auto-clears it
+    # after ~5 seconds; there is no stop action.
+    send_sender_action(conversation_id, 'TYPING', 'Failed to send TikTok typing action')
+  end
+
+  private
+
+  def send_sender_action(conversation_id, action, error_prefix)
     endpoint = "#{api_base_url}/business/message/send/"
     headers = { 'Access-Token': access_token, 'Content-Type': 'application/json' }
     body = {
@@ -85,14 +98,12 @@ class Tiktok::Client
       recipient_type: 'CONVERSATION',
       recipient: conversation_id,
       message_type: 'SENDER_ACTION',
-      sender_action: 'MARK_READ'
+      sender_action: action
     }
 
     response = HTTParty.post(endpoint, body: body.to_json, headers: headers)
-    process_json_response(response, 'Failed to mark TikTok conversation as read')
+    process_json_response(response, error_prefix)
   end
-
-  private
 
   def send_message(conversation_id, type, payload, referenced_message_id: nil)
     # https://business-api.tiktok.com/portal/docs?id=1832184403754242
