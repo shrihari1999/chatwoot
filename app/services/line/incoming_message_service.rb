@@ -17,11 +17,6 @@ class Line::IncomingMessageService
 
   def parse_events
     params[:events].each do |event|
-      if event['type'] == 'read'
-        handle_read_event(event)
-        next
-      end
-
       if event['type'] == 'unsend'
         handle_unsend_event(event)
         next
@@ -72,10 +67,6 @@ class Line::IncomingMessageService
       mark_as_read_token: event.dig('message', 'markAsReadToken'),
       quote_token: event.dig('message', 'quoteToken')
     }.compact
-  end
-
-  def handle_read_event(event)
-    Line::ReadStatusService.new(inbox: @inbox, event: event).perform
   end
 
   # LINE fires an `unsend` event when a user unsends one of their own messages.
