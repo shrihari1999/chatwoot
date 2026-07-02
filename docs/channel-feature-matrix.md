@@ -15,7 +15,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Sent/accepted status (platform ack) | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 | Delivered receipt on our outbound msgs | ◀ in | ⚠️/❌ | ✅/✅ | ❌/❌ | ❌/⚠️ | ❌/❌ | ❌/❌ |
 | Read / seen receipt | ◀ in | ❌/❌ | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ✅/✅ |
-| Read / seen receipt | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/⚠️ |
+| Read / seen receipt | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 | Failed status + error reason | ◀ in | ✅/✅ | ⚠️/⚠️ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ |
 | Retry / resend a failed send | ▶ out | ✅/✅ | ✅/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ |
 | Outbound echo (agent msg sent from platform app) | ◀ in | ❌/❌ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
@@ -187,7 +187,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - IG caption[in] F=yes vs FB caption[in] F=partial - both described as the same 'text+media bundled in one webhook' mechanism; labeling one yes and the other partial is inconsistent, and both being F>P (P=no) is odd for a caption claim.
 - IG message_tags[out] P=partial F=yes vs FB message_tags[out] P=partial F=partial - identical Meta message-tag system; IG claiming full while FB is partial is contradictory.
 - Lazada retry_resend[out] P=no F=yes - resend is a generic re-POST (every other channel is P=yes/partial); marking platform 'no' while the fork does it is internally contradictory.
-- Lazada read_receipt[out] F=yes but annotation says read_session sends only session_id while the doc marks last_read_message_id required - if enforced it is a no-op, so F=yes overstates (should be partial).
+- Lazada read_receipt[out] — RESOLVED (PR #136): read_session now sends the doc-required last_read_message_id (last inbound message's source_id) alongside session_id, so the read-sync is a real call, not a no-op. F=yes.
 - LINE quick_replies[out] F=yes but the impl is a Flex bubble with message-action buttons (not native quickReply), while LINE buttons[out] is only F=partial for the same Flex-button code path - yes vs partial for one mechanism is inconsistent.
 - LINE rich_formatting[out] F=no while a LineRenderer artifact exists (emits literal markdown) - either F=partial (artifact present) or the P=partial is itself dubious since LINE plain text has no markdown.
 - IG file_document in/out P=partial F=yes - fork has only a generic 'file' passthrough (base_send_service maps unknown types to 'file'); claiming full F over a partial platform for a type IG DM barely supports is implausible.
@@ -201,7 +201,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - Instagram caption[in] F=yes - only structural via bundled story-reply webhook; inconsistent with FB partial, likely partial.
 - Instagram file_document[out] P=partial F=yes - generic 'file' passthrough over a type IG DM barely supports; F likely partial.
 - Lazada retry_resend[out] P=no - resend via re-POST is generically possible everywhere else; P=no implausible.
-- Lazada read_receipt[out] F=yes - read_session omits doc-required last_read_message_id; likely a no-op, should be partial.
+- Lazada read_receipt[out] — RESOLVED (PR #136): read_session now includes the doc-required last_read_message_id; no longer a no-op.
 - LINE quick_replies[out] F=yes - Flex-button emulation not native quickReply; inconsistent with buttons F=partial, likely partial.
 - Facebook Messenger unsend[in] P=no - Messenger emits message-deletion/unsend events (IG on same platform family is P=yes); likely understated.
 - LINE handover_protocol[in]/[out] P=partial - LINE Messaging API has no app-to-app handover protocol like Meta's; likely should be no.
@@ -629,7 +629,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Sent/accepted status (platform ack) | ▶ out | ✅ yes | send response (2.2) returns message_id + error_code/error_msg (synchronous platform ack) | ✅ yes | send_on_lazada_service.rb:56-61 on success stores source_id and Messages::StatusUpdateService(message,'sent') |
 | Delivered receipt on our outbound msgs | ◀ in | ❌ no | message status field is only 0=normal/1=recalled; session exposes only read positions (to_position/self_position); no delivered concept | ❌ no | SessionUpdateService only marks read (UpdateMessageStatusJob default :read); no delivered path parsed |
 | Read / seen receipt | ◀ in | ✅ yes | Session Update push (4.2) to_position = other party's read time (buyer read of seller msgs) | ✅ yes | lazada_events_job.rb:35-37 SESSION_UPDATE -> session_update_service.rb:40-43 to_position -> Conversations::UpdateMessageStatusJob marks non-incoming sent/delivered msgs read |
-| Read / seen receipt | ▶ out | ✅ yes | /im/session/read (3.3) + best practices (Sec 7): synchronizes seller's read status to the buyer | ⚠️ partial | conversations_controller.rb:127 Lazada::MarkAsReadJob -> mark_as_read_service.rb:13 channel.read_session (/im/session/read) |
+| Read / seen receipt | ▶ out | ✅ yes | /im/session/read (3.3) + best practices (Sec 7): synchronizes seller's read status to the buyer; requires session_id + last_read_message_id | ✅ yes | conversations_controller Lazada::MarkAsReadJob -> mark_as_read_service now sends both session_id and last_read_message_id (last inbound message's source_id) to channel.read_session (/im/session/read); skips when no inbound message exists (PR #136) |
 | Failed status + error reason | ◀ in | ⚠️ partial | send response error_code/error_msg is synchronous only; inbound process_msg field flags security-intercepted 'not sent' (seller-only visible); no async failed-delivery webhook | ✅ yes | send_on_lazada_service.rb:62-66 API error -> Messages::StatusUpdateService(message,'failed',error_msg); status_update_service sets external_error on failed |
 | Retry / resend a failed send | ▶ out | ⚠️ partial | no dedicated retry/resend or idempotent API; a resend is just a fresh /im/message/send with a new message_id; LPM 12x/30min retry is inbound webhook-delivery only (Open Platform.pdf) | ✅ yes | messages_controller.rb:28-37 retry resets status to 'sent', clears content_attributes, SendReplyJob.perform_later; send_reply_job.rb:7 maps Channel::Lazada -> Lazada::SendOnLazadaService |
 | Outbound echo (agent msg sent from platform app) | ◀ in | ✅ yes | Message push + /im/message/list include from_account_type=2 (seller) messages; seller recalls also pushed (Sec: Message recall) | ✅ yes | seller messages (from_account_type==2) ingested as outgoing echoes (external_echo, status delivered) attached to the existing conversation by lazada_session_id; deduped by source_id so our own API sends don't double-post; source_id set so Base::SendOnChannelService won't re-send (incoming_message_service.rb ingest_echo). Recall of an echoed message is reflected too (PR #134): IncomingRecallService sets message.recall_from_platform so trigger_lazada_recall skips the outbound recall API (no loop) while still marking the echo deleted |
