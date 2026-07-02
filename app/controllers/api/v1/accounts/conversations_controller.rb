@@ -160,9 +160,13 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
   def relay_typing_status_to_channel
     return if ActiveModel::Type::Boolean.new.cast(params[:is_private])
 
-    if @conversation.inbox.channel_type == 'Channel::FacebookPage' &&
-       @conversation.additional_attributes['type'] != 'instagram_direct_message'
-      Facebook::TypingStatusJob.perform_later(@conversation, params[:typing_status])
+    case @conversation.inbox.channel_type
+    when 'Channel::FacebookPage'
+      if @conversation.additional_attributes['type'] != 'instagram_direct_message'
+        Facebook::TypingStatusJob.perform_later(@conversation, params[:typing_status])
+      end
+    when 'Channel::Instagram'
+      Instagram::TypingStatusJob.perform_later(@conversation, params[:typing_status])
     end
   end
 
