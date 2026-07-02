@@ -358,6 +358,37 @@ describe Line::IncomingMessageService do
         expect(line_channel.inbox.messages.first.content).to eq('Hello, world 1')
         expect(line_channel.inbox.messages.last.content).to eq('Hello, world 2')
       end
+
+      it 'marks the matching message as deleted and removes attachments on an unsend event' do
+        described_class.new(inbox: line_channel.inbox, params: params).perform
+        message = line_channel.inbox.messages.first
+        message.attachments.create!(
+          account_id: message.account_id,
+          file_type: :image,
+          file: { io: File.open(Rails.root.join('spec/assets/avatar.png')), filename: 'avatar.png', content_type: 'image/png' }
+        )
+        expect(message.attachments.count).to eq(1)
+
+        unsend_params = unsend_event_params(message.source_id)
+        described_class.new(inbox: line_channel.inbox, params: unsend_params).perform
+
+        message.reload
+        expect(message.content).to eq(I18n.t('conversations.messages.deleted'))
+        expect(message.content_attributes['deleted']).to be(true)
+        expect(message.attachments.count).to eq(0)
+      end
+
+      it 'ignores an unsend event for an unknown messageId' do
+        described_class.new(inbox: line_channel.inbox, params: params).perform
+        message = line_channel.inbox.messages.first
+
+        unsend_params = unsend_event_params('unknown-msg-id')
+        expect { described_class.new(inbox: line_channel.inbox, params: unsend_params).perform }.not_to raise_error
+
+        message.reload
+        expect(message.content).to eq('Hello, world')
+        expect(message.content_attributes['deleted']).to be_nil
+      end
     end
 
     context 'when valid sticker message params' do
@@ -611,5 +642,20 @@ describe Line::IncomingMessageService do
         expect(line_channel.inbox.conversations.last.messages.last.content).to eq('Second message')
       end
     end
+  end
+
+  def unsend_event_params(message_id)
+    {
+      'destination': '2342234234',
+      'events': [
+        {
+          'type': 'unsend',
+          'mode': 'active',
+          'timestamp': 1_462_629_479_859,
+          'source': { 'type': 'user', 'userId': 'U4af4980629' },
+          'unsend': { 'messageId': message_id }
+        }
+      ]
+    }.with_indifferent_access
   end
 end
