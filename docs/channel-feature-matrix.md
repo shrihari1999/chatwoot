@@ -18,7 +18,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Read / seen receipt | ▶ out | ✅/✅ | ✅/✅ | ✅/❌ | ✅/✅ | ✅/✅ | ✅/⚠️ |
 | Failed status + error reason | ◀ in | ✅/✅ | ⚠️/⚠️ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ |
 | Retry / resend a failed send | ▶ out | ✅/✅ | ✅/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ |
-| Outbound echo (agent msg sent from platform app) | ◀ in | ❌/❌ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/❌ | ✅/❌ |
+| Outbound echo (agent msg sent from platform app) | ◀ in | ❌/❌ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/❌ |
 
 ## Operations
 
@@ -178,7 +178,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - **Facebook Messenger** — Most complete parity channel (receipts, reactions, edit, echo verified in code); fork lags on all templated/interactive UI, messaging window, handover, comment-to-DM; unsend[in] P=no looks understated vs IG.
 - **Instagram** — Rich DM set incl. story/comment-to-DM/reactions/edit; several F>P overstatements (file_document, message_tags, caption[in], multi_attachment P); read_receipt[out] and handover lag FB despite shared API.
 - **TikTok DM (Business Messaging)** — Text/reactions/typing/receipts wired; status rows synthesized locally (F>P); display_name not actually ingested despite F=yes; no video/sticker inbound, no interactive UI.
-- **TikTok Shop** — Text/image/video + partial product catalog; local status synthesis (F>P); no typing, no inbound echo (unlike DM); interactive/templates/window/tags all unimplemented.
+- **TikTok Shop** — Text/image/video + partial product catalog + outbound echo (SHOP/CS/ROBOT sends mirrored, PR #132); local status synthesis (F>P); no typing; interactive/templates/window/tags all unimplemented.
 - **Lazada IM** — Text/image/unsend(recall)/read wired; heavy fan-out for multi-attachment (image-only); status synthesized with retry P=no/F=yes contradiction; display name discarded; video/product/interactive gaps.
 
 ### Inconsistencies noted
@@ -191,7 +191,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - LINE quick_replies[out] F=yes but the impl is a Flex bubble with message-action buttons (not native quickReply), while LINE buttons[out] is only F=partial for the same Flex-button code path - yes vs partial for one mechanism is inconsistent.
 - LINE rich_formatting[out] F=no while a LineRenderer artifact exists (emits literal markdown) - either F=partial (artifact present) or the P=partial is itself dubious since LINE plain text has no markdown.
 - IG file_document in/out P=partial F=yes - fork has only a generic 'file' passthrough (base_send_service maps unknown types to 'file'); claiming full F over a partial platform for a type IG DM barely supports is implausible.
-- TikTok Shop outbound_echo[in] P=yes F=no vs TikTok DM outbound_echo[in] P=yes F=yes - same vendor family; echo handled for DM but not Shop, a coverage inconsistency.
+- TikTok Shop outbound_echo[in] — RESOLVED (PR #132): Shop now mirrors SHOP/CUSTOMER_SERVICE/ROBOT sends from webhook 14 as outgoing echoes (dedup by source_id vs our own API sends), matching TikTok DM F=yes.
 - LINE read_receipt[in] no/no — RESOLVED: confirmed LINE emits no read event, so `Line::ReadStatusService` was dead code; the service + read-event routing were removed in PR #130.
 
 ### Cells flagged as still uncertain
@@ -205,7 +205,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - LINE quick_replies[out] F=yes - Flex-button emulation not native quickReply; inconsistent with buttons F=partial, likely partial.
 - Facebook Messenger unsend[in] P=no - Messenger emits message-deletion/unsend events (IG on same platform family is P=yes); likely understated.
 - LINE handover_protocol[in]/[out] P=partial - LINE Messaging API has no app-to-app handover protocol like Meta's; likely should be no.
-- TikTok Shop outbound_echo[in] F=no - coverage gap vs TikTok DM F=yes; verify Shop genuinely cannot echo.
+- TikTok Shop outbound_echo[in] — RESOLVED (PR #132): confirmed webhook 14 fires for shop-side sends; fork now ingests them as outgoing echoes (F=yes).
 - LINE read_receipt[in] no/no - RESOLVED: confirmed LINE emits no read event; dead `ReadStatusService` removed in PR #130.
 
 ## Appendix — full evidence per cell
@@ -550,7 +550,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Read / seen receipt | ▶ out | ✅ yes | Read Message API POST /customer_service/202309/conversations/{id}/messages/read marks buyer msgs read | ✅ yes | MarkAsReadJob→MarkAsReadService→client.mark_conversation_read; enqueued conversations_controller.rb:129 |
 | Failed status + error reason | ◀ in | ⚠️ partial | Synchronous Send error codes (45101006 sensitive, 45109001 conv rules, 45101002/45111017 card) but no async failed webhook | ✅ yes | handle_response sets 'failed'+error from sync response (send svc:90-94); StatusUpdateService |
 | Retry / resend a failed send | ▶ out | ⚠️ partial | No idempotency/retry endpoint; re-POST Send; errors 45101001/36009003 advise 'try again' | ✅ yes | Generic messages_controller#retry resets to 'sent', clears content_attributes, re-enqueues SendReplyJob (messages_controller.rb:28-37) |
-| Outbound echo (agent msg sent from platform app) | ◀ in | ✅ yes | Webhook 14 fires for any sender.role incl SHOP/CUSTOMER_SERVICE/SYSTEM/ROBOT | ❌ no | Only BUYER role ingested; SHOP/CS/SYSTEM/ROBOT dropped (incoming_message_service.rb:26,43-44) |
+| Outbound echo (agent msg sent from platform app) | ◀ in | ✅ yes | Webhook 14 fires for any sender.role incl SHOP/CUSTOMER_SERVICE/SYSTEM/ROBOT | ✅ yes | SHOP/CUSTOMER_SERVICE/ROBOT roles ingested as outgoing echoes (external_echo, status delivered) attached to the existing conversation by tiktok_shop_conversation_id; deduped by source_id so our own API sends don't double-post; SYSTEM still dropped (incoming_message_service.rb:26-42, ECHO_ROLES) |
 | Quote / reply-to a specific message | ◀ in | ❌ no | No reply_to/quoted field in webhook 14 or Get Conversation Messages message object | ❌ no | create_message sets no in_reply_to; no quoted parse (incoming_message_service.rb:132-146) |
 | Quote / reply-to a specific message | ▶ out | ❌ no | Send Message body = type/content/sender_role only; no reply/quote parameter | ❌ no | client.send_message body has no reply-to field (client.rb:50-53) |
 | Edit an already-sent message | ◀ in | ❌ no | No message-edited/updated webhook in catalog | ❌ no | No edit event dispatched (events_job.rb:60-72) |

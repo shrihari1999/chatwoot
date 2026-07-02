@@ -38,16 +38,6 @@ RSpec.describe Tiktok::Shop::IncomingMessageService do
       )
     end
 
-    it 'ignores messages from non-buyer roles' do
-      perform(
-        conversation_id: 'c1', message_id: 'm2', index: '2', type: 'TEXT',
-        content: { content: 'agent reply' }.to_json, is_visible: true,
-        sender: { im_user_id: 's1', role: 'SHOP' }
-      )
-
-      expect(inbox.conversations.last).to be_nil
-    end
-
     it 'skips invisible messages (rating requests and similar system noise)' do
       perform(
         conversation_id: 'c1', message_id: 'm3', index: '3', type: 'TEXT',
@@ -90,6 +80,81 @@ RSpec.describe Tiktok::Shop::IncomingMessageService do
       attachment = last_message.attachments.last
       expect(attachment.file_type).to eq('image')
       expect(attachment.external_url).to eq(media_url)
+    end
+  end
+
+  describe 'outbound echo (agent/seller message sent from the TikTok side)' do
+    # Establish a conversation the way it happens in production: the buyer messages
+    # first, then the shop side replies (which arrives as an echo on the webhook).
+    def buyer_opens_conversation
+      perform(
+        conversation_id: 'c1', message_id: 'buyer-1', index: '1', type: 'TEXT',
+        content: { content: 'hi, is this in stock?' }.to_json, is_visible: true,
+        sender: { im_user_id: 'u1', role: 'BUYER' }
+      )
+    end
+
+    def echo(role:, message_id: 'echo-1', content: 'sure, it is!')
+      perform(
+        conversation_id: 'c1', message_id: message_id, index: '2', type: 'TEXT',
+        content: { content: content }.to_json, is_visible: true,
+        sender: { im_user_id: 'shop-1', role: role }
+      )
+    end
+
+    %w[SHOP CUSTOMER_SERVICE ROBOT].each do |role|
+      it "mirrors a #{role} message into the thread as an outgoing echo" do
+        buyer_opens_conversation
+        echo(role: role)
+
+        msg = last_message
+        expect(msg.content).to eq('sure, it is!')
+        expect(msg.message_type).to eq('outgoing')
+        expect(msg.status).to eq('delivered')
+        expect(msg.sender).to be_nil
+        expect(msg.content_attributes['external_echo']).to be(true)
+      end
+    end
+
+    it 'skips an echo when the buyer has no existing conversation yet' do
+      echo(role: 'SHOP')
+
+      expect(inbox.conversations.last).to be_nil
+    end
+
+    it 'dedups an echo of a message we already have by source_id (our own Chatwoot sends)' do
+      buyer_opens_conversation
+      echo(role: 'SHOP', message_id: 'dup-1')
+
+      expect { echo(role: 'SHOP', message_id: 'dup-1', content: 'sure, it is!') }
+        .not_to(change { inbox.conversations.last.messages.count })
+    end
+
+    it 'attaches the echo to the latest conversation when an older resolved one shares the tiktok id' do
+      buyer_opens_conversation
+      old_conversation = inbox.conversations.last
+      old_conversation.update!(status: :resolved)
+      # Buyer messages again after resolution -> a fresh conversation with the same tiktok id.
+      buyer_opens_conversation
+      new_conversation = inbox.conversations.order(:created_at).last
+      expect(new_conversation).not_to eq(old_conversation)
+
+      echo(role: 'SHOP')
+
+      expect(new_conversation.messages.last.content).to eq('sure, it is!')
+      expect(old_conversation.messages.reload.none? { |m| m.content_attributes['external_echo'] }).to be(true)
+    end
+
+    it 'still drops SYSTEM messages even when a conversation exists' do
+      buyer_opens_conversation
+
+      expect do
+        perform(
+          conversation_id: 'c1', message_id: 'sys-1', index: '3', type: 'NOTIFICATION',
+          content: { content: 'buyer entered' }.to_json, is_visible: true,
+          sender: { im_user_id: 'sys', role: 'SYSTEM' }
+        )
+      end.not_to(change { inbox.conversations.last.messages.count })
     end
   end
 
