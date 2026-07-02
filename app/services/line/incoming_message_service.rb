@@ -22,6 +22,11 @@ class Line::IncomingMessageService
         next
       end
 
+      if event['type'] == 'unsend'
+        handle_unsend_event(event)
+        next
+      end
+
       next unless event_type_message?(event)
 
       get_line_contact_info(event)
@@ -71,6 +76,20 @@ class Line::IncomingMessageService
 
   def handle_read_event(event)
     Line::ReadStatusService.new(inbox: @inbox, event: event).perform
+  end
+
+  # LINE fires an `unsend` event when a user unsends one of their own messages.
+  # Mark the matching message deleted, mirroring Instagram/Lazada inbound recall.
+  # Ref: https://developers.line.biz/en/reference/messaging-api/#unsend-event
+  def handle_unsend_event(event)
+    message_id = event.dig('unsend', 'messageId')
+    return if message_id.blank?
+
+    message = inbox.messages.find_by(source_id: message_id.to_s)
+    return if message.blank?
+
+    message.attachments.destroy_all
+    message.update!(content: I18n.t('conversations.messages.deleted'), deleted: true)
   end
 
   def message_content(event)
