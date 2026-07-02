@@ -21,20 +21,45 @@ class Tiktok::Shop::IncomingMessageService
   # Types whose content is plain conversational text carried in content['content'].
   TEXT_LIKE_TYPES = %w[TEXT OTHER].freeze
 
+  # Roles whose messages are sent from the shop side — the seller replying from
+  # the Seller Center, a CS agent, or an automated robot reply (per the docs,
+  # "for system and robot roles, the shop is the sender"). We mirror these into
+  # the thread as outgoing echoes so Chatwoot reflects what the buyer actually
+  # saw. SYSTEM (buyer-enter / notification noise) is intentionally excluded.
+  ECHO_ROLES = %w[SHOP CUSTOMER_SERVICE ROBOT].freeze
+
   def perform
     return if data.blank?
-    return unless buyer_message?     # only ingest real buyer messages
     return unless visible_message?   # skip rating-request and similar system noise
 
-    set_contact
-    set_conversation
-    create_message
-    attach_image if image_message?
-    attach_video if video_message?
-    @message.save!
+    if buyer_message?
+      ingest_incoming
+    elsif echo_message?
+      ingest_echo
+    end
   end
 
   private
+
+  def ingest_incoming
+    set_contact
+    set_conversation
+    create_message
+    persist_message
+  end
+
+  # A shop-side echo: the sender is the shop, not the buyer, so we can't derive a
+  # contact from it — attach it to the existing conversation instead (skip if the
+  # buyer has never messaged). Our own Chatwoot sends echo back too, so dedup on
+  # source_id (the send path stores TikTok's message_id there).
+  def ingest_echo
+    @conversation = echo_conversation
+    return if @conversation.blank?
+    return if echo_duplicate?
+
+    create_message(message_type: :outgoing, echo: true)
+    persist_message
+  end
 
   def data
     @data ||= payload[:data] || payload
@@ -42,6 +67,24 @@ class Tiktok::Shop::IncomingMessageService
 
   def buyer_message?
     data[:sender].is_a?(Hash) && data[:sender][:role].to_s == 'BUYER'
+  end
+
+  def echo_message?
+    data[:sender].is_a?(Hash) && ECHO_ROLES.include?(data[:sender][:role].to_s)
+  end
+
+  # A resolved-then-reopened buyer thread can leave several Chatwoot conversations
+  # sharing one tiktok_shop_conversation_id, so take the most recent — the same one
+  # the buyer's live messages land in (see set_conversation).
+  def echo_conversation
+    ::Conversation.where(inbox_id: channel.inbox.id)
+                  .where("additional_attributes->>'tiktok_shop_conversation_id' = ?", data[:conversation_id].to_s)
+                  .order(created_at: :desc)
+                  .first
+  end
+
+  def echo_duplicate?
+    @conversation.messages.exists?(source_id: data[:message_id].to_s)
   end
 
   def visible_message?
@@ -129,20 +172,31 @@ class Tiktok::Shop::IncomingMessageService
     )
   end
 
-  def create_message
+  def create_message(message_type: :incoming, echo: false)
     @message = @conversation.messages.build(
       content: parsed_content,
       account_id: channel.inbox.account_id,
       inbox_id: channel.inbox.id,
-      message_type: :incoming,
-      sender: @contact,
+      message_type: message_type,
       source_id: data[:message_id].to_s,
       content_attributes: {
         tiktok_shop_type: msg_type,
         tiktok_shop_index: data[:index],
-        tiktok_shop_payload: content_hash
-      }
+        tiktok_shop_payload: content_hash,
+        external_echo: (true if echo)
+      }.compact
     )
+    # For an echo the shop is the sender, so we leave sender unset (an outgoing
+    # message with no user sender) and mark it delivered — TikTok already
+    # delivered it to the buyer.
+    @message.sender = @contact unless echo
+    @message.status = :delivered if echo
+  end
+
+  def persist_message
+    attach_image if image_message?
+    attach_video if video_message?
+    @message.save!
   end
 
   def parsed_content
