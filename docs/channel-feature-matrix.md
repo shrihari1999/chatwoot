@@ -15,7 +15,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Sent/accepted status (platform ack) | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 | Delivered receipt on our outbound msgs | ◀ in | ⚠️/❌ | ✅/✅ | ❌/❌ | ❌/⚠️ | ❌/❌ | ❌/❌ |
 | Read / seen receipt | ◀ in | ❌/❌ | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ✅/✅ |
-| Read / seen receipt | ▶ out | ✅/✅ | ✅/✅ | ✅/❌ | ✅/✅ | ✅/✅ | ✅/⚠️ |
+| Read / seen receipt | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/⚠️ |
 | Failed status + error reason | ◀ in | ✅/✅ | ⚠️/⚠️ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ |
 | Retry / resend a failed send | ▶ out | ✅/✅ | ✅/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ |
 | Outbound echo (agent msg sent from platform app) | ◀ in | ❌/❌ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
@@ -167,7 +167,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 
 ### Highlights
 - Systemic 'fork-ahead-of-platform' on reliability rows: failed_status[in] and retry_resend[out] are F=yes while P=partial on IG/TikTok DM/TikTok Shop (and Lazada retry is F=yes vs P=no). The fork synthesizes status from local API acks/errors, not a real platform signal - every such cell is local synthesis, not platform-backed.
-- Meta parity is uneven across FB vs IG despite one shared Graph/Messenger API: read_receipt[out] FB F=yes vs IG F=no; comment_to_dm[in] FB F=no vs IG F=yes; handover_protocol[in] FB F=no vs IG F=partial. Fork richness diverges between the two Meta channels with no platform reason.
+- Meta parity is uneven across FB vs IG despite one shared Graph/Messenger API: comment_to_dm[in] FB F=no vs IG F=yes; handover_protocol[in] FB F=no vs IG F=partial. Fork richness diverges between the two Meta channels with no platform reason. (read_receipt[out] was FB-only; closed for IG in PR #135.)
 - Structured/interactive outbound is the biggest systematic fork lag: buttons, carousel, list_menu, persistent_menu, forms_flows are broadly P=yes/partial but F=no everywhere; LINE only fakes quick_replies/buttons via Flex; no channel implements native templated UI.
 - multi_attachment[out] shows F=yes on FB/IG/TikTok Shop/Lazada but always via client-side fan-out (separate messages), and Lazada silently drops non-image attachments - 'yes' overstates a degraded behavior.
 - Send-window/tagging governance is unimplemented fork-wide: messaging_window[out], message_tags[out], template_proactive[out] are P=yes/partial on FB/IG/TikTok/Lazada but F=no/partial across the board - a latent deliverability/24h-window risk.
@@ -176,7 +176,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 ### Per-platform summary
 - **LINE** — Solid text/media/receipts/typing; interactive (buttons/carousel/quick-replies) faked via Flex or absent; sticker/location/mentions/groups out unhandled; dubious handover P=partial. (The dead inbound `ReadStatusService` was removed in PR #130.)
 - **Facebook Messenger** — Most complete parity channel (receipts, reactions, edit, echo verified in code); fork lags on all templated/interactive UI, messaging window, handover, comment-to-DM; unsend[in] P=no looks understated vs IG.
-- **Instagram** — Rich DM set incl. story/comment-to-DM/reactions/edit; several F>P overstatements (file_document, message_tags, caption[in], multi_attachment P); read_receipt[out] and handover lag FB despite shared API.
+- **Instagram** — Rich DM set incl. story/comment-to-DM/reactions/edit + outbound read/seen receipt (mark_seen, PR #135); several F>P overstatements (file_document, message_tags, caption[in], multi_attachment P); handover still lags FB despite shared API.
 - **TikTok DM (Business Messaging)** — Text/reactions/typing/receipts wired; status rows synthesized locally (F>P); display_name not actually ingested despite F=yes; no video/sticker inbound, no interactive UI.
 - **TikTok Shop** — Text/image/video + partial product catalog + outbound echo (SHOP/CS/ROBOT sends mirrored, PR #132); local status synthesis (F>P); no typing; interactive/templates/window/tags all unimplemented.
 - **Lazada IM** — Text/image/unsend(recall)/read + outbound echo (seller-app sends mirrored, PR #133) wired; heavy fan-out for multi-attachment (image-only); status synthesized with retry P=no/F=yes contradiction; display name discarded; video/product/interactive gaps.
@@ -383,7 +383,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Sent/accepted status (platform ack) | ▶ out | ✅ yes | Send API 200 returns recipient_id + message_id (platform ack) | ✅ yes | base_send_service.rb:66-70 process_response stores parsed message_id into message.source_id |
 | Delivered receipt on our outbound msgs | ◀ in | ❌ no | No message_deliveries event; IG has no delivered receipt (not in webhook examples) | ❌ no | channel/instagram.rb:51 subscribed_fields=[messages,message_reactions,messaging_seen,message_edit,comments]; SUPPORTED_EVENTS job:14 has no delivery key |
 | Read / seen receipt | ◀ in | ✅ yes | messaging_seen webhook with read.mid (per-message) | ✅ yes | instagram_events_job.rb:161-163 read->ReadStatusService; read_status_service.rb:7 UpdateMessageStatusJob; subscribed messaging_seen |
-| Read / seen receipt | ▶ out | ✅ yes | sender_action=mark_seen documented on IG-Login sender-actions page | ❌ no | conversations_controller.rb:120-132 update_last_seen has branches only for Line/Lazada/Tiktok/Facebook; no Instagram mark_seen/MarkAsRead service exists |
+| Read / seen receipt | ▶ out | ✅ yes | sender_action=mark_seen documented on IG-Login sender-actions page | ✅ yes | conversations_controller.rb update_last_seen enqueues Instagram::MarkAsReadJob for Channel::Instagram -> Instagram::MarkAsReadService POSTs graph.instagram.com sender_action=mark_seen with the IG access_token (PR #135). Mirrors Instagram::TypingStatusService; Channel::FacebookPage-backed IG DMs are excluded (graph.instagram.com rejects page tokens), same boundary as typing + Facebook::MarkAsReadService |
 | Failed status + error reason | ◀ in | ⚠️ partial | Synchronous Send API error (code/subcode/message); no async delivery-failure webhook | ✅ yes | base_send_service.rb:66-76 process_response on error->Messages::StatusUpdateService('failed', external_error) with code-message reason |
 | Retry / resend a failed send | ▶ out | ⚠️ partial | No retry/idempotency primitive; resend = re-POST /messages | ✅ yes | messages_controller.rb:28-37 retry: StatusUpdateService 'sent' + clear content_attributes + SendReplyJob (generic, routes to IG send) |
 | Outbound echo (agent msg sent from platform app) | ◀ in | ✅ yes | messages webhook is_echo:true for app-user/agent-sent msgs | ✅ yes | base_message_text.rb:37-39 agent_message_via_echo?; base_message_builder.rb:27-29 outgoing type, :161 status delivered, :170 external_echo |

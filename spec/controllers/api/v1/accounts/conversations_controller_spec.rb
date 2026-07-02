@@ -988,6 +988,45 @@ RSpec.describe 'Conversations API', type: :request do
         expect(response).to have_http_status(:success)
       end
     end
+
+    context 'when the conversation belongs to an Instagram inbox' do
+      let(:instagram_channel) { create(:channel_instagram, account: account) }
+      let(:instagram_inbox) { instagram_channel.inbox }
+      let(:contact) { create(:contact, account: account) }
+      let(:contact_inbox) { create(:contact_inbox, inbox: instagram_inbox, contact: contact) }
+      let(:ig_conversation) do
+        create(:conversation, inbox: instagram_inbox, contact: contact,
+                              contact_inbox: contact_inbox, account: account)
+      end
+      let(:agent) { create(:user, account: account, role: :agent) }
+
+      before do
+        create(:inbox_member, user: agent, inbox: instagram_inbox)
+      end
+
+      it 'enqueues Instagram::MarkAsReadJob' do
+        expect(Instagram::MarkAsReadJob).to receive(:perform_later).with(ig_conversation)
+
+        post "/api/v1/accounts/#{account.id}/conversations/#{ig_conversation.display_id}/update_last_seen",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+      end
+
+      it 'does NOT enqueue Instagram::MarkAsReadJob for a non-Instagram conversation' do
+        other_conversation = create(:conversation, account: account)
+        create(:inbox_member, user: agent, inbox: other_conversation.inbox)
+
+        expect(Instagram::MarkAsReadJob).not_to receive(:perform_later)
+
+        post "/api/v1/accounts/#{account.id}/conversations/#{other_conversation.display_id}/update_last_seen",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+      end
+    end
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/:id/unread' do
