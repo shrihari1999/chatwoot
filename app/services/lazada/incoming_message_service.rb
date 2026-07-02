@@ -14,8 +14,16 @@ class Lazada::IncomingMessageService
       return
     end
 
-    return if seller_message?(data)
+    if seller_message?(data)
+      ingest_echo(data)
+    else
+      ingest_incoming(data)
+    end
+  end
 
+  private
+
+  def ingest_incoming(data)
     set_contact(data)
     set_conversation(data)
     create_message(data)
@@ -23,10 +31,40 @@ class Lazada::IncomingMessageService
     @message.save!
   end
 
-  private
+  # A seller-side echo (sent from the Lazada seller app): the sender is the
+  # seller, not the buyer, so we can't build a contact from it — attach it to the
+  # buyer's existing conversation (keyed by lazada_session_id). Skip if the buyer
+  # has never messaged. Our own Chatwoot sends echo back too, so dedup on
+  # source_id (the send path stores Lazada's message_id there).
+  def ingest_echo(data)
+    @conversation = echo_conversation(data)
+    return if @conversation.blank?
+    return if echo_duplicate?(data)
+
+    create_message(data, message_type: :outgoing, echo: true)
+    attach_image(data) if image_message?(data)
+    @message.save!
+  end
 
   def seller_message?(data)
     data[:from_account_type].to_i == 2
+  end
+
+  # A resolved-then-reopened buyer thread can leave several Chatwoot conversations
+  # sharing one lazada_session_id, so take the most recent — the same one the
+  # buyer's live messages land in (see set_conversation).
+  def echo_conversation(data)
+    session_id = data[:session_id].to_s
+    return if session_id.blank?
+
+    ::Conversation.where(inbox_id: inbox.id)
+                  .where("additional_attributes->>'lazada_session_id' = ?", session_id)
+                  .order(created_at: :desc)
+                  .first
+  end
+
+  def echo_duplicate?(data)
+    @conversation.messages.exists?(source_id: data[:message_id].to_s)
   end
 
   def recalled_message?(data)
@@ -93,18 +131,23 @@ class Lazada::IncomingMessageService
     )
   end
 
-  def create_message(data)
-    content = parse_content(data)
-
+  def create_message(data, message_type: :incoming, echo: false)
     @message = @conversation.messages.build(
-      content: content,
+      content: parse_content(data),
       account_id: inbox.account_id,
       inbox_id: inbox.id,
-      message_type: :incoming,
-      sender: @contact,
+      message_type: message_type,
       source_id: data[:message_id].to_s,
-      content_attributes: { lazada_template_id: data[:template_id] }
+      content_attributes: {
+        lazada_template_id: data[:template_id],
+        external_echo: (true if echo)
+      }.compact
     )
+    # For an echo the seller is the sender, so we leave sender unset (an outgoing
+    # message with no user sender) and mark it delivered — Lazada already
+    # delivered it to the buyer.
+    @message.sender = @contact unless echo
+    @message.status = :delivered if echo
   end
 
   def parse_content(data)

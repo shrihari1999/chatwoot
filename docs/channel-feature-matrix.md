@@ -18,7 +18,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Read / seen receipt | ▶ out | ✅/✅ | ✅/✅ | ✅/❌ | ✅/✅ | ✅/✅ | ✅/⚠️ |
 | Failed status + error reason | ◀ in | ✅/✅ | ⚠️/⚠️ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ |
 | Retry / resend a failed send | ▶ out | ✅/✅ | ✅/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ | ⚠️/✅ |
-| Outbound echo (agent msg sent from platform app) | ◀ in | ❌/❌ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/❌ |
+| Outbound echo (agent msg sent from platform app) | ◀ in | ❌/❌ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 
 ## Operations
 
@@ -179,7 +179,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - **Instagram** — Rich DM set incl. story/comment-to-DM/reactions/edit; several F>P overstatements (file_document, message_tags, caption[in], multi_attachment P); read_receipt[out] and handover lag FB despite shared API.
 - **TikTok DM (Business Messaging)** — Text/reactions/typing/receipts wired; status rows synthesized locally (F>P); display_name not actually ingested despite F=yes; no video/sticker inbound, no interactive UI.
 - **TikTok Shop** — Text/image/video + partial product catalog + outbound echo (SHOP/CS/ROBOT sends mirrored, PR #132); local status synthesis (F>P); no typing; interactive/templates/window/tags all unimplemented.
-- **Lazada IM** — Text/image/unsend(recall)/read wired; heavy fan-out for multi-attachment (image-only); status synthesized with retry P=no/F=yes contradiction; display name discarded; video/product/interactive gaps.
+- **Lazada IM** — Text/image/unsend(recall)/read + outbound echo (seller-app sends mirrored, PR #133) wired; heavy fan-out for multi-attachment (image-only); status synthesized with retry P=no/F=yes contradiction; display name discarded; video/product/interactive gaps.
 
 ### Inconsistencies noted
 - TikTok DM display_name[in] P=yes F=yes contradicts its own annotation and the code: Tiktok::ContactProfileJob comments 'contact name is intentionally left as-is' and only backfills avatar; platform display_name/nickname is never ingested (name = username). Should be F=partial/no.
@@ -632,7 +632,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Read / seen receipt | ▶ out | ✅ yes | /im/session/read (3.3) + best practices (Sec 7): synchronizes seller's read status to the buyer | ⚠️ partial | conversations_controller.rb:127 Lazada::MarkAsReadJob -> mark_as_read_service.rb:13 channel.read_session (/im/session/read) |
 | Failed status + error reason | ◀ in | ⚠️ partial | send response error_code/error_msg is synchronous only; inbound process_msg field flags security-intercepted 'not sent' (seller-only visible); no async failed-delivery webhook | ✅ yes | send_on_lazada_service.rb:62-66 API error -> Messages::StatusUpdateService(message,'failed',error_msg); status_update_service sets external_error on failed |
 | Retry / resend a failed send | ▶ out | ⚠️ partial | no dedicated retry/resend or idempotent API; a resend is just a fresh /im/message/send with a new message_id; LPM 12x/30min retry is inbound webhook-delivery only (Open Platform.pdf) | ✅ yes | messages_controller.rb:28-37 retry resets status to 'sent', clears content_attributes, SendReplyJob.perform_later; send_reply_job.rb:7 maps Channel::Lazada -> Lazada::SendOnLazadaService |
-| Outbound echo (agent msg sent from platform app) | ◀ in | ✅ yes | Message push + /im/message/list include from_account_type=2 (seller) messages; seller recalls also pushed (Sec: Message recall) | ❌ no | incoming_message_service.rb:17,28-30 'return if seller_message?' (from_account_type==2) drops platform-app seller/agent echoes (only recalls handled before the return) |
+| Outbound echo (agent msg sent from platform app) | ◀ in | ✅ yes | Message push + /im/message/list include from_account_type=2 (seller) messages; seller recalls also pushed (Sec: Message recall) | ✅ yes | seller messages (from_account_type==2) ingested as outgoing echoes (external_echo, status delivered) attached to the existing conversation by lazada_session_id; deduped by source_id so our own API sends don't double-post; source_id set so Base::SendOnChannelService won't re-send (incoming_message_service.rb ingest_echo). Recall of an echoed message is out of scope (IncomingRecallService only marks incoming? deleted, avoiding the outbound-recall callback loop) |
 | Quote / reply-to a specific message | ◀ in | ❌ no | message schema (2.1/4.1) has no reply-to/quoted-message field | ❌ no | incoming_message_service parses no quoted/reply reference; no code path |
 | Quote / reply-to a specific message | ▶ out | ❌ no | /im/message/send (2.2) has no reply-to/quote param | ❌ no | send_on_lazada_service.send_text sends only txt; no reply reference propagated |
 | Edit an already-sent message | ◀ in | ❌ no | no edit event in push/list; only recall (status=1) | ❌ no | lazada_events_job handles only im_message/session_update; parse_content has no edit path |
