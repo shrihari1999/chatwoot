@@ -167,6 +167,8 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
       end
     when 'Channel::Instagram'
       Instagram::TypingStatusJob.perform_later(@conversation, params[:typing_status])
+    when 'Channel::Line'
+      Line::TypingStatusJob.perform_later(@conversation, params[:typing_status])
     end
   end
 
