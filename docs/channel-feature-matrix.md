@@ -129,7 +129,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 |---|---|---|---|
 | Sent/accepted status (platform ack) | ▶ out | LINE | Impl treats the HTTP-200 send ack as 'delivered' status (a platform accept/sent ack, not a true delivery receipt). |
 | Delivered receipt on our outbound msgs | ◀ in | TikTok DM | Kept partial: the 'delivered' state is a self-mark off the send ack, not a real platform delivered receipt (platform support is no). |
-| Read / seen receipt | ◀ in | LINE | Changed draft support partial->no and impl yes->no: verified against live docs that LINE emits no read event; the ReadStatusService handler is dead code. |
+| Read / seen receipt | ◀ in | LINE | Support partial->no and impl yes->no: LINE emits no read event (confirmed against live docs). The dead `ReadStatusService` + read-event routing were subsequently removed in PR #130. |
 | Read / seen receipt | ▶ out | LINE | Corrected support evidence: only /v2/bot/chat/markAsRead(token) exists; the draft's /v2/bot/message/markAsRead(userId) endpoint is not in the docs. |
 | Read / seen receipt | ▶ out | Lazada | Doc marks last_read_message_id required=true but channel.read_session (lazada.rb:52-54) sends only session_id; read-sync may be a no-op if Lazada enforces the param [post-verify] read_session sends only session_id; doc marks last_read_message_id required, so read-sync may be a no-op. |
 | Retry / resend a failed send | ▶ out | LINE | Impl re-pushes without an X-Line-Retry-Key, so retrying a send that only appeared to fail could duplicate the message. |
@@ -174,7 +174,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - First-class inbound/outbound media types are silently unhandled: LINE sticker/location/mentions (P=yes F=no), TikTok DM video+sticker in (P=yes F=no), Lazada video in/out (P=yes F=no) - real platform message types the fork can neither emit nor fully ingest.
 
 ### Per-platform summary
-- **LINE** — Solid text/media/receipts/typing; interactive (buttons/carousel/quick-replies) faked via Flex or absent; sticker/location/mentions/groups out unhandled; dubious handover P=partial and a live-but-dead ReadStatusService.
+- **LINE** — Solid text/media/receipts/typing; interactive (buttons/carousel/quick-replies) faked via Flex or absent; sticker/location/mentions/groups out unhandled; dubious handover P=partial. (The dead inbound `ReadStatusService` was removed in PR #130.)
 - **Facebook Messenger** — Most complete parity channel (receipts, reactions, edit, echo verified in code); fork lags on all templated/interactive UI, messaging window, handover, comment-to-DM; unsend[in] P=no looks understated vs IG.
 - **Instagram** — Rich DM set incl. story/comment-to-DM/reactions/edit; several F>P overstatements (file_document, message_tags, caption[in], multi_attachment P); read_receipt[out] and handover lag FB despite shared API.
 - **TikTok DM (Business Messaging)** — Text/reactions/typing/receipts wired; status rows synthesized locally (F>P); display_name not actually ingested despite F=yes; no video/sticker inbound, no interactive UI.
@@ -192,7 +192,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - LINE rich_formatting[out] F=no while a LineRenderer artifact exists (emits literal markdown) - either F=partial (artifact present) or the P=partial is itself dubious since LINE plain text has no markdown.
 - IG file_document in/out P=partial F=yes - fork has only a generic 'file' passthrough (base_send_service maps unknown types to 'file'); claiming full F over a partial platform for a type IG DM barely supports is implausible.
 - TikTok Shop outbound_echo[in] P=yes F=no vs TikTok DM outbound_echo[in] P=yes F=yes - same vendor family; echo handled for DM but not Shop, a coverage inconsistency.
-- LINE read_receipt[in] set to no/no, but Line::ReadStatusService is live and wired (mirrors IG/TikTok) - the code is dead only if LINE truly emits no read event; the live handler contradicts the 'no' unless verified.
+- LINE read_receipt[in] no/no — RESOLVED: confirmed LINE emits no read event, so `Line::ReadStatusService` was dead code; the service + read-event routing were removed in PR #130.
 
 ### Cells flagged as still uncertain
 - TikTok DM display_name[in] F=yes - ContactProfileJob leaves name as-is and never ingests platform display_name; should be no/partial.
@@ -206,7 +206,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - Facebook Messenger unsend[in] P=no - Messenger emits message-deletion/unsend events (IG on same platform family is P=yes); likely understated.
 - LINE handover_protocol[in]/[out] P=partial - LINE Messaging API has no app-to-app handover protocol like Meta's; likely should be no.
 - TikTok Shop outbound_echo[in] F=no - coverage gap vs TikTok DM F=yes; verify Shop genuinely cannot echo.
-- LINE read_receipt[in] no/no - Line::ReadStatusService is live/wired; confirm LINE truly emits no read event or the cell/P is wrong.
+- LINE read_receipt[in] no/no - RESOLVED: confirmed LINE emits no read event; dead `ReadStatusService` removed in PR #130.
 
 ## Appendix — full evidence per cell
 
@@ -218,11 +218,11 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Text message | ▶ out | ✅ yes | TextMessage / TextMessage (v2) sendable via /v2/bot/message/reply\|push (sending-messages). | ✅ yes | send_on_line_service.rb:99-101 text_message {type:'text',text:outgoing_content} pushed via push_message (line 9). |
 | Sent/accepted status (platform ack) | ▶ out | ✅ yes | reply/push return sentMessages[{id,quoteToken}] + x-line-request-id header on HTTP 200 ack (send-push-message-response). | ✅ yes | send_on_line_service.rb:15-23 HTTP 200 -> Messages::StatusUpdateService(message,'delivered'); persists sentMessages id/quoteToken. |
 | Delivered receipt on our outbound msgs | ◀ in | ⚠️ partial | No delivered webhook for standard bots; only PnP delivery-completion event for LINE Notification Messages (partner) + aggregate insight counts. | ❌ no | send_on_line_service.rb:23 'delivered' is set from the push-API 200, not from any inbound receipt; no delivery webhook handled in parse_events. |
-| Read / seen receipt | ◀ in | ❌ no | mark-as-read doc explicitly states no webhook notifies the bot when a user reads its messages; reference event list has no 'read' event. Only aggregate broadcast insight open-counts exist (not per-conversation receipts). | ❌ no | incoming_message_service.rb:20-21,77-79 + read_status_service.rb handle event['type']=='read', but LINE never emits a 'read' webhook event, so this path is dead code that never fires. |
+| Read / seen receipt | ◀ in | ❌ no | mark-as-read doc explicitly states no webhook notifies the bot when a user reads its messages; reference event list has no 'read' event. Only aggregate broadcast insight open-counts exist (not per-conversation receipts). | ❌ no | LINE emits no 'read' webhook event; the former `Line::ReadStatusService` + read-event routing were dead code, removed in PR #130. No inbound read path exists. |
 | Read / seen receipt | ▶ out | ✅ yes | POST /v2/bot/chat/markAsRead with markAsReadToken (carried in the message event); requires Chat turned on; token has no expiry (mark-as-read doc). | ✅ yes | conversations_controller.rb:126 update_last_seen enqueues Line::MarkAsReadJob -> MarkAsReadService POSTs /bot/chat/markAsRead with markAsReadToken captured at incoming_message_service.rb:72. |
 | Failed status + error reason | ◀ in | ✅ yes | Send API returns synchronous HTTP 4xx/5xx ErrorResponse{message,details[]}; no async failure webhook. | ✅ yes | send_on_line_service.rb:24-26,153-163 non-200 -> StatusUpdateService 'failed' with external_error(message + details). |
 | Retry / resend a failed send | ▶ out | ✅ yes | Resend allowed; X-Line-Retry-Key (UUID) gives idempotency on push/multicast/narrowcast/broadcast, 409 on dup, valid 24h (retrying-api-request doc). | ✅ yes | messages_controller.rb:28-34 retry -> SendReplyJob -> Line::SendOnLineService (send_reply_job.rb:8). |
-| Outbound echo (agent msg sent from platform app) | ◀ in | ❌ no | No echo/send webhook event; messages sent by operators via LINE OA Manager are not delivered to the bot webhook. | ❌ no | parse_events handles only read/unsend/message events (incoming_message_service.rb:18-43); no echo path. |
+| Outbound echo (agent msg sent from platform app) | ◀ in | ❌ no | No echo/send webhook event; messages sent by operators via LINE OA Manager are not delivered to the bot webhook. | ❌ no | parse_events handles only unsend/message events (incoming_message_service.rb); no echo path. |
 | Quote / reply-to a specific message | ◀ in | ✅ yes | Message event carries quotedMessageId + quoteToken when a user quotes a message (receiving-messages). | ✅ yes | incoming_message_service.rb:60-68 quotedMessageId -> in_reply_to_external_id (resolved by Message before_save); quote_token stored at line 73. |
 | Quote / reply-to a specific message | ▶ out | ✅ yes | quoteToken usable to reply-quote on reply/push for Text, Text(v2) and Sticker messages (sending-messages). | ✅ yes | send_on_line_service.rb:100,107-112 quoteToken pulled from the quoted message's stored additional_attributes and attached to the outgoing text. |
 | Edit an already-sent message | ◀ in | ❌ no | No edit/message-edit webhook event in the reference. | ❌ no | No edit event handled in parse_events (incoming_message_service.rb:18-43). |
@@ -259,7 +259,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Caption on media | ▶ out | ❌ no | No caption field on ImageMessage/VideoMessage; text must be a separate object. | ❌ no | Media payloads carry no text field; text sent as a separate bubble (send_on_line_service.rb:59-66,83). |
 | Unsupported-type fallback handling | ◀ in | ❌ no | No 'unsupported' content type in the webhook reference. | ❌ no | Unknown types -> nil content, no is_unsupported/fallback flag (incoming_message_service.rb:95-104). |
 | Quick replies / suggested responses | ▶ out | ✅ yes | quickReply (up to 13 items) attachable to any message (using-quick-reply). | ⚠️ partial | send_on_line_service.rb:51,115-149 input_select content rendered as a Flex bubble of tappable buttons that send back the option value. |
-| Buttons (URL/postback/call) send + click | ◀ in | ✅ yes | PostbackEvent on postback action taps; message-action taps arrive as message events (reference). | ❌ no | No postback event handled in parse_events (incoming_message_service.rb:18-43 handles only read/unsend/message). |
+| Buttons (URL/postback/call) send + click | ◀ in | ✅ yes | PostbackEvent on postback action taps; message-action taps arrive as message events (reference). | ❌ no | No postback event handled in parse_events (incoming_message_service.rb handles only unsend/message). |
 | Buttons (URL/postback/call) send + click | ▶ out | ✅ yes | Buttons template / Flex with postback, uri (incl. tel:) and message actions (sending-messages, actions). | ⚠️ partial | send_on_line_service.rb:137-149 Flex buttons use action type 'message' only; no uri/postback/tel actions. |
 | List / menu message | ▶ out | ⚠️ partial | No dedicated list message type; approximated via Flex Message or carousel template. | ❌ no | Only a single Flex bubble for input_select (send_on_line_service.rb:115-135); no list/menu construct. |
 | Carousel / generic template cards | ▶ out | ✅ yes | Carousel template, image carousel template, and Flex carousel supported (sending-messages). | ❌ no | No carousel/template payload in send_on_line_service. |
