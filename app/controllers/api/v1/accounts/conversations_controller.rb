@@ -127,6 +127,7 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
     Lazada::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::Lazada'
     Tiktok::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::Tiktok'
     Tiktok::Shop::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::TiktokShop'
+    Instagram::MarkAsReadJob.perform_later(@conversation) if @conversation.inbox.channel_type == 'Channel::Instagram'
     if @conversation.inbox.channel_type == 'Channel::FacebookPage' &&
        @conversation.additional_attributes['type'] != 'instagram_direct_message'
       Facebook::MarkAsReadJob.perform_later(@conversation)
