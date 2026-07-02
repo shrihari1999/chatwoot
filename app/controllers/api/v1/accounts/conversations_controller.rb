@@ -109,7 +109,11 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
   def toggle_typing_status
     typing_status_manager = ::Conversations::TypingStatusManager.new(@conversation, Current.user, params)
     typing_status_manager.toggle_typing_status
-    relay_typing_status_to_channel
+    ::Conversations::ChannelTypingRelay.new(
+      conversation: @conversation,
+      typing_status: params[:typing_status],
+      is_private: params[:is_private]
+    ).perform
     head :ok
   end
 
@@ -154,25 +158,6 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
   end
 
   private
-
-  # Relay the agent's typing on/off to the customer on channels that support an
-  # outbound typing indicator. Private notes must never leak a typing signal.
-  def relay_typing_status_to_channel
-    return if ActiveModel::Type::Boolean.new.cast(params[:is_private])
-
-    case @conversation.inbox.channel_type
-    when 'Channel::FacebookPage'
-      if @conversation.additional_attributes['type'] != 'instagram_direct_message'
-        Facebook::TypingStatusJob.perform_later(@conversation, params[:typing_status])
-      end
-    when 'Channel::Instagram'
-      Instagram::TypingStatusJob.perform_later(@conversation, params[:typing_status])
-    when 'Channel::Line'
-      Line::TypingStatusJob.perform_later(@conversation, params[:typing_status])
-    when 'Channel::Tiktok'
-      Tiktok::TypingStatusJob.perform_later(@conversation, params[:typing_status])
-    end
-  end
 
   def permitted_update_params
     # TODO: Move the other conversation attributes to this method and remove specific endpoints for each attribute
