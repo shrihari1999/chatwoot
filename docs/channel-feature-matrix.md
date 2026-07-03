@@ -43,7 +43,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 |---|---|---|---|---|---|---|---|
 | Image | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 | Image | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
-| Video | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ✅/❌ | ✅/✅ | ✅/❌ |
+| Video | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 | Video | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ✅/✅ | ✅/❌ |
 | Audio / voice note | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ❌/❌ | ❌/❌ |
 | Audio / voice note | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ❌/❌ | ❌/❌ |
@@ -171,15 +171,15 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - Structured/interactive outbound is the biggest systematic fork lag: buttons, carousel, list_menu, persistent_menu, forms_flows are broadly P=yes/partial but F=no everywhere; LINE only fakes quick_replies/buttons via Flex; no channel implements native templated UI.
 - multi_attachment[out] shows F=yes on FB/IG/TikTok Shop/Lazada but always via client-side fan-out (separate messages), and Lazada silently drops non-image attachments - 'yes' overstates a degraded behavior.
 - Send-window/tagging governance is unimplemented fork-wide: messaging_window[out], message_tags[out], template_proactive[out] are P=yes/partial on FB/IG/TikTok/Lazada but F=no/partial across the board - a latent deliverability/24h-window risk.
-- First-class inbound/outbound media types are silently unhandled: LINE sticker/location/mentions (P=yes F=no), TikTok DM video+sticker in (P=yes F=no), Lazada video in/out (P=yes F=no) - real platform message types the fork can neither emit nor fully ingest.
+- First-class inbound/outbound media types are silently unhandled: LINE sticker/location/mentions (P=yes F=no), TikTok DM sticker in (P=yes F=no), Lazada video out (P=yes F=no) - real platform message types the fork can neither emit nor fully ingest. (Video *in* for TikTok DM + Lazada was closed in PR #137.)
 
 ### Per-platform summary
 - **LINE** — Solid text/media/receipts/typing; interactive (buttons/carousel/quick-replies) faked via Flex or absent; sticker/location/mentions/groups out unhandled; dubious handover P=partial. (The dead inbound `ReadStatusService` was removed in PR #130.)
 - **Facebook Messenger** — Most complete parity channel (receipts, reactions, edit, echo verified in code); fork lags on all templated/interactive UI, messaging window, handover, comment-to-DM; unsend[in] P=no looks understated vs IG.
 - **Instagram** — Rich DM set incl. story/comment-to-DM/reactions/edit + outbound read/seen receipt (mark_seen, PR #135); several F>P overstatements (file_document, message_tags, caption[in], multi_attachment P); handover still lags FB despite shared API.
-- **TikTok DM (Business Messaging)** — Text/reactions/typing/receipts wired; status rows synthesized locally (F>P); display_name not actually ingested despite F=yes; no video/sticker inbound, no interactive UI.
+- **TikTok DM (Business Messaging)** — Text/reactions/typing/receipts + inbound video (PR #137) wired; status rows synthesized locally (F>P); display_name not actually ingested despite F=yes; no sticker inbound, no interactive UI.
 - **TikTok Shop** — Text/image/video + partial product catalog + outbound echo (SHOP/CS/ROBOT sends mirrored, PR #132); local status synthesis (F>P); no typing; interactive/templates/window/tags all unimplemented.
-- **Lazada IM** — Text/image/unsend(recall)/read + outbound echo (seller-app sends mirrored, PR #133) wired; heavy fan-out for multi-attachment (image-only); status synthesized with retry P=no/F=yes contradiction; display name discarded; video/product/interactive gaps.
+- **Lazada IM** — Text/image/video-in/unsend(recall)/read + outbound echo (seller-app sends mirrored, PR #133) wired; heavy fan-out for multi-attachment (image-only); status synthesized with retry P=no/F=yes contradiction; display name discarded; video-out/product/interactive gaps.
 
 ### Inconsistencies noted
 - TikTok DM display_name[in] P=yes F=yes contradicts its own annotation and the code: Tiktok::ContactProfileJob comments 'contact name is intentionally left as-is' and only backfills avatar; platform display_name/nickname is never ingested (name = username). Should be F=partial/no.
@@ -483,7 +483,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Forward a message | ▶ out | ❌ no | No forward parameter on send/. | ❌ no | No forward path in SendOnTiktokService/client. |
 | Image | ◀ in | ✅ yes | Webhook doc type=image, image.media_id; media/download/ supports media_type=IMAGE. Region-gated (both parties in image-supporting markets). | ✅ yes | message_service.rb:82-96 image_message? -> fetch_attachment via client.rb:35 file_download_url -> attachment file_type image. |
 | Image | ▶ out | ✅ yes | Upload doc: media/upload/ IMAGE (JPG/PNG, 3MB) -> send/ message_type=IMAGE; capabilities/get IMAGE_SEND, region-gated. | ✅ yes | send_on_tiktok_service.rb:31-35,47 validates JPG/PNG<3MB + image_send capability; client.rb:72-76 upload_media+IMAGE send. |
-| Video | ◀ in | ✅ yes | Webhook doc type=video, video.media_id; media/download/ supports media_type=VIDEO. | ❌ no | message_service.rb:108-109 supported_message? is text/image/share_post only; video falls through to is_unsupported (message created, video not downloaded). |
+| Video | ◀ in | ✅ yes | Webhook doc type=video, video.media_id; media/download/ supports media_type=VIDEO. | ✅ yes | message_service.rb video_message? added to supported_message? + create_message_attachments; create_video_message_attachment downloads via fetch_attachment(..., 'VIDEO') (media_type threaded through file_download_url) and attaches file_type: :video (PR #137) |
 | Video | ▶ out | ❌ no | Send doc message_type has no VIDEO; media/upload only supports IMAGE. | ❌ no | send_on_tiktok_service.rb:33 'Only image attachments are supported'; client send only TEXT/IMAGE. |
 | Audio / voice note | ◀ in | ❌ no | No audio type in webhook type enum; would surface as content/list message_type=OTHER (no content). | ❌ no | message_service.rb:108-109 not in supported types -> unsupported. |
 | Audio / voice note | ▶ out | ❌ no | No audio message_type on send/. | ❌ no | send_on_tiktok_service.rb:33 only image attachments; client TEXT/IMAGE only. |
@@ -647,7 +647,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Forward a message | ▶ out | ❌ no | forward not in IM API surface | ❌ no | no forward handling in send service; no code path |
 | Image | ◀ in | ✅ yes | template_id=3 picture; content {imgUrl,osskey,width,height} (Sec 5) | ✅ yes | incoming_message_service.rb:22,132-147 template_id 3 -> attach_image Down.download(imgUrl) into storage (external_url fallback) |
 | Image | ▶ out | ✅ yes | /im/message/send template_id=3 with img_url/width/height | ✅ yes | send_on_lazada_service.rb:28-51 send_attachments template_id 3 img_url + width/height from file metadata |
-| Video | ◀ in | ✅ yes | template_id=6 video; content carries videoId + /media/video/get for play url (Sec 5) | ❌ no | parse_content has no template_id 6 case; falls to else -> content_json['txt'] (the filename); attach_image only fires for template_id 3, so no video attachment created |
+| Video | ◀ in | ✅ yes | template_id=6 video; content carries videoId + /media/video/get for play url (Sec 5) | ✅ yes | template_id 6 handled: attach_video resolves the play url via channel.get_video (/media/video/get, top-level video_url) and downloads the signed CDN bytes as file_type: :video; skips cleanly when the video isn't ready (no video_url). parse_content when 3,6 -> '' (rendered via attachment) (PR #137) |
 | Video | ▶ out | ✅ yes | /im/message/send template_id=6 video_id (uploaded via /media/video/block/create) | ❌ no | send_on_lazada_service.rb:30 'next unless attachment.file_type == image' skips video attachments |
 | Audio / voice note | ◀ in | ❌ no | no audio/voice template_id | ❌ no | only template_id 3 image attached inbound; no audio path |
 | Audio / voice note | ▶ out | ❌ no | no audio/voice template_id | ❌ no | send_on_lazada_service.rb:30 non-image attachments skipped |

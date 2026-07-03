@@ -173,4 +173,61 @@ RSpec.describe Lazada::IncomingMessageService do
       expect(attachment.external_url).to eq(img_url)
     end
   end
+
+  describe 'video attachment' do
+    let(:video_get_url) { %r{\Ahttps://api\.lazada\.co\.th/rest/media/video/get} }
+    let(:play_url) { 'https://lazvideo.local/clip.mp4?auth_key=abc123' }
+    let(:params) do
+      {
+        data: {
+          template_id: 6, from_account_type: 1, from_user_id: 'u1', message_id: 'm-vid',
+          content: { videoId: '30071484392', videoUrl: '', imgUrl: 'https://cdn.local/cover.jpg', txt: 'clip.mp4' }.to_json
+        }
+      }
+    end
+
+    def stub_video_get(body)
+      stub_request(:get, video_get_url)
+        .to_return(status: 200, body: body.to_json, headers: { 'Content-Type' => 'application/json' })
+    end
+
+    it 'resolves the play url via /media/video/get and downloads the video bytes' do
+      stub_video_get(code: '0', video_url: play_url, cover_url: 'https://cdn.local/cover.jpg', state: 'AUDIT_SUCCESS')
+      stub_request(:get, play_url).to_return(status: 200, body: 'videodata', headers: { 'Content-Type' => 'video/mp4' })
+
+      described_class.new(inbox: inbox, params: params).perform
+
+      attachment = inbox.conversations.last.messages.last.attachments.last
+      expect(attachment.file_type).to eq('video')
+      expect(attachment.file.attached?).to be(true)
+      expect(attachment.external_url).to be_nil
+    end
+
+    it 'falls back to external_url when the video download fails' do
+      stub_video_get(code: '0', video_url: play_url, state: 'AUDIT_SUCCESS')
+      stub_request(:get, play_url).to_raise(Down::Error.new('boom'))
+
+      described_class.new(inbox: inbox, params: params).perform
+
+      attachment = inbox.conversations.last.messages.last.attachments.last
+      expect(attachment.file_type).to eq('video')
+      expect(attachment.external_url).to eq(play_url)
+    end
+
+    it 'creates no attachment when the video is not ready yet (no video_url)' do
+      stub_video_get(code: '0', video_url: '', state: 'TRANSCODING')
+
+      described_class.new(inbox: inbox, params: params).perform
+
+      expect(inbox.conversations.last.messages.last.attachments).to be_empty
+    end
+
+    it 'creates no attachment when /media/video/get fails' do
+      stub_video_get(code: 'IllegalAccessToken', video_url: nil)
+
+      described_class.new(inbox: inbox, params: params).perform
+
+      expect(inbox.conversations.last.messages.last.attachments).to be_empty
+    end
+  end
 end
