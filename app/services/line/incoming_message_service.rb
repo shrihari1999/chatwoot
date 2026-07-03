@@ -33,6 +33,7 @@ class Line::IncomingMessageService
       next unless message_created? event
 
       attach_files event['message']
+      attach_location event['message']
       @message.save!
     end
   end
@@ -131,6 +132,29 @@ class Line::IncomingMessageService
         content_type: response.content_type
       }
     )
+  end
+
+  # LINE location messages carry coordinates + a title/address (no binary payload),
+  # so build a :location attachment directly from the event rather than downloading
+  # anything — mirroring how Facebook ingests a shared location.
+  # Ref: https://developers.line.biz/en/reference/messaging-api/#wh-location
+  def attach_location(message)
+    return unless message['type'] == 'location'
+
+    @message.attachments.new(
+      account_id: @message.account_id,
+      file_type: :location,
+      coordinates_lat: message['latitude'],
+      coordinates_long: message['longitude'],
+      fallback_title: message['title'].presence || message['address'],
+      external_url: location_map_url(message)
+    )
+  end
+
+  # LINE provides no map URL, so build a Google Maps link from the coordinates for
+  # the attachment's clickable fallback.
+  def location_map_url(message)
+    "https://www.google.com/maps/search/?api=1&query=#{message['latitude']},#{message['longitude']}"
   end
 
   def get_file_extension(response)

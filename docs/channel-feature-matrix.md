@@ -53,7 +53,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Sticker | ▶ out | ✅/❌ | ❌/❌ | ⚠️/❌ | ❌/❌ | ❌/❌ | ⚠️/❌ |
 | GIF / animated | ◀ in | ⚠️/❌ | ✅/⚠️ | ⚠️/⚠️ | ❌/❌ | ⚠️/❌ | ⚠️/⚠️ |
 | GIF / animated | ▶ out | ❌/❌ | ✅/⚠️ | ❌/❌ | ❌/❌ | ❌/❌ | ⚠️/⚠️ |
-| Location (static) | ◀ in | ✅/❌ | ⚠️/✅ | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ |
+| Location (static) | ◀ in | ✅/✅ | ⚠️/✅ | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ |
 | Location (static) | ▶ out | ✅/❌ | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ |
 | Live location | ◀ in | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ |
 | Contact card / vCard | ◀ in | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ | ❌/❌ |
@@ -171,10 +171,10 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - Structured/interactive outbound is the biggest systematic fork lag: buttons, carousel, list_menu, persistent_menu, forms_flows are broadly P=yes/partial but F=no everywhere; LINE only fakes quick_replies/buttons via Flex; no channel implements native templated UI.
 - multi_attachment[out] shows F=yes on FB/IG/TikTok Shop/Lazada but always via client-side fan-out (separate messages), and Lazada silently drops non-image attachments - 'yes' overstates a degraded behavior.
 - Send-window/tagging governance is unimplemented fork-wide: messaging_window[out], message_tags[out], template_proactive[out] are P=yes/partial on FB/IG/TikTok/Lazada but F=no/partial across the board - a latent deliverability/24h-window risk.
-- First-class inbound/outbound media types are silently unhandled: LINE sticker/location/mentions (P=yes F=no), TikTok DM sticker in (P=yes F=no), Lazada video out (P=yes F=no) - real platform message types the fork can neither emit nor fully ingest. (Video *in* for TikTok DM + Lazada was closed in PR #137.)
+- First-class inbound/outbound media types are silently unhandled: LINE sticker/mentions + location-out (P=yes F=no), TikTok DM sticker in (P=yes F=no), Lazada video out (P=yes F=no) - real platform message types the fork can neither emit nor fully ingest. (Video *in* for TikTok DM + Lazada was closed in PR #137; LINE location *in* in PR #138 — location *out* stays ❌ fork-wide because Chatwoot can't compose an outgoing location.)
 
 ### Per-platform summary
-- **LINE** — Solid text/media/receipts/typing; interactive (buttons/carousel/quick-replies) faked via Flex or absent; sticker/location/mentions/groups out unhandled; dubious handover P=partial. (The dead inbound `ReadStatusService` was removed in PR #130.)
+- **LINE** — Solid text/media/receipts/typing + inbound location (PR #138); interactive (buttons/carousel/quick-replies) faked via Flex or absent; sticker/mentions/groups + location-out unhandled; dubious handover P=partial. (The dead inbound `ReadStatusService` was removed in PR #130.)
 - **Facebook Messenger** — Most complete parity channel (receipts, reactions, edit, echo verified in code); fork lags on all templated/interactive UI, messaging window, handover, comment-to-DM; unsend[in] P=no looks understated vs IG.
 - **Instagram** — Rich DM set incl. story/comment-to-DM/reactions/edit + outbound read/seen receipt (mark_seen, PR #135); several F>P overstatements (file_document, message_tags, caption[in], multi_attachment P); handover still lags FB despite shared API.
 - **TikTok DM (Business Messaging)** — Text/reactions/typing/receipts + inbound video (PR #137) wired; status rows synthesized locally (F>P); display_name not actually ingested despite F=yes; no sticker inbound, no interactive UI.
@@ -247,7 +247,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Sticker | ▶ out | ✅ yes | StickerMessage{packageId,stickerId} (sending-messages). | ❌ no | No sticker payload branch in build_payload; attachments only image/video/audio (grep for sticker in send_on_line_service empty). |
 | GIF / animated | ◀ in | ⚠️ partial | No dedicated GIF/animated content type; GIFs arrive as ImageMessageContent. | ❌ no | No GIF-specific handling; message_content covers only text/sticker. |
 | GIF / animated | ▶ out | ❌ no | ImageMessage supports JPEG/PNG only; no animated/APNG send. | ❌ no | No GIF/animated payload in send_on_line_service. |
-| Location (static) | ◀ in | ✅ yes | LocationMessageContent{latitude,longitude,title,address} (reference). | ❌ no | message_content handles only text/sticker (incoming_message_service.rb:95-104) and location isn't in message_type_non_text? (157-164), so a location message yields nil content, no attachment, and its coordinates are dropped. |
+| Location (static) | ◀ in | ✅ yes | LocationMessageContent{latitude,longitude,title,address} (reference). | ✅ yes | attach_location builds a file_type: :location attachment from the event (coordinates_lat/long, fallback_title = title||address, external_url = Google Maps link); mirrors Facebook location ingest (PR #138). Outbound stays ❌ — Chatwoot has no way to compose an outgoing location (MessageBuilder only accepts file uploads). |
 | Location (static) | ▶ out | ✅ yes | LocationMessage{title,address,latitude,longitude} (sending-messages). | ❌ no | No location payload branch in build_payload/send_on_line_service. |
 | Live location | ◀ in | ❌ no | Only static LocationMessageContent; no live/continuous location type. | ❌ no | No live-location handling in incoming_message_service. |
 | Contact card / vCard | ◀ in | ❌ no | No contact/vCard content type in the webhook reference. | ❌ no | No vCard/contact handling in incoming_message_service. |
