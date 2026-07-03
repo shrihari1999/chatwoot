@@ -28,11 +28,14 @@ class ContactAPI extends ApiClient {
   }
 
   show(id) {
-    return axios.get(`${this.url}/${id}?include_contact_inboxes=false`);
+    // include_contact_inboxes=true so the contact's source_id (Facebook/
+    // Instagram PSID) is available on the contact profile.
+    return axios.get(`${this.url}/${id}?include_contact_inboxes=true`);
   }
 
   update(id, data) {
-    return axios.patch(`${this.url}/${id}?include_contact_inboxes=false`, data);
+    // Keep contact_inboxes (PSID) on the record after an edit round-trips.
+    return axios.patch(`${this.url}/${id}?include_contact_inboxes=true`, data);
   }
 
   getConversations(contactId, { inboxId } = {}) {
