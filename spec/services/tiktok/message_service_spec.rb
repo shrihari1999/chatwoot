@@ -140,6 +140,41 @@ RSpec.describe Tiktok::MessageService do
       tempfile.close!
     end
 
+    it 'creates an incoming video attachment when media is present' do
+      content = {
+        type: 'video',
+        message_id: 'tt-msg-5',
+        timestamp: 1_700_000_000_000,
+        conversation_id: 'tt-conv-1',
+        video: { media_id: 'vid-media-1' },
+        from: 'Alice',
+        from_user: { id: 'user-1' },
+        to: 'Biz',
+        to_user: { id: 'biz-123' }
+      }.deep_symbolize_keys
+
+      tempfile = Tempfile.new(['tiktok', '.mp4'])
+      tempfile.write('fake-video')
+      tempfile.rewind
+      tempfile.define_singleton_method(:original_filename) { 'tiktok.mp4' }
+      tempfile.define_singleton_method(:content_type) { 'video/mp4' }
+
+      service = described_class.new(channel: channel, content: content)
+      allow(service).to receive(:create_contact_inbox).and_return(contact_inbox)
+      allow(service).to receive(:fetch_attachment).and_return(tempfile)
+
+      service.perform
+
+      message = Message.last
+      expect(message.attachments.count).to eq(1)
+      expect(message.attachments.last.file_type).to eq('video')
+      expect(message.attachments.last.file).to be_attached
+      expect(message.content_attributes['is_unsupported']).to be_falsey
+      expect(service).to have_received(:fetch_attachment).with(channel, 'tt-conv-1', 'tt-msg-5', 'vid-media-1', 'VIDEO')
+    ensure
+      tempfile.close!
+    end
+
     context 'when the webhook carries a reaction' do
       it 'delegates to Tiktok::MessageReactionService and does not create a message' do
         content = {

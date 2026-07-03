@@ -78,8 +78,8 @@ module Tiktok::MessagingHelpers
     message
   end
 
-  def fetch_attachment(channel, tt_conversation_id, tt_message_id, tt_image_media_id)
-    file_download_url = tiktok_client(channel).file_download_url(tt_conversation_id, tt_message_id, tt_image_media_id)
+  def fetch_attachment(channel, tt_conversation_id, tt_message_id, media_id, media_type = 'IMAGE')
+    file_download_url = tiktok_client(channel).file_download_url(tt_conversation_id, tt_message_id, media_id, media_type)
     Down.download(file_download_url, headers: { 'x-user' => channel.validated_access_token })
   end
 

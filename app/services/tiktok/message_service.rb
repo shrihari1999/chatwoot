@@ -76,6 +76,7 @@ class Tiktok::MessageService
 
   def create_message_attachments(message)
     create_image_message_attachment(message) if image_message?
+    create_video_message_attachment(message) if video_message?
     create_share_post_message_attachment(message) if share_post_message?
   end
 
@@ -95,6 +96,22 @@ class Tiktok::MessageService
     )
   end
 
+  def create_video_message_attachment(message)
+    return unless video_message?
+
+    attachment_file = fetch_attachment(channel, tt_conversation_id, tt_message_id, tt_video_media_id, 'VIDEO')
+
+    message.attachments.new(
+      account_id: message.account_id,
+      file_type: :video,
+      file: {
+        io: attachment_file,
+        filename: attachment_file.original_filename,
+        content_type: attachment_file.content_type
+      }
+    )
+  end
+
   def create_share_post_message_attachment(message)
     return unless share_post_message?
 
@@ -106,7 +123,7 @@ class Tiktok::MessageService
   end
 
   def supported_message?
-    text_message? || image_message? || share_post_message?
+    text_message? || image_message? || video_message? || share_post_message?
   end
 
   def message_content_attributes
@@ -123,6 +140,10 @@ class Tiktok::MessageService
 
   def image_message?
     tt_message_type == 'image'
+  end
+
+  def video_message?
+    tt_message_type == 'video'
   end
 
   def sticker_message?
@@ -147,6 +168,12 @@ class Tiktok::MessageService
     return unless image_message?
 
     content[:image][:media_id]
+  end
+
+  def tt_video_media_id
+    return unless video_message?
+
+    content[:video][:media_id]
   end
 
   def tt_share_post_embed_url
