@@ -230,6 +230,32 @@ describe Line::IncomingMessageService do
     }.with_indifferent_access
   end
 
+  let(:location_params) do
+    {
+      'destination': '2342234234',
+      'events': [
+        {
+          'replyToken': '0f3779fba3b349968c5d07db31eab56f',
+          'type': 'message',
+          'mode': 'active',
+          'timestamp': 1_462_629_479_859,
+          'source': {
+            'type': 'user',
+            'userId': 'U4af4980629'
+          },
+          'message': {
+            'id': '325709',
+            'type': 'location',
+            'title': 'my location',
+            'address': '1-6-1 Yotsuya, Shinjuku-ku, Tokyo',
+            'latitude': 35.687574,
+            'longitude': 139.72922
+          }
+        }
+      ]
+    }.with_indifferent_access
+  end
+
   describe '#perform' do
     context 'when non-text message params' do
       it 'does not create conversations, messages and contacts' do
@@ -408,6 +434,43 @@ describe Line::IncomingMessageService do
         expect(line_channel.inbox.conversations).not_to eq(0)
         expect(Contact.all.first.name).to eq('LINE Test')
         expect(line_channel.inbox.messages.first.content).to eq('![sticker-52002738](https://stickershop.line-scdn.net/stickershop/v1/sticker/52002738/android/sticker.png)')
+      end
+    end
+
+    context 'when valid location message params' do
+      let(:line_bot) { double }
+      let(:line_user_profile) { double }
+
+      before do
+        allow(Line::Bot::Client).to receive(:new).and_return(line_bot)
+        allow(line_bot).to receive(:get_profile).with('U4af4980629').and_return(line_user_profile)
+        allow(line_user_profile).to receive(:body).and_return(
+          {
+            'displayName': 'LINE Test',
+            'userId': 'U4af4980629',
+            'pictureUrl': 'https://test.com'
+          }.to_json
+        )
+      end
+
+      it 'creates a message with a :location attachment carrying the coordinates' do
+        described_class.new(inbox: line_channel.inbox, params: location_params).perform
+
+        attachment = line_channel.inbox.messages.last.attachments.last
+        expect(attachment.file_type).to eq('location')
+        expect(attachment.coordinates_lat).to eq(35.687574)
+        expect(attachment.coordinates_long).to eq(139.72922)
+        expect(attachment.fallback_title).to eq('my location')
+        expect(attachment.external_url).to include('35.687574,139.72922')
+      end
+
+      it 'falls back to the address when the location carries no title' do
+        no_title = location_params.deep_dup
+        no_title[:events][0][:message][:title] = nil
+
+        described_class.new(inbox: line_channel.inbox, params: no_title).perform
+
+        expect(line_channel.inbox.messages.last.attachments.last.fallback_title).to eq('1-6-1 Yotsuya, Shinjuku-ku, Tokyo')
       end
     end
 
