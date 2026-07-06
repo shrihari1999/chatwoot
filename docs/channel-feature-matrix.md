@@ -44,7 +44,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Image | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 | Image | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 | Video | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ |
-| Video | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ✅/✅ | ✅/❌ |
+| Video | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ✅/✅ | ❌/❌ |
 | Audio / voice note | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ❌/❌ | ❌/❌ |
 | Audio / voice note | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ❌/❌ | ❌/❌ |
 | File / document | ◀ in | ✅/✅ | ✅/✅ | ⚠️/✅ | ❌/❌ | ❌/❌ | ❌/❌ |
@@ -648,7 +648,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Image | ◀ in | ✅ yes | template_id=3 picture; content {imgUrl,osskey,width,height} (Sec 5) | ✅ yes | incoming_message_service.rb:22,132-147 template_id 3 -> attach_image Down.download(imgUrl) into storage (external_url fallback) |
 | Image | ▶ out | ✅ yes | /im/message/send template_id=3 with img_url/width/height | ✅ yes | send_on_lazada_service.rb:28-51 send_attachments template_id 3 img_url + width/height from file metadata |
 | Video | ◀ in | ❌ no | Per the product owner, Lazada IM does NOT deliver inbound video (buyers can't send video in chat). The IM Open API PDF documents a template_id=6 "video message" + /media/video/get, but that is not delivered in practice — treat the PDF as unreliable here; do NOT re-add based on it. | ❌ no | No template_id 6 handling. (An earlier PR #137 added it from the PDF; reverted in PR #141 as the platform doesn't support inbound video.) |
-| Video | ▶ out | ✅ yes | /im/message/send template_id=6 video_id (uploaded via /media/video/block/create) | ❌ no | send_on_lazada_service.rb:30 'next unless attachment.file_type == image' skips video attachments |
+| Video | ▶ out | ❌ no | Per the product owner, Lazada IM does not support video (in or out). The IM Open API PDF documents /im/message/send template_id=6 video_id + /media/video/block/create, but — like the inbound template_id=6 (see Video ◀ in) — that is not usable in practice; treat the PDF's video sections as unreliable, do NOT implement from it. | ❌ no | send_on_lazada_service.rb only sends image attachments; no video path (and none should be added). |
 | Audio / voice note | ◀ in | ❌ no | no audio/voice template_id | ❌ no | only template_id 3 image attached inbound; no audio path |
 | Audio / voice note | ▶ out | ❌ no | no audio/voice template_id | ❌ no | send_on_lazada_service.rb:30 non-image attachments skipped |
 | File / document | ◀ in | ❌ no | no file/document template_id | ❌ no | only image attachment inbound; no file path |
