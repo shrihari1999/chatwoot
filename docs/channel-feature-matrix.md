@@ -43,7 +43,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 |---|---|---|---|---|---|---|---|
 | Image | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
 | Image | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
-| Video | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ |
+| Video | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ |
 | Video | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ✅/✅ | ✅/❌ |
 | Audio / voice note | ◀ in | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ❌/❌ | ❌/❌ |
 | Audio / voice note | ▶ out | ✅/✅ | ✅/✅ | ✅/✅ | ❌/❌ | ❌/❌ | ❌/❌ |
@@ -171,7 +171,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - Structured/interactive outbound is the biggest systematic fork lag: buttons, carousel, list_menu, persistent_menu, forms_flows are broadly P=yes/partial but F=no everywhere; LINE only fakes quick_replies/buttons via Flex; no channel implements native templated UI.
 - multi_attachment[out] shows F=yes on FB/IG/TikTok Shop/Lazada but always via client-side fan-out (separate messages), and Lazada silently drops non-image attachments - 'yes' overstates a degraded behavior.
 - Send-window/tagging governance is unimplemented fork-wide: messaging_window[out], message_tags[out], template_proactive[out] are P=yes/partial on FB/IG/TikTok/Lazada but F=no/partial across the board - a latent deliverability/24h-window risk.
-- First-class inbound/outbound media types are silently unhandled: LINE sticker/mentions + location-out (P=yes F=no), TikTok DM sticker in (P=yes F=no), Lazada video out (P=yes F=no) - real platform message types the fork can neither emit nor fully ingest. (Video *in* for TikTok DM + Lazada was closed in PR #137; LINE location *in* in PR #138 — location *out* stays ❌ fork-wide because Chatwoot can't compose an outgoing location.)
+- First-class inbound/outbound media types are silently unhandled: LINE sticker/mentions + location-out (P=yes F=no), TikTok DM sticker in (P=yes F=no) - real platform message types the fork can neither emit nor fully ingest. (Video *in* for TikTok DM was closed in PR #137; LINE location *in* in PR #138 — location *out* stays ❌ fork-wide because Chatwoot can't compose an outgoing location. Lazada video *in* was mistakenly added in #137 from an unreliable PDF and reverted in #141 — Lazada IM doesn't support inbound video.)
 
 ### Per-platform summary
 - **LINE** — Solid text/media/receipts/typing + inbound location (PR #138); interactive (buttons/carousel/quick-replies) faked via Flex or absent; sticker/mentions/groups + location-out unhandled; dubious handover P=partial. (The dead inbound `ReadStatusService` was removed in PR #130.)
@@ -179,7 +179,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 - **Instagram** — Rich DM set incl. story/comment-to-DM/reactions/edit + outbound read/seen receipt (mark_seen, PR #135); several F>P overstatements (file_document, message_tags, caption[in], multi_attachment P); handover still lags FB despite shared API.
 - **TikTok DM (Business Messaging)** — Text/reactions/typing/receipts + inbound video (PR #137) wired; status rows synthesized locally (F>P); display_name not actually ingested despite F=yes; no sticker inbound, no interactive UI.
 - **TikTok Shop** — Text/image/video + partial product catalog + outbound echo (SHOP/CS/ROBOT sends mirrored, PR #132); local status synthesis (F>P); no typing; interactive/templates/window/tags all unimplemented.
-- **Lazada IM** — Text/image/video-in/unsend(recall)/read + outbound echo (seller-app sends mirrored, PR #133) wired; heavy fan-out for multi-attachment (image-only); status synthesized with retry P=no/F=yes contradiction; display name discarded; video-out/product/interactive gaps.
+- **Lazada IM** — Text/image/unsend(recall)/read + outbound echo (seller-app sends mirrored, PR #133) wired; heavy fan-out for multi-attachment (image-only); status synthesized with retry P=no/F=yes contradiction; display name discarded; no video (in or out — the PDF's template_id=6 video is not delivered in practice, see appendix)/product/interactive gaps.
 
 ### Inconsistencies noted
 - TikTok DM display_name[in] P=yes F=yes contradicts its own annotation and the code: Tiktok::ContactProfileJob comments 'contact name is intentionally left as-is' and only backfills avatar; platform display_name/nickname is never ingested (name = username). Should be F=partial/no.
@@ -647,7 +647,7 @@ Direction: **◀ in** = inbound (customer→us, we receive) · **▶ out** = out
 | Forward a message | ▶ out | ❌ no | forward not in IM API surface | ❌ no | no forward handling in send service; no code path |
 | Image | ◀ in | ✅ yes | template_id=3 picture; content {imgUrl,osskey,width,height} (Sec 5) | ✅ yes | incoming_message_service.rb:22,132-147 template_id 3 -> attach_image Down.download(imgUrl) into storage (external_url fallback) |
 | Image | ▶ out | ✅ yes | /im/message/send template_id=3 with img_url/width/height | ✅ yes | send_on_lazada_service.rb:28-51 send_attachments template_id 3 img_url + width/height from file metadata |
-| Video | ◀ in | ✅ yes | template_id=6 video; content carries videoId + /media/video/get for play url (Sec 5) | ✅ yes | template_id 6 handled: attach_video resolves the play url via channel.get_video (/media/video/get, top-level video_url) and downloads the signed CDN bytes as file_type: :video; skips cleanly when the video isn't ready (no video_url). parse_content when 3,6 -> '' (rendered via attachment) (PR #137) |
+| Video | ◀ in | ❌ no | Per the product owner, Lazada IM does NOT deliver inbound video (buyers can't send video in chat). The IM Open API PDF documents a template_id=6 "video message" + /media/video/get, but that is not delivered in practice — treat the PDF as unreliable here; do NOT re-add based on it. | ❌ no | No template_id 6 handling. (An earlier PR #137 added it from the PDF; reverted in PR #141 as the platform doesn't support inbound video.) |
 | Video | ▶ out | ✅ yes | /im/message/send template_id=6 video_id (uploaded via /media/video/block/create) | ❌ no | send_on_lazada_service.rb:30 'next unless attachment.file_type == image' skips video attachments |
 | Audio / voice note | ◀ in | ❌ no | no audio/voice template_id | ❌ no | only template_id 3 image attached inbound; no audio path |
 | Audio / voice note | ▶ out | ❌ no | no audio/voice template_id | ❌ no | send_on_lazada_service.rb:30 non-image attachments skipped |

@@ -60,13 +60,6 @@ class Channel::Lazada < ApplicationRecord
     lazada_api_request('/im/message/recall', 'POST', { message_id: message_id })
   end
 
-  # Resolve a video message's playable URL. The IM video PUSH (template_id 6)
-  # carries only a videoId; /media/video/get returns the (signed, time-limited)
-  # video_url + cover_url. Ref: https://open.lazada.com/apps/doc/api?path=/media/video/get
-  def get_video(video_id:)
-    lazada_api_request('/media/video/get', 'GET', { videoId: video_id })
-  end
-
   private
 
   def lazada_api_request(api_path, http_method, api_params = {})

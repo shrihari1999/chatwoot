@@ -27,7 +27,7 @@ class Lazada::IncomingMessageService
     set_contact(data)
     set_conversation(data)
     create_message(data)
-    attach_media(data)
+    attach_image(data) if image_message?(data)
     @message.save!
   end
 
@@ -42,13 +42,8 @@ class Lazada::IncomingMessageService
     return if echo_duplicate?(data)
 
     create_message(data, message_type: :outgoing, echo: true)
-    attach_media(data)
-    @message.save!
-  end
-
-  def attach_media(data)
     attach_image(data) if image_message?(data)
-    attach_video(data) if video_message?(data)
+    @message.save!
   end
 
   def seller_message?(data)
@@ -78,10 +73,6 @@ class Lazada::IncomingMessageService
 
   def image_message?(data)
     data[:template_id].to_i == 3
-  end
-
-  def video_message?(data)
-    data[:template_id].to_i == 6
   end
 
   def set_contact(data)
@@ -168,7 +159,7 @@ class Lazada::IncomingMessageService
       content_json['txt']
     when 2 # system message
       content_json['txt']
-    when 3, 6 # picture / video — content is handled via attachment
+    when 3 # picture — content is handled via attachment
       ''
     when 4 # emoji
       content_json['txt']
@@ -200,31 +191,6 @@ class Lazada::IncomingMessageService
 
   def build_image_attachment(attrs)
     @message.attachments.new({ account_id: inbox.account_id, file_type: :image }.merge(attrs))
-  end
-
-  # A video PUSH (template_id 6) carries only a videoId with an empty videoUrl, so
-  # resolve the playable URL via /media/video/get, then download the (signed,
-  # time-limited) bytes into storage. Skips cleanly when the id is missing or the
-  # video isn't ready (no video_url yet); falls back to the remote URL only if the
-  # download itself fails, mirroring attach_image.
-  def attach_video(data)
-    content_json = safe_parse_json(data[:content])
-    video_id = content_json && content_json['videoId']
-    return if video_id.blank?
-
-    response = inbox.channel.get_video(video_id: video_id)
-    play_url = response.success? ? response.body['video_url'].presence : nil
-    return if play_url.blank?
-
-    file = Down.download(play_url)
-    build_video_attachment(file: { io: file, filename: file.original_filename, content_type: file.content_type })
-  rescue StandardError => e
-    Rails.logger.error("Lazada video attach failed for video_id=#{video_id}: #{e.class}: #{e.message}")
-    build_video_attachment(external_url: play_url) if play_url.present?
-  end
-
-  def build_video_attachment(attrs)
-    @message.attachments.new({ account_id: inbox.account_id, file_type: :video }.merge(attrs))
   end
 
   def safe_parse_json(str)
