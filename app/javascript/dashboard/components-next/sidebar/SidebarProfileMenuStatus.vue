@@ -114,7 +114,13 @@ function changeAvailabilityStatus(availability) {
           </DropdownBody>
         </DropdownContainer>
       </DropdownItem>
-      <DropdownItem>
+      <!--
+        RollingPinn fork: "Mark offline automatically" is enforced ON for all
+        agents, so the toggle is hidden here. All wiring below (autoOfflineToggle
+        computed, updateAutoOffline store action, ToggleSwitch) is intentionally
+        kept intact — remove the `v-if="false"` to re-enable the control.
+      -->
+      <DropdownItem v-if="false">
         <div class="flex-grow min-w-0">
           {{ $t('SIDEBAR.SET_AUTO_OFFLINE.TEXT') }}
           <Icon
