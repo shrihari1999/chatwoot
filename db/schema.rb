@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_19_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_08_060000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -112,6 +112,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_19_120000) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "agent_availability_periods", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.integer "status", default: 2, null: false
+    t.datetime "started_at", null: false
+    t.datetime "ended_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id", "started_at"], name: "idx_agent_availability_on_account_user_started"
+    t.index ["account_id", "user_id"], name: "idx_agent_availability_open_period", unique: true, where: "(ended_at IS NULL)"
   end
 
   create_table "agent_bot_inboxes", force: :cascade do |t|
