@@ -80,4 +80,36 @@ RSpec.describe AgentAvailabilitySnapshotJob do
       expect(AgentAvailabilityPeriod.open.where(user_id: user.id).count).to eq(1)
     end
   end
+
+  describe 'assign-on-agent-online trigger' do
+    let(:inbox) { create(:inbox, account: account) }
+    let!(:inbox_member) { create(:inbox_member, inbox: inbox, user: user) } # rubocop:disable RSpec/LetSetup
+
+    before { allow(AutoAssignment::AssignmentJob).to receive(:enqueue_for_inbox) }
+
+    it 'kicks assignment for the agent inboxes when they transition to online' do
+      mark_disconnected
+      run_snapshot # records offline
+      mark_present('online')
+      run_snapshot # offline -> online transition
+
+      expect(AutoAssignment::AssignmentJob).to have_received(:enqueue_for_inbox).with(inbox.id)
+    end
+
+    it 'does not kick assignment on the first-ever snapshot (no prior transition)' do
+      mark_present('online')
+      run_snapshot
+
+      expect(AutoAssignment::AssignmentJob).not_to have_received(:enqueue_for_inbox)
+    end
+
+    it 'does not kick assignment when the agent goes offline' do
+      mark_present('online')
+      run_snapshot
+      mark_disconnected
+      run_snapshot
+
+      expect(AutoAssignment::AssignmentJob).not_to have_received(:enqueue_for_inbox)
+    end
+  end
 end
