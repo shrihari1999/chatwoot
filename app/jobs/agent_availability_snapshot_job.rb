@@ -34,10 +34,6 @@ class AgentAvailabilitySnapshotJob < ApplicationJob
     # Unchanged since last snapshot — the open period already covers it.
     return if open_period&.status == status
 
-    # A known non-online period is now closing into 'online' → the agent just
-    # became available. (First-ever record isn't a transition, so it's skipped.)
-    became_available = status == 'online' && open_period.present? && !open_period.online?
-
     open_period&.update!(ended_at: now)
     AgentAvailabilityPeriod.create!(
       account_id: account_user.account_id,
@@ -46,7 +42,20 @@ class AgentAvailabilitySnapshotJob < ApplicationJob
       started_at: now
     )
 
-    trigger_assignment_for(account_user) if became_available
+    act_on_transition(account_user, open_period, status)
+  end
+
+  # `previous_period` carries the status the agent just left (nil on the first-ever
+  # record, which is not a transition and so triggers nothing):
+  #   → online:  assign any conversations that were waiting for someone available.
+  #   → offline: hand their conversations back to the pool.
+  def act_on_transition(account_user, previous_period, status)
+    return if previous_period.nil?
+
+    case status
+    when 'online' then trigger_assignment_for(account_user) unless previous_period.online?
+    when 'offline' then trigger_offline_handoff_for(account_user) unless previous_period.offline?
+    end
   end
 
   # Kick a bulk-assignment pass for every inbox this agent is a member of.
@@ -59,5 +68,13 @@ class AgentAvailabilitySnapshotJob < ApplicationJob
          .distinct
          .pluck(:id)
          .each { |inbox_id| AutoAssignment::AssignmentJob.enqueue_for_inbox(inbox_id) }
+  end
+
+  # Agent just went offline → return their open conversations to the pool so an
+  # available agent picks them up. The 10-min OfflineReassignmentJob is the
+  # safety net for anything this one-shot misses.
+  def trigger_offline_handoff_for(account_user)
+    AutoAssignment::OfflineReassignmentService.new(account: account_user.account)
+                                              .perform_for_agent(account_user.user_id)
   end
 end

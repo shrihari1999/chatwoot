@@ -112,4 +112,35 @@ RSpec.describe AgentAvailabilitySnapshotJob do
       expect(AutoAssignment::AssignmentJob).not_to have_received(:enqueue_for_inbox)
     end
   end
+
+  describe 'offline-handoff trigger' do
+    let(:handoff) { instance_double(AutoAssignment::OfflineReassignmentService, perform_for_agent: nil) }
+
+    before { allow(AutoAssignment::OfflineReassignmentService).to receive(:new).and_return(handoff) }
+
+    it 'hands off the agent conversations when they transition to offline' do
+      mark_present('online')
+      run_snapshot
+      mark_disconnected
+      run_snapshot # online -> offline transition
+
+      expect(handoff).to have_received(:perform_for_agent).with(user.id)
+    end
+
+    it 'does not hand off on the first-ever snapshot (no prior transition)' do
+      mark_disconnected
+      run_snapshot
+
+      expect(handoff).not_to have_received(:perform_for_agent)
+    end
+
+    it 'does not hand off when the agent comes online' do
+      mark_disconnected
+      run_snapshot
+      mark_present('online')
+      run_snapshot
+
+      expect(handoff).not_to have_received(:perform_for_agent)
+    end
+  end
 end
