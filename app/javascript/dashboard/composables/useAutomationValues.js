@@ -60,7 +60,6 @@ export default function useAutomationValues() {
         id: status,
         name: statusFilters[status].TEXT,
       })),
-      { id: 'all', name: t('CHAT_LIST.FILTER_ALL') },
     ];
   });
 
