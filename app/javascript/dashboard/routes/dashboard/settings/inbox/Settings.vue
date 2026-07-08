@@ -315,6 +315,7 @@ export default {
         this.isALazadaChannel ||
         this.isALineChannel ||
         this.isATiktokChannel ||
+        this.isATiktokShopChannel ||
         this.isATelegramChannel
       );
     },
