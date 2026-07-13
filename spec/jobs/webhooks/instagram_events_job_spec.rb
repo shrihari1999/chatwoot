@@ -302,6 +302,33 @@ describe Webhooks::InstagramEventsJob do
         expect(instagram_inbox.messages.last.content_attributes['is_unsupported']).to be_nil
       end
 
+      it 'names the contact with the display name when instagram returns one' do
+        dm_event = build(:instagram_message_create_event).with_indifferent_access
+        instagram_webhook.perform_now(dm_event[:entry])
+
+        expect(instagram_inbox.contacts.last.name).to eq 'Jane'
+      end
+
+      # Instagram omits `name` entirely for users who never set a display name.
+      it 'names the contact with the username when instagram returns no display name' do
+        stub_request(:get, %r{https://graph\.instagram\.com/v22\.0/Sender-id-.*\?.*})
+          .to_return(
+            status: 200,
+            body: proc { |request|
+              sender_id = request.uri.path.split('/').last.split('?').first
+              { username: 'notacouch_potatoo', profile_pic: 'https://chatwoot-assets.local/sample.png', id: sender_id }.to_json
+            },
+            headers: { 'Content-Type' => 'application/json' }
+          )
+
+        dm_event = build(:instagram_message_create_event).with_indifferent_access
+        instagram_webhook.perform_now(dm_event[:entry])
+
+        contact = instagram_inbox.contacts.last
+        expect(contact.name).to eq 'notacouch_potatoo'
+        expect(contact.additional_attributes['social_instagram_user_name']).to eq 'notacouch_potatoo'
+      end
+
       it 'sets correct instagram attributes on contact' do
         dm_event = build(:instagram_message_create_event).with_indifferent_access
         instagram_webhook.perform_now(dm_event[:entry])

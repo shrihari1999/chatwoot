@@ -18,12 +18,19 @@ class Instagram::WebhooksBaseService
     update_instagram_profile_link(user) && return if @contact
 
     @contact_inbox = @inbox.channel.create_contact_inbox(
-      user['id'], user['name']
+      user['id'], contact_name(user)
     )
 
     @contact = @contact_inbox.contact
     update_instagram_profile_link(user)
     Avatar::AvatarFromUrlJob.perform_later(@contact, user['profile_pic']) if user['profile_pic']
+  end
+
+  # Instagram omits `name` for users who never set a display name, returning only the handle.
+  # Without this fallback ContactInboxWithContactBuilder invents a random name and the agent
+  # sees "purple-resonance-890" instead of the customer's @username.
+  def contact_name(user)
+    user['name'].presence || user['username']
   end
 
   def update_instagram_profile_link(user)
