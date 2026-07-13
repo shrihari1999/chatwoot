@@ -64,17 +64,6 @@ export default {
     additionalAttributes() {
       return this.contact.additional_attributes || {};
     },
-    // Facebook/Instagram Page-Scoped ID (PSID) — stored as the source_id of the
-    // contact's Facebook Page / Instagram contact inbox.
-    messengerPsid() {
-      const contactInboxes = this.contact.contact_inboxes || [];
-      const socialInbox = contactInboxes.find(contactInbox =>
-        ['Channel::FacebookPage', 'Channel::Instagram'].includes(
-          contactInbox.inbox?.channel_type
-        )
-      );
-      return socialInbox?.source_id || '';
-    },
     location() {
       const {
         country = '',
@@ -274,14 +263,6 @@ export default {
             icon="contact-identify"
             emoji="🪪"
             :title="$t('CONTACT_PANEL.IDENTIFIER')"
-          />
-          <ContactInfoRow
-            v-if="messengerPsid"
-            :value="messengerPsid"
-            icon="contact-identify"
-            emoji="🆔"
-            :title="$t('CONTACT_PANEL.MESSENGER_ID')"
-            show-copy
           />
           <ContactInfoRow
             :value="additionalAttributes.company_name"

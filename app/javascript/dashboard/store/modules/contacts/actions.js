@@ -245,13 +245,9 @@ export const actions = {
     commit(types.SET_CONTACT_UI_FLAG, { isFetchingInboxes: true });
     try {
       const response = await ContactAPI.getContactableInboxes(id);
-      // Store under a distinct key so the "contactable inboxes" list (which
-      // omits Facebook/Instagram) does not overwrite the real `contact_inboxes`
-      // returned by the show endpoint — that payload carries the source_id/PSID
-      // surfaced on the contact profile.
       const contact = {
         id: Number(id),
-        contactableInboxes: response.data.payload,
+        contact_inboxes: response.data.payload,
       };
       commit(types.SET_CONTACT_ITEM, contact);
     } catch (error) {

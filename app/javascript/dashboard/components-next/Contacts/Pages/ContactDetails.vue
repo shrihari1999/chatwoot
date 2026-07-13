@@ -63,18 +63,6 @@ const avatarSrc = computed(() => {
   return avatarUrl.value ? avatarUrl.value : contactData.value?.thumbnail;
 });
 
-// Facebook/Instagram Page-Scoped ID (PSID) — the source_id of the contact's
-// Facebook Page / Instagram contact inbox.
-const messengerPsid = computed(() => {
-  const contactInboxes = props.selectedContact?.contactInboxes || [];
-  const socialInbox = contactInboxes.find(contactInbox =>
-    ['Channel::FacebookPage', 'Channel::Instagram'].includes(
-      contactInbox.inbox?.channelType
-    )
-  );
-  return socialInbox?.sourceId || '';
-});
-
 const handleFormUpdate = updatedData => {
   Object.assign(contactData.value, updatedData);
 };
@@ -154,15 +142,6 @@ const handleAvatarDelete = async () => {
           >
             <span class="i-ph-user-gear text-n-slate-10 size-4" />
             {{ selectedContact?.identifier }}
-          </span>
-          <span
-            v-if="messengerPsid"
-            class="inline-flex items-center gap-1 text-sm text-n-slate-11"
-          >
-            <span class="i-ph-identification-badge text-n-slate-10 size-4" />
-            {{
-              t('CONTACTS_LAYOUT.DETAILS.MESSENGER_ID', { psid: messengerPsid })
-            }}
           </span>
           <span class="inline-flex items-center gap-1 text-sm text-n-slate-11">
             <span
