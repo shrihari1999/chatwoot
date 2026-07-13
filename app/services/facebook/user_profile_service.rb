@@ -45,7 +45,8 @@ class Facebook::UserProfileService
     handle_authentication_error(e)
   rescue Koala::Facebook::ClientError => e
     # Never re-raise: the message this lookup belongs to must still be persisted.
-    expected_error?(e) ? Rails.logger.warn(e) : capture(e)
+    # An expected error is routine here, so log the message without the backtrace.
+    expected_error?(e) ? Rails.logger.warn("Facebook profile unavailable for #{source_id}: #{e.message}") : capture(e)
     {}
   rescue StandardError => e
     capture(e)
