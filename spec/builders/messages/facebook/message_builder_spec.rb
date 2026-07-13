@@ -49,6 +49,7 @@ describe Messages::Facebook::MessageBuilder do
                                                                                             'error_subcode' => 2_018_218,
                                                                                             'code' => 100
                                                                                           }))
+      allow(fb_object).to receive(:get_connection).and_return([])
       message_builder
 
       contact = facebook_channel.inbox.contacts.first
@@ -57,6 +58,56 @@ describe Messages::Facebook::MessageBuilder do
 
       expect(facebook_channel.inbox.reload.contacts.count).to eq(1)
       expect(contact.name).to eq(default_name)
+    end
+
+    context 'when the user profile api denies access to the profile' do
+      let(:sender_id) { '3383290475046708' }
+      let(:profile_access_denied) do
+        Koala::Facebook::ClientError.new(400, '', {
+                                           'type' => 'GraphMethodException',
+                                           'message' => 'Unsupported get request.',
+                                           'error_subcode' => 33,
+                                           'code' => 100
+                                         })
+      end
+
+      before do
+        allow(Koala::Facebook::API).to receive(:new).and_return(fb_object)
+        allow(fb_object).to receive(:get_object).and_raise(profile_access_denied)
+        allow(fb_object).to receive(:get_connection).and_return(
+          [{ 'participants' => { 'data' => [{ 'name' => 'Kantoop Patchayada', 'id' => sender_id }] } }]
+        )
+      end
+
+      it 'names the contact from the thread participants' do
+        message_builder
+
+        expect(facebook_channel.inbox.contacts.first.name).to eq('Kantoop Patchayada')
+      end
+
+      it 'renames a contact left under the fallback name by an earlier message' do
+        contact = create(:contact, account: facebook_channel.account, name: 'John Doe')
+        create(:contact_inbox, contact: contact, inbox: facebook_channel.inbox, source_id: sender_id)
+
+        message_builder
+
+        expect(contact.reload.name).to eq('Kantoop Patchayada')
+        expect(facebook_channel.inbox.reload.contacts.count).to eq(1)
+      end
+    end
+
+    it 'does not look the profile up again for an already named contact' do
+      contact = create(:contact, account: facebook_channel.account, name: 'Kantoop Patchayada')
+      create(:contact_inbox, contact: contact, inbox: facebook_channel.inbox, source_id: '3383290475046708')
+      allow(Koala::Facebook::API).to receive(:new).and_return(fb_object)
+      allow(fb_object).to receive(:get_object)
+      allow(fb_object).to receive(:get_connection)
+
+      message_builder
+
+      expect(fb_object).not_to have_received(:get_object)
+      expect(fb_object).not_to have_received(:get_connection)
+      expect(contact.reload.name).to eq('Kantoop Patchayada')
     end
 
     it 'marks echo messages as external echo messages' do

@@ -42,6 +42,20 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
       inbox: @inbox,
       contact_attributes: contact_params
     ).perform
+    heal_fallback_name
+  end
+
+  # ContactInboxWithContactBuilder only names a contact at creation time. A contact created
+  # while the profile lookup was failing would otherwise keep the fallback name forever, even
+  # once we can resolve the real one.
+  def heal_fallback_name
+    contact = @contact_inbox.contact
+    return unless contact.name == Facebook::UserProfileService::FALLBACK_NAME
+
+    resolved_name = contact_params[:name]
+    return if resolved_name.blank? || resolved_name == Facebook::UserProfileService::FALLBACK_NAME
+
+    contact.update!(name: resolved_name)
   end
 
   def build_message
@@ -130,40 +144,31 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
     }
   end
 
-  def process_contact_params_result(result)
+  def contact_params
+    @contact_params ||= build_contact_params
+  end
+
+  def build_contact_params
+    return { account_id: @inbox.account_id } unless profile_fetch_required?
+
+    profile = Facebook::UserProfileService.new(channel: @inbox.channel, source_id: @sender_id).perform
     {
-      name: "#{result['first_name'] || 'John'} #{result['last_name'] || 'Doe'}",
+      name: profile[:name].presence || Facebook::UserProfileService::FALLBACK_NAME,
       account_id: @inbox.account_id,
-      avatar_url: result['profile_pic']
+      avatar_url: profile[:avatar_url]
     }
   end
 
-  # rubocop:disable Metrics/AbcSize
-  # rubocop:disable Metrics/MethodLength
-  def contact_params
-    begin
-      k = Koala::Facebook::API.new(@inbox.channel.page_access_token) if @inbox.facebook?
-      result = k.get_object(@sender_id) || {}
-    rescue Koala::Facebook::AuthenticationError => e
-      Rails.logger.warn("Facebook authentication error for inbox: #{@inbox.id} with error: #{e.message}")
-      Rails.logger.error e
-      @inbox.channel.authorization_error!
-      raise
-    rescue Koala::Facebook::ClientError => e
-      result = {}
-      # OAuthException, code: 100, error_subcode: 2018218, message: (#100) No profile available for this user
-      # We don't need to capture this error as we don't care about contact params in case of echo messages
-      if e.message.include?('2018218')
-        Rails.logger.warn e
-      else
-        ChatwootExceptionTracker.new(e, account: @inbox.account).capture_exception unless @outgoing_echo
-      end
-    rescue StandardError => e
-      result = {}
-      ChatwootExceptionTracker.new(e, account: @inbox.account).capture_exception
-    end
-    process_contact_params_result(result)
+  # The profile of a contact we have already named cannot change here, so skip the Graph
+  # round trip on every subsequent message from them.
+  def profile_fetch_required?
+    name = existing_contact&.name
+    name.blank? || name == Facebook::UserProfileService::FALLBACK_NAME
   end
-  # rubocop:enable Metrics/AbcSize
-  # rubocop:enable Metrics/MethodLength
+
+  def existing_contact
+    return @existing_contact if defined?(@existing_contact)
+
+    @existing_contact = @inbox.contact_inboxes.find_by(source_id: @sender_id)&.contact
+  end
 end
