@@ -443,6 +443,13 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       created_at: first_time,
       updated_at: last_time,
       last_activity_at: last_time,
+      # Mark imported convs as already-seen so they don't inflate agents'
+      # unread counts. Historical conversations are being read into Chatwoot
+      # as an archive; agents haven't literally "seen" them but for UX purposes
+      # (avoiding a giant unread badge) they should be treated as read.
+      agent_last_seen_at: last_time,
+      assignee_last_seen_at: last_time,
+      contact_last_seen_at: last_time,
       additional_attributes: {
         'freshchat_conversation_id' => source_conv.conversation_id
       }
