@@ -6,7 +6,7 @@
 # tmux, systemd-run, etc.) and check the log later from anywhere.
 #
 # Usage:
-#   bin/freshchat_import.sh <inbox_id> <channels|pipe-separated> [dry|real] [limit] [since]
+#   bin/freshchat_import.sh <inbox_id> <channels|pipe-separated> [dry|real] [limit] [since] [only_actor_first_name]
 #
 # since values:
 #   ""                       (default) auto: importer reads its sync-state
@@ -16,6 +16,12 @@
 #   "full"                   force a full re-scan (ignore the marker file).
 #   "<ISO8601>"              explicit lower bound (e.g. 2026-05-27T18:00:00Z).
 #
+# only_actor_first_name:
+#   ""                       (default) no filter — import all customers in scope.
+#   "<name>"                 import only source convs where at least one user
+#                            message has actor_first_name = <name>. Marker file
+#                            is NOT advanced for targeted runs.
+#
 # Examples:
 #   bin/freshchat_import.sh 3 "Lazada IM" dry           # dry-run, auto-since (rolls back)
 #   bin/freshchat_import.sh 3 "Lazada IM"               # real import, auto-since
@@ -23,6 +29,7 @@
 #   bin/freshchat_import.sh 22 "IG_therollingpinn" real 100   # limit to 100 convs
 #   bin/freshchat_import.sh 3 "Lazada IM" real "" full  # force full re-scan
 #   bin/freshchat_import.sh 3 "Lazada IM" real "" 2026-05-27T18:00:00Z   # explicit since
+#   bin/freshchat_import.sh 31 "IG_therollingpinn" real "" "" "shrihari.12"   # targeted single-customer test
 #
 # Recommended invocation on the Azure VM (so the script outlives your SSH session):
 #   mkdir -p log/freshchat
@@ -40,9 +47,10 @@ CHANNELS="${2:-}"
 MODE="${3:-real}"
 LIMIT="${4:-}"
 SINCE="${5:-}"
+ONLY_FIRST_NAME="${6:-}"
 
 if [[ -z "$INBOX_ID" || -z "$CHANNELS" ]]; then
-  echo "Usage: $0 <inbox_id> <channels|pipe-separated> [dry|real] [limit] [since]" >&2
+  echo "Usage: $0 <inbox_id> <channels|pipe-separated> [dry|real] [limit] [since] [only_actor_first_name]" >&2
   exit 2
 fi
 
@@ -89,11 +97,11 @@ fi
 # need empty placeholders for any earlier arg we want to skip; build them all.
 MODE_TOKEN=""
 if [[ "$MODE" == "dry" ]]; then MODE_TOKEN="dry"; fi
-RAKE_ARGS="$INBOX_ID,$CHANNELS,$MODE_TOKEN,$LIMIT,$SINCE"
-RAKE_ARGS="${RAKE_ARGS%%,,,,}"   # trim trailing empty placeholders
-RAKE_ARGS="${RAKE_ARGS%%,,,}"
-RAKE_ARGS="${RAKE_ARGS%%,,}"
-RAKE_ARGS="${RAKE_ARGS%%,}"
+RAKE_ARGS="$INBOX_ID,$CHANNELS,$MODE_TOKEN,$LIMIT,$SINCE,$ONLY_FIRST_NAME"
+# Trim any run of trailing empty placeholders
+while [[ "$RAKE_ARGS" == *,, ]] || [[ "$RAKE_ARGS" == *, ]]; do
+  RAKE_ARGS="${RAKE_ARGS%,}"
+done
 
 echo "==============================================================="
 echo "[$(date -Iseconds)] Starting: freshchat:import[$RAKE_ARGS]"
