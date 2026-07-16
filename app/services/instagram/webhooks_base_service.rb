@@ -17,6 +17,17 @@ class Instagram::WebhooksBaseService
 
     update_instagram_profile_link(user) && return if @contact
 
+    # Fallback: if no ContactInbox was found for the numeric IGSID, look for
+    # an existing Contact on this account whose `social_instagram_user_name`
+    # matches the incoming sender's @handle (populated by the Freshchat
+    # importer for historical archives, or by prior Chatwoot activity).
+    # This links live-first messages to imported historical Contacts so the
+    # customer has a single unified Contact instead of a duplicate.
+    if (existing = find_contact_by_ig_handle(user['username']))
+      link_existing_contact_to_new_ig_scope(existing, user)
+      return
+    end
+
     @contact_inbox = @inbox.channel.create_contact_inbox(
       user['id'], contact_name(user)
     )
@@ -24,6 +35,33 @@ class Instagram::WebhooksBaseService
     @contact = @contact_inbox.contact
     update_instagram_profile_link(user)
     Avatar::AvatarFromUrlJob.perform_later(@contact, user['profile_pic']) if user['profile_pic']
+  end
+
+  # Match on lowercased social_instagram_user_name (case-insensitive) across
+  # the whole account. Prefer contacts tagged with `freshchat_customer_id`
+  # (imported archives) so the imported history is picked over any stray
+  # older test contact if both exist.
+  def find_contact_by_ig_handle(username)
+    handle = username.to_s.downcase.strip
+    return nil if handle.empty?
+
+    matches = @inbox.account.contacts
+                    .where("contacts.additional_attributes ? 'social_instagram_user_name'")
+                    .where("LOWER(contacts.additional_attributes->>'social_instagram_user_name') = ?", handle)
+    matches.where("contacts.additional_attributes ? 'freshchat_customer_id'").first || matches.first
+  end
+
+  def link_existing_contact_to_new_ig_scope(existing_contact, user)
+    @contact = existing_contact
+    @contact_inbox = ContactInbox.find_or_create_by!(
+      inbox: @inbox, contact: existing_contact, source_id: user['id']
+    )
+    update_instagram_profile_link(user)
+    Avatar::AvatarFromUrlJob.perform_later(@contact, user['profile_pic']) if user['profile_pic']
+    Rails.logger.info(
+      "[Instagram::WebhooksBaseService] linked incoming IGSID=#{user['id']} " \
+      "to existing contact id=#{existing_contact.id} via handle=@#{user['username']}"
+    )
   end
 
   # Instagram omits `name` for users who never set a display name, returning only the handle.
