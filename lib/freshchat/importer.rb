@@ -48,12 +48,18 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   # since:  nil       -> auto (read marker file, fall back to full scan)
   #         :full     -> ignore marker file, full scan
   #         Time/iso  -> explicit lower bound on source `created_time`
-  def initialize(inbox:, channels:, dry_run: false, limit: nil, since: nil)
+  def initialize(inbox:, channels:, dry_run: false, limit: nil, since: nil, only_actor_first_name: nil)
     @inbox = inbox
     @channels = Array(channels).map(&:to_s)
     @dry_run = dry_run
     @limit = limit
     @since = since
+    # Targeted-import filter: only source convs that have at least one message
+    # with matching actor_first_name will be processed. Useful for testing a
+    # single customer (e.g. an agent's own IG handle) before a full-channel run.
+    # When set, the sync-state marker is NOT advanced (targeted runs shouldn't
+    # affect the channel-wide delta cursor).
+    @only_actor_first_name = only_actor_first_name.presence
     @stats = Hash.new(0)
   end
 
@@ -70,10 +76,12 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     run_started_at = Time.current
 
     log "Starting #{dry_run ? 'DRY-RUN ' : ''}import: inbox=#{inbox.id} (#{inbox.channel_type}) " \
-        "channels=#{channels.inspect} limit=#{limit || '∞'} since=#{effective_since&.iso8601 || 'FULL'}"
+        "channels=#{channels.inspect} limit=#{limit || '∞'} since=#{effective_since&.iso8601 || 'FULL'}" \
+        "#{@only_actor_first_name ? " only_actor_first_name=#{@only_actor_first_name.inspect}" : ''}"
 
     ActiveRecord::Base.transaction do
       scope = scope_for(effective_since)
+      scope = filter_by_actor_first_name(scope) if @only_actor_first_name
       scope.find_in_batches(batch_size: BATCH_SIZE) do |source_convs|
         process_batch(source_convs, effective_since)
       end
@@ -84,7 +92,9 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       end
     end
 
-    save_sync_state!(run_started_at) unless dry_run
+    # Targeted runs don't advance the delta cursor — they only cover a subset
+    # of the channel and would leave the marker in a misleading state.
+    save_sync_state!(run_started_at) unless dry_run || @only_actor_first_name
     print_stats
     stats
   end
@@ -101,6 +111,17 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     return if inbox.channel_type == expected
 
     raise ArgumentError, "Inbox #{inbox.id} has channel_type=#{inbox.channel_type}, but channels #{channels.inspect} require #{expected}"
+  end
+
+  # Narrow scope to only source convs that have any user message with
+  # actor_first_name matching the filter. Used for single-customer test imports.
+  def filter_by_actor_first_name(scope)
+    conv_ids = Freshchat::SourceMessage
+               .where(actor_type: 'user', actor_first_name: @only_actor_first_name)
+               .distinct
+               .pluck(:conversation_id)
+    log "  filter_by_actor_first_name(#{@only_actor_first_name.inspect}) => #{conv_ids.size} matching source convs"
+    scope.where(id: conv_ids)
   end
 
   # nil-since means full scan; a Time means "only conversations that have at
@@ -225,11 +246,16 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     # Phase 1: existing imported contacts (re-import idempotency)
     contact_id_by_customer = pluck_lookup(Contact, 'freshchat_customer_id', customer_ids)
 
-    # Phase 2: merge with already-existing LIVE contacts that have the same
-    # platform-native source_id. Only attempted on continuity-capable channels —
-    # for LINE/IG the computed source_id is the freshchat-customer-<uuid>
-    # fallback which can never collide with a live contact anyway.
+    # Phase 2a: merge with already-existing LIVE contacts that share the same
+    # platform-native source_id (FB PSID / Lazada account_id after prefix strip).
     merge_with_live_contacts(customer_info, contact_id_by_customer)
+
+    # Phase 2b: for IG channel, also merge by matching IG @handle against
+    # Chatwoot's existing live contacts' additional_attributes.social_instagram_user_name
+    # (Chatwoot's live IG handler populates that field via Meta Graph API).
+    # The numeric IGSID isn't preserved by Freshchat, so this handle-match is
+    # the only path to auto-merging pre-existing live IG contacts.
+    merge_by_ig_handle(customer_info, contact_id_by_customer) if inbox.channel_type == 'Channel::Instagram'
 
     # Phase 3: create fresh contacts for everyone still unresolved
     create_new_contacts(customer_info, contact_id_by_customer)
@@ -265,6 +291,57 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
     end
   end
 
+  # additional_attributes for freshly-created imported Contacts. For IG channel,
+  # also stash the lowercased handle in Chatwoot's canonical location so:
+  #   * agents can search for the customer by handle,
+  #   * an Option-C-style live IG handler fallback (patch to
+  #     app/services/instagram/base_message_text.rb) can match incoming live
+  #     messages to imported contacts before creating a duplicate.
+  def build_contact_additional_attributes(cust_id, info)
+    attrs = {
+      'freshchat_customer_id' => cust_id,
+      'freshchat_actor_id' => info[:actor_id]
+    }.compact
+    if inbox.channel_type == 'Channel::Instagram' && info[:first_name].present?
+      attrs['social_instagram_user_name'] = info[:first_name].to_s.downcase.strip
+    end
+    attrs
+  end
+
+  def merge_by_ig_handle(customer_info, contact_id_by_customer)
+    unresolved = customer_info.keys - contact_id_by_customer.keys
+    return if unresolved.empty?
+
+    # Build customer_id -> lowercased handle for unresolved customers
+    handle_by_cust = {}
+    unresolved.each do |cust_id|
+      handle = customer_info[cust_id][:first_name].to_s.downcase.strip
+      handle_by_cust[cust_id] = handle if handle.present?
+    end
+    return if handle_by_cust.empty?
+
+    # Live contacts on this IG inbox that already have social_instagram_user_name
+    # keyed on lowercased handle -> contact_id
+    live_contact_ids = ContactInbox.where(inbox_id: inbox.id).distinct.pluck(:contact_id)
+    return if live_contact_ids.empty?
+
+    live_by_handle = {}
+    Contact.where(id: live_contact_ids)
+           .where("contacts.additional_attributes ? :k", k: 'social_instagram_user_name')
+           .pluck(:id, Arel.sql("LOWER(contacts.additional_attributes->>'social_instagram_user_name')"))
+           .each { |id, handle| live_by_handle[handle] = id if handle.present? }
+    return if live_by_handle.empty?
+
+    handle_by_cust.each do |cust_id, handle|
+      live_contact_id = live_by_handle[handle]
+      next unless live_contact_id
+
+      contact_id_by_customer[cust_id] = live_contact_id
+      tag_existing_contact_with_freshchat_ids(live_contact_id, cust_id, customer_info[cust_id])
+      stats[:contacts_merged_with_live] += 1
+    end
+  end
+
   def tag_existing_contact_with_freshchat_ids(contact_id, customer_id, info)
     patch = {
       'freshchat_customer_id' => customer_id,
@@ -289,7 +366,7 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
       {
         account_id: inbox.account_id,
         name: build_full_name(info),
-        additional_attributes: { 'freshchat_customer_id' => cid, 'freshchat_actor_id' => info[:actor_id] }.compact,
+        additional_attributes: build_contact_additional_attributes(cid, info),
         created_at: now,
         updated_at: now
       }

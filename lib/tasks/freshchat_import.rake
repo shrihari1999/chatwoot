@@ -1,9 +1,11 @@
 namespace :freshchat do
   desc 'Import historical Freshchat conversations into a Chatwoot inbox. ' \
-       'Usage: rails "freshchat:import[<inbox_id>,<channel1|channel2|...>,<dry?>,<limit?>,<since?>]"  ' \
+       'Usage: rails "freshchat:import[<inbox_id>,<channel1|channel2|...>,<dry?>,<limit?>,<since?>,<only_actor_first_name?>]"  ' \
        '(channels separated by "|"; pass "dry" as 3rd arg for dry-run; ' \
-       'since="" auto-reads marker, "full" forces full scan, or ISO8601 like 2026-05-27T18:00:00Z)'
-  task :import, %i[inbox_id channels mode limit since] => :environment do |_t, args|
+       'since="" auto-reads marker, "full" forces full scan, or ISO8601 like 2026-05-27T18:00:00Z; ' \
+       'only_actor_first_name filters to source convs where any user message has actor_first_name matching, ' \
+       'useful for single-customer test imports)'
+  task :import, %i[inbox_id channels mode limit since only_actor_first_name] => :environment do |_t, args|
     require Rails.root.join('lib/freshchat/importer')
 
     inbox_id = args[:inbox_id].to_i
@@ -14,13 +16,15 @@ namespace :freshchat do
     dry_run = args[:mode].to_s.casecmp('dry').zero?
     limit = args[:limit].present? ? args[:limit].to_i : nil
     since = parse_since(args[:since])
+    only_actor_first_name = args[:only_actor_first_name].to_s.strip.presence
 
     Freshchat::Importer.new(
       inbox: inbox,
       channels: channels,
       dry_run: dry_run,
       limit: limit,
-      since: since
+      since: since,
+      only_actor_first_name: only_actor_first_name
     ).run
   end
 
