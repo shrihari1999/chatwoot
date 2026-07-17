@@ -46,6 +46,31 @@ describe Facebook::SendOnFacebookService do
       end
     end
 
+    context 'with multiple contact inboxes on the same inbox (freshchat-imported archive + live)' do
+      # Route the outer conversation through the imported placeholder contact_inbox
+      # so the only non-placeholder contact_inbox on this inbox is the live one.
+      let(:contact_inbox) { imported_contact_inbox }
+      let(:imported_contact_inbox) do
+        create(:contact_inbox, contact: contact, inbox: facebook_inbox,
+                               source_id: 'freshchat-customer-46b1bf04-4221-4dee-b9f2-429f956bc25e')
+      end
+      let!(:live_contact_inbox) { create(:contact_inbox, contact: contact, inbox: facebook_inbox, source_id: '1008372609250235') }
+
+      it 'sends to the conversation own contact_inbox, not the contact oldest one' do
+        live_conversation = create(:conversation, account: account, contact: contact, inbox: facebook_inbox,
+                                                  contact_inbox: live_contact_inbox)
+        message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: live_conversation)
+        described_class.new(message: message).perform
+        expect(bot).to have_received(:deliver).with(hash_including(recipient: { id: '1008372609250235' }), page_id: facebook_channel.page_id)
+      end
+
+      it 'falls back to the live contact_inbox when replying inside an imported archive conversation' do
+        message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: conversation)
+        described_class.new(message: message).perform
+        expect(bot).to have_received(:deliver).with(hash_including(recipient: { id: '1008372609250235' }), page_id: facebook_channel.page_id)
+      end
+    end
+
     context 'with reply' do
       it 'if message is sent from chatwoot and is outgoing' do
         message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: conversation)

@@ -46,7 +46,7 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
 
   def fb_text_message_params
     params = {
-      recipient: { id: contact.get_source_id(inbox.id) },
+      recipient: { id: recipient_source_id },
       message: fb_text_message_payload
     }
 
@@ -94,7 +94,7 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
 
   def fb_attachment_message_params(attachment)
     params = {
-      recipient: { id: contact.get_source_id(inbox.id) },
+      recipient: { id: recipient_source_id },
       message: {
         attachment: {
           type: attachment_type(attachment),

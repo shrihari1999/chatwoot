@@ -185,6 +185,51 @@ describe Instagram::SendOnInstagramService do
       end
     end
 
+    context 'with multiple contact inboxes on the same inbox (freshchat-imported archive + live)' do
+      let!(:imported_contact_inbox) do
+        create(:contact_inbox, contact: contact, inbox: instagram_inbox,
+                               source_id: 'freshchat-customer-90d902e5-e630-4349-81f2-c3686bd746dd')
+      end
+      let!(:live_contact_inbox) do
+        create(:contact_inbox, contact: contact, inbox: instagram_inbox, source_id: '1347332526887989')
+      end
+
+      before do
+        allow(HTTParty).to receive(:post).and_return(mock_response)
+        InstallationConfig.where(name: 'ENABLE_INSTAGRAM_CHANNEL_HUMAN_AGENT').first_or_create(value: false)
+      end
+
+      def expect_recipient_id(id)
+        expect(HTTParty).to have_received(:post)
+          .with(anything, hash_including(body: hash_including(recipient: { id: id })))
+      end
+
+      it 'sends to the conversation own contact_inbox, not the contact oldest one' do
+        conversation = create(:conversation, contact: contact, inbox: instagram_inbox, contact_inbox: live_contact_inbox)
+        message = create(:message, message_type: 'outgoing', inbox: instagram_inbox, account: account, conversation: conversation)
+
+        described_class.new(message: message).perform
+        expect_recipient_id('1347332526887989')
+      end
+
+      it 'falls back to the live contact_inbox when replying inside an imported archive conversation' do
+        conversation = create(:conversation, contact: contact, inbox: instagram_inbox, contact_inbox: imported_contact_inbox)
+        message = create(:message, message_type: 'outgoing', inbox: instagram_inbox, account: account, conversation: conversation)
+
+        described_class.new(message: message).perform
+        expect_recipient_id('1347332526887989')
+      end
+
+      it 'keeps the placeholder when the contact has no live contact_inbox yet' do
+        live_contact_inbox.destroy!
+        conversation = create(:conversation, contact: contact, inbox: instagram_inbox, contact_inbox: imported_contact_inbox)
+        message = create(:message, message_type: 'outgoing', inbox: instagram_inbox, account: account, conversation: conversation)
+
+        described_class.new(message: message).perform
+        expect_recipient_id('freshchat-customer-90d902e5-e630-4349-81f2-c3686bd746dd')
+      end
+    end
+
     context 'with reply-to (in_reply_to_external_id)' do
       let(:reply_to_mid) { 'mid.original_ig_message_456' }
       let!(:incoming_message) do

@@ -32,6 +32,23 @@ class Base::SendOnChannelService
     raise 'Overwrite this method in child class'
   end
 
+  # Platform recipient id for replies. The conversation's own contact_inbox is
+  # the thread being replied to — a contact can hold multiple contact_inboxes
+  # on one inbox (Freshchat-imported archive + live), and Contact#get_source_id
+  # returns an arbitrary one. Freshchat placeholder ids are unroutable, so when
+  # the conversation hangs off an imported archive, fall back to the contact's
+  # real platform id on the same inbox (created by the live webhook handler).
+  def recipient_source_id
+    source_id = contact_inbox&.source_id
+    return source_id unless source_id&.start_with?('freshchat-customer-')
+
+    contact.contact_inboxes
+           .where(inbox_id: inbox.id)
+           .where.not('source_id LIKE ?', 'freshchat-customer-%')
+           .order(:id)
+           .pick(:source_id) || source_id
+  end
+
   def outgoing_message_originated_from_channel?
     # TODO: we need to refactor this logic as more integrations comes by
     # chatwoot messages won't have source id at the moment
