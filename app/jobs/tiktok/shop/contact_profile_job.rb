@@ -7,8 +7,9 @@
 #
 # Runs in the background so an API failure/rate-limit never affects message
 # ingestion. The name is only overwritten while it is still the placeholder, so
-# an agent's manual rename is preserved. The avatar is downloaded + stored by
-# Avatar::AvatarFromUrlJob (handling the expiring CDN URL).
+# an agent's manual rename is preserved. Alongside the name we set the TikTok
+# social profile from it (see #social_attributes). The avatar is downloaded +
+# stored by Avatar::AvatarFromUrlJob (handling the expiring CDN URL).
 class Tiktok::Shop::ContactProfileJob < ApplicationJob
   queue_as :default
 
@@ -49,7 +50,19 @@ class Tiktok::Shop::ContactProfileJob < ApplicationJob
     # Only replace the placeholder (the raw im_user_id), never an agent's rename.
     return unless contact.name.blank? || contact.name == im_user_id.to_s
 
-    contact.update!(name: nickname)
+    contact.update!(name: nickname, additional_attributes: social_attributes(contact, nickname))
+  end
+
+  # Mirror the TikTok channel: a buyer's display name doubles as their TikTok
+  # handle, so populate social_profiles.tiktok (which renders the clickable
+  # TikTok link in the contact panel) and social_tiktok_user_name from it.
+  # Merge into the existing attributes so tiktok_shop_* keys — and any social
+  # profile from another channel — survive.
+  def social_attributes(contact, nickname)
+    attributes = contact.additional_attributes
+    attributes['social_profiles'] = (attributes['social_profiles'] || {}).merge('tiktok' => nickname)
+    attributes['social_tiktok_user_name'] = nickname
+    attributes
   end
 
   def apply_avatar(contact, avatar_url)

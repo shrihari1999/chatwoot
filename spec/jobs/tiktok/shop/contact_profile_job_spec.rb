@@ -5,7 +5,10 @@ require 'rails_helper'
 RSpec.describe Tiktok::Shop::ContactProfileJob do
   let(:account) { create(:account) }
   let(:channel) { create(:channel_tiktok_shop, account: account) }
-  let(:contact) { create(:contact, account: account, name: 'u123') }
+  let(:contact) do
+    create(:contact, account: account, name: 'u123',
+                     additional_attributes: { 'tiktok_shop_im_user_id' => 'u123', 'tiktok_shop_id' => channel.shop_id })
+  end
   let(:conversation_id) { 'conv-1' }
   let(:im_user_id) { 'u123' }
   let(:client) { instance_double(Tiktok::Shop::Client) }
@@ -32,6 +35,35 @@ RSpec.describe Tiktok::Shop::ContactProfileJob do
 
     run
     expect(contact.reload.name).to eq('Albert')
+  end
+
+  it 'populates the TikTok social profile from the buyer name, preserving tiktok_shop keys' do
+    expect(client).to receive(:get_conversation).with(conversation_id).and_return(api_response(participants: [buyer]))
+    allow(Avatar::AvatarFromUrlJob).to receive(:perform_later)
+
+    run
+    attrs = contact.reload.additional_attributes
+    expect(attrs['social_profiles']).to eq('tiktok' => 'Albert')
+    expect(attrs['social_tiktok_user_name']).to eq('Albert')
+    expect(attrs).to include('tiktok_shop_im_user_id' => 'u123', 'tiktok_shop_id' => channel.shop_id)
+  end
+
+  it 'leaves the social profile unset when no buyer name is resolved' do
+    allow(client).to receive(:get_conversation).and_return(api_response(participants: [], success: false))
+
+    run
+    attrs = contact.reload.additional_attributes
+    expect(attrs).not_to have_key('social_profiles')
+    expect(attrs).not_to have_key('social_tiktok_user_name')
+  end
+
+  it 'does not set the social profile when the name is an agent rename' do
+    contact.update!(name: 'Renamed By Agent')
+    allow(client).to receive(:get_conversation).and_return(api_response(participants: [buyer]))
+    allow(Avatar::AvatarFromUrlJob).to receive(:perform_later)
+
+    run
+    expect(contact.reload.additional_attributes).not_to have_key('social_profiles')
   end
 
   it 'matches the buyer by im_user_id among multiple participants' do
