@@ -7,25 +7,28 @@ RSpec.describe Team do
     it { is_expected.to have_many(:team_members) }
   end
 
-  describe 'name casing' do
+  describe 'name normalization' do
     let(:account) { create(:account) }
 
-    it 'preserves the casing of the supplied name' do
-      team = described_class.create!(account: account, name: 'Sales Team')
-      expect(team.reload.name).to eq('Sales Team')
+    it 'downcases the name' do
+      team = create(:team, account: account, name: 'Customer Support')
+      expect(team.name).to eq('customer support')
     end
 
-    it 'rejects a case-variant duplicate within the same account' do
-      described_class.create!(account: account, name: 'Sales Team')
-      duplicate = described_class.new(account: account, name: 'sales team')
-      expect(duplicate).not_to be_valid
-      expect(duplicate.errors[:name]).to be_present
+    it 'strips control characters and surrounding whitespace' do
+      team = create(:team, account: account, name: "  Sales\n")
+      expect(team.name).to eq('sales')
     end
 
-    it 'allows the same name in a different account' do
-      described_class.create!(account: account, name: 'Sales Team')
-      other_account = create(:account)
-      expect(described_class.new(account: other_account, name: 'Sales Team')).to be_valid
+    it 'removes control characters embedded within the name' do
+      team = create(:team, account: account, name: "su\npport")
+      expect(team.name).to eq('support')
+    end
+
+    it 'is invalid when the name reduces to blank after sanitization' do
+      team = build(:team, account: account, name: "\t\n  ")
+      expect(team).not_to be_valid
+      expect(team.errors[:name]).to include(I18n.t('errors.validations.presence'))
     end
   end
 

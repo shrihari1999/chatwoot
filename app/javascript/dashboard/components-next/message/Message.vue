@@ -149,7 +149,13 @@ const { t } = useI18n();
 const route = useRoute();
 const inboxGetter = useMapGetter('inboxes/getInbox');
 const inbox = computed(() => inboxGetter.value(props.inboxId) || {});
+const isOnChatwootCloud = useMapGetter('globalConfig/isOnChatwootCloud');
 const { replaceInstallationName } = useBranding();
+
+const isCaptainMessage = computed(() => {
+  const senderType = props.sender?.type ?? props.senderType;
+  return senderType === SENDER_TYPES.CAPTAIN_ASSISTANT;
+});
 
 /**
  * Computes the message variant based on props
@@ -403,6 +409,10 @@ const contextMenuEnabledOptions = computed(() => {
     react:
       props.inboxSupportsReactions &&
       !isFailedOrProcessing &&
+      !isMessageDeleted.value,
+    report:
+      isOnChatwootCloud.value &&
+      isCaptainMessage.value &&
       !isMessageDeleted.value,
   };
 });
