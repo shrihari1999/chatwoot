@@ -5,6 +5,8 @@
 #  id                :bigint           not null, primary key
 #  allow_auto_assign :boolean          default(TRUE)
 #  description       :text
+#  icon              :string           default("")
+#  icon_color        :string           default("")
 #  name              :string           not null
 #  created_at        :datetime         not null
 #  updated_at        :datetime         not null
@@ -24,10 +26,16 @@ class Team < ApplicationRecord
   has_many :conversations, dependent: :nullify
 
   before_destroy :reset_canned_response_categories
+  before_destroy :capture_filtered_unread_count_member_ids, prepend: true
+  after_destroy_commit :invalidate_filtered_unread_counts_after_destroy
 
   validates :name,
             presence: { message: I18n.t('errors.validations.presence') },
-            uniqueness: { scope: :account_id, case_sensitive: false }
+            uniqueness: { scope: :account_id }
+
+  before_validation do
+    self.name = name.gsub(/[[:cntrl:]]/, '').strip.downcase if attribute_present?('name')
+  end
 
   # Adds multiple members to the team
   # @param user_ids [Array<Integer>] Array of user IDs to add as members
@@ -60,7 +68,9 @@ class Team < ApplicationRecord
   def push_event_data
     {
       id: id,
-      name: name
+      name: name,
+      icon: icon,
+      icon_color: icon_color
     }
   end
 
@@ -75,6 +85,16 @@ class Team < ApplicationRecord
       team_id: nil,
       visibility: CannedResponseCategory.visibilities[:everyone]
     )
+  end
+
+  def capture_filtered_unread_count_member_ids
+    @filtered_unread_count_member_ids = team_members.pluck(:user_id)
+  end
+
+  def invalidate_filtered_unread_counts_after_destroy
+    invalidator = ::Conversations::UnreadCounts::FilteredCountInvalidator.new(account)
+    invalidator.conversation_changed!
+    invalidator.users_visibility_changed!(user_ids: @filtered_unread_count_member_ids)
   end
 end
 

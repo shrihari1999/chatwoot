@@ -33,14 +33,11 @@ class SuperAdmin::AccountsController < SuperAdmin::ApplicationController
   # empty values into nil values. It uses other APIs such as `resource_class`
   # and `dashboard`:
   #
-  def update
-    assign_feature_flag_selection(requested_resource) if params[:enabled_features].present?
-    super
-  end
-
   def resource_params
     permitted_params = super
-    permitted_params[:limits] = permitted_params[:limits].to_h.compact
+    permitted_params[:limits] = permitted_params[:limits].to_h.compact if permitted_params.key?(:limits)
+    permitted_params[:captain_models] = permitted_params[:captain_models].to_h.compact_blank.presence if permitted_params.key?(:captain_models)
+    permitted_params[:selected_feature_flags] = params[:enabled_features].keys.map(&:to_sym) if params[:enabled_features].present?
     permitted_params
   end
 
@@ -68,23 +65,6 @@ class SuperAdmin::AccountsController < SuperAdmin::ApplicationController
     # rubocop:disable Rails/I18nLocaleTexts
     redirect_back(fallback_location: [namespace, requested_resource], notice: 'Account deletion is in progress.')
     # rubocop:enable Rails/I18nLocaleTexts
-  end
-
-  private
-
-  # Feature flags now span multiple bigint columns (see Featurable). Route the
-  # checked flags to each column's flag_shih_tzu bulk setter (selected_<column>=),
-  # which clears that column and enables only the checked flags. The extended
-  # column(s) are assigned FIRST so the enterprise `selected_feature_flags=`
-  # override (which runs sync_assignment_features) executes LAST and wins —
-  # exactly as it did when all flags lived in a single column.
-  def assign_feature_flag_selection(account)
-    selected = params[:enabled_features].keys.map(&:to_sym)
-    extended_columns = Account.flag_mapping.keys - ['feature_flags']
-    extended_columns.each do |column|
-      account.public_send("selected_#{column}=", selected & Account.flag_mapping[column].keys)
-    end
-    account.selected_feature_flags = selected & Account.flag_mapping['feature_flags'].keys
   end
 end
 
