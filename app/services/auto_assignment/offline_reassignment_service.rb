@@ -46,14 +46,19 @@ class AutoAssignment::OfflineReassignmentService
 
   def unassign(conversation)
     # Attribute the hand-off to the policy so the activity reads "Automation System".
-    Current.executed_by = conversation.inbox.assignment_policy
+    # Read from the preloaded inboxes rather than walking conversation.inbox.assignment_policy,
+    # which would be two queries per stranded conversation.
+    Current.executed_by = eligible_inboxes[conversation.inbox_id]&.assignment_policy
     conversation.update!(assignee: nil)
   ensure
     Current.executed_by = nil
   end
 
   def stranded_conversations
+    # `includes(:inbox)` — Conversation's own update callbacks read `inbox`, so without
+    # the preload every unassign is another inbox fetch. find_each preloads per batch.
     scope = account.conversations.open
+                   .includes(:inbox)
                    .where(inbox_id: auto_assignment_inbox_ids)
                    .where.not(assignee_id: nil)
     # Exclude present agents (online OR busy). If nobody is present, everyone
@@ -62,11 +67,19 @@ class AutoAssignment::OfflineReassignmentService
     present.any? ? scope.where.not(assignee_id: present) : scope
   end
 
-  # Inboxes with auto-assignment on and a policy attached — the only ones where
-  # re-pooling actually leads to reassignment.
   def auto_assignment_inbox_ids
-    @auto_assignment_inbox_ids ||=
-      account.inboxes.where(enable_auto_assignment: true).joins(:inbox_assignment_policy).ids
+    eligible_inboxes.keys
+  end
+
+  # Inboxes with auto-assignment on and a policy attached — the only ones where
+  # re-pooling actually leads to reassignment. Keyed by id with the policy preloaded,
+  # so `unassign` can attribute the hand-off without a per-conversation lookup.
+  def eligible_inboxes
+    @eligible_inboxes ||= account.inboxes
+                                 .where(enable_auto_assignment: true)
+                                 .joins(:inbox_assignment_policy)
+                                 .includes(:assignment_policy)
+                                 .index_by(&:id)
   end
 
   # Agents with a live heartbeat (online or busy). Anyone not here is offline.
