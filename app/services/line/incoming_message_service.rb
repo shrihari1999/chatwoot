@@ -23,6 +23,12 @@ class Line::IncomingMessageService
       end
 
       next unless event_type_message?(event)
+      # The same message id can reach us twice: LINE redelivers a webhook when it doesn't
+      # get a 2xx, and a Sidekiq retry re-runs the whole payload after a mid-loop failure.
+      # Checked before the profile lookup so a repeat costs one indexed query rather than
+      # an API round trip plus a media download.
+      # Ref: https://developers.line.biz/en/docs/messaging-api/receiving-messages/#webhook-redelivery
+      next if inbox.messages.exists?(source_id: event.dig('message', 'id').to_s)
 
       get_line_contact_info(event)
       next if @line_contact_info['userId'].blank?

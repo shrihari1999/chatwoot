@@ -316,6 +316,40 @@ describe Line::IncomingMessageService do
         expect(line_channel.inbox.messages.first.additional_attributes).not_to have_key('mark_as_read_token')
       end
 
+      # LINE redelivers a webhook when it doesn't receive a 2xx, and a Sidekiq retry
+      # re-runs the whole payload. Both replay message ids we have already ingested.
+      context 'when the same message id arrives more than once' do
+        it 'does not create a duplicate message' do
+          described_class.new(inbox: line_channel.inbox, params: params).perform
+
+          expect do
+            described_class.new(inbox: line_channel.inbox, params: params).perform
+          end.not_to(change { line_channel.inbox.messages.count })
+        end
+
+        it 'skips the profile lookup for the replayed event' do
+          described_class.new(inbox: line_channel.inbox, params: params).perform
+          described_class.new(inbox: line_channel.inbox, params: params).perform
+
+          expect(line_bot).to have_received(:get_profile).once
+        end
+
+        it 'still ingests a new message delivered alongside a replayed one' do
+          described_class.new(inbox: line_channel.inbox, params: params).perform
+
+          replay_params = params.deep_dup
+          fresh_event = replay_params[:events][0].deep_dup
+          fresh_event[:message][:id] = '325709'
+          fresh_event[:message][:text] = 'Second message'
+          replay_params[:events] << fresh_event
+
+          expect do
+            described_class.new(inbox: line_channel.inbox, params: replay_params).perform
+          end.to change { line_channel.inbox.messages.count }.by(1)
+          expect(line_channel.inbox.messages.last.content).to eq('Second message')
+        end
+      end
+
       it 'stores quote_token in additional_attributes when quoteToken is present' do
         quote_params = params.deep_dup
         quote_params[:events][0][:message][:quoteToken] = 'q3Plxr4Agk...'

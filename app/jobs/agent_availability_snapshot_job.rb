@@ -15,8 +15,13 @@ class AgentAvailabilitySnapshotJob < ApplicationJob
 
   def perform
     now = Time.current
+    # There is exactly one open period per agent (enforced by the partial unique
+    # index), so the whole set is one query. Looking it up per account_user instead
+    # would be an N+1 that runs every single minute.
+    open_periods = AgentAvailabilityPeriod.open.index_by { |period| [period.account_id, period.user_id] }
+
     AccountUser.includes(:account, :user).find_each do |account_user|
-      record_status(account_user, now)
+      record_status(account_user, open_periods, now)
     rescue StandardError => e
       # Never let one agent's failure abort the whole snapshot.
       Rails.logger.error("AgentAvailabilitySnapshotJob failed for account_user #{account_user.id}: #{e.message}")
@@ -25,11 +30,9 @@ class AgentAvailabilitySnapshotJob < ApplicationJob
 
   private
 
-  def record_status(account_user, now)
+  def record_status(account_user, open_periods, now)
     status = account_user.availability_status # 'online' | 'busy' | 'offline'
-    open_period = AgentAvailabilityPeriod.open.find_by(
-      account_id: account_user.account_id, user_id: account_user.user_id
-    )
+    open_period = open_periods[[account_user.account_id, account_user.user_id]]
 
     # Unchanged since last snapshot — the open period already covers it.
     return if open_period&.status == status
