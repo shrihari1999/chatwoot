@@ -39,6 +39,28 @@ RSpec.describe 'Canned Responses API', type: :request do
         expect(response.parsed_body).to eq(expected_payload(account.canned_responses))
       end
 
+      # Every row is serialized with its category, so without a preload the index
+      # is 1 + N queries — and the Freshchat import left hundreds of rows here.
+      it 'preloads categories rather than querying one per canned response' do
+        create_list(:canned_response, 3, account: account)
+
+        category_queries = 0
+        subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |*, payload|
+          category_queries += 1 if payload[:sql]&.include?('canned_response_categories')
+        end
+
+        begin
+          get "/api/v1/accounts/#{account.id}/canned_responses",
+              headers: agent.create_new_auth_token,
+              as: :json
+        ensure
+          ActiveSupport::Notifications.unsubscribe(subscriber)
+        end
+
+        expect(response).to have_http_status(:success)
+        expect(category_queries).to eq(1)
+      end
+
       it 'returns canned responses whose short_code matches the search term' do
         # `cr1` from the outer `before` block has "Thanks" in content but not in
         # short_code — it must be excluded now that search is short_code-only.

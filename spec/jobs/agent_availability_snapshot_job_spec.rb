@@ -81,6 +81,53 @@ RSpec.describe AgentAvailabilitySnapshotJob do
     end
   end
 
+  # The open periods are fetched in one batch and keyed by [account_id, user_id];
+  # these guard both the keying and the fact that it stays a single query.
+  describe 'with multiple agents' do
+    let(:other_user) { create(:user) }
+    let!(:other_account_user) { create(:account_user, account: account, user: other_user, role: :agent) } # rubocop:disable RSpec/LetSetup
+
+    def status_for(target_user)
+      AgentAvailabilityPeriod.open.find_by(account_id: account.id, user_id: target_user.id)&.status
+    end
+
+    # Counts SELECTs against agent_availability_periods issued inside the block.
+    def period_select_count
+      count = 0
+      subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |*, payload|
+        count += 1 if payload[:sql]&.match?(/SELECT.*"agent_availability_periods"/i)
+      end
+      yield
+      count
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    it 'records each agent status against their own period' do
+      # `user` has a live heartbeat; `other_user` never checked in, so reads as offline.
+      mark_present('online')
+
+      run_snapshot
+
+      expect(status_for(user)).to eq('online')
+      expect(status_for(other_user)).to eq('offline')
+    end
+
+    it 'does not rewrite either agent period when nothing changed' do
+      mark_present('online')
+      run_snapshot
+
+      expect { run_snapshot }.not_to(change(AgentAvailabilityPeriod, :count))
+    end
+
+    it 'reads the open periods in a single query regardless of agent count' do
+      create_list(:account_user, 4, account: account, role: :agent)
+      mark_present('online')
+
+      expect(period_select_count { run_snapshot }).to eq(1)
+    end
+  end
+
   describe 'assign-on-agent-online trigger' do
     let(:inbox) { create(:inbox, account: account) }
     let!(:inbox_member) { create(:inbox_member, inbox: inbox, user: user) } # rubocop:disable RSpec/LetSetup

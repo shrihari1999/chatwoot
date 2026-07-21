@@ -74,7 +74,10 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   end
 
   def canned_responses
-    scope = search_scope
+    # `includes(:category)` — `serialize` reads `category` on every row, so without it
+    # the index is 1 + N queries. The `visible` branch below joins the same association,
+    # but a join filters without preloading, so the preload is still required.
+    scope = search_scope.includes(:category)
     scope = scope.where(category_id: params[:category_id]) if params[:category_id].present?
     # `visible` is passed by the conversation canned-response picker so that categories
     # restricted to other users / other teams are filtered out. The settings page omits

@@ -131,6 +131,29 @@ describe ContactInboxWithContactBuilder do
       end.to have_enqueued_job(Avatar::AvatarFromUrlJob).with(contact, 'https://example.com/avatar.jpg')
     end
 
+    # The self-heal check runs on the existing-contact_inbox path, i.e. for every inbound
+    # message. Channels that send no avatar_url must not pay for an attachment lookup.
+    it 'does not touch active storage when no avatar_url is supplied' do
+      existing_contact_inbox
+
+      attachment_queries = 0
+      subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |*, payload|
+        attachment_queries += 1 if payload[:sql]&.include?('active_storage_attachments')
+      end
+
+      begin
+        described_class.new(
+          source_id: existing_contact_inbox.source_id,
+          inbox: inbox,
+          contact_attributes: { name: 'Contact' }
+        ).perform
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(attachment_queries).to eq(0)
+    end
+
     it 'does not enqueue an avatar fetch for an existing contact_inbox whose contact already has an avatar' do
       contact.avatar.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'avatar.png', content_type: 'image/png')
       existing_contact_inbox

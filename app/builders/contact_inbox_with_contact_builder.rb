@@ -18,14 +18,14 @@ class ContactInboxWithContactBuilder
     if @contact_inbox
       # Self-heal contacts that never got an avatar (e.g. imported contacts whose
       # contact_inbox already existed, so the create path below was never reached).
-      update_contact_avatar(@contact_inbox.contact) unless @contact_inbox.contact.avatar.attached?
+      update_contact_avatar(@contact_inbox.contact)
       return @contact_inbox
     end
 
     ActiveRecord::Base.transaction(requires_new: true) do
       build_contact_with_contact_inbox
     end
-    update_contact_avatar(@contact) unless @contact.avatar.attached?
+    update_contact_avatar(@contact)
     @contact_inbox
   end
 
@@ -50,7 +50,11 @@ class ContactInboxWithContactBuilder
   end
 
   def update_contact_avatar(contact)
+    # Order matters: this runs on the existing-contact_inbox path for every inbound
+    # message, and `avatar.attached?` is an active_storage_attachments query. Checking
+    # the (in-memory) avatar_url first keeps that query off channels that send none.
     return if contact_attributes[:avatar_url].blank?
+    return if contact.avatar.attached?
 
     # Delay the enqueue so the wrapping message-builder transaction (which may stay
     # open while an inbound media attachment downloads inline) commits the contact
