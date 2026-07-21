@@ -66,6 +66,11 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
   def run
     validate!
     Freshchat::SourceBase.connect!
+    # Chatwoot's DB defaults to a 14 sec statement_timeout, which is too tight
+    # for LINE-scale pluck_lookup queries against the freshchat-tagged partial
+    # index on a large messages table. Disable for the duration of this rake
+    # process (session-scoped; doesn't leak to the web app).
+    ActiveRecord::Base.connection.execute('SET statement_timeout = 0')
 
     effective_since = resolve_since
     # Capture the run-start wall-clock BEFORE any source reading. The next
@@ -79,16 +84,25 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
         "channels=#{channels.inspect} limit=#{limit || '∞'} since=#{effective_since&.iso8601 || 'FULL'}" \
         "#{@only_actor_first_name ? " only_actor_first_name=#{@only_actor_first_name.inspect}" : ''}"
 
-    ActiveRecord::Base.transaction do
-      scope = scope_for(effective_since)
-      scope = filter_by_actor_first_name(scope) if @only_actor_first_name
-      scope.find_in_batches(batch_size: BATCH_SIZE) do |source_convs|
-        process_batch(source_convs, effective_since)
-      end
+    scope = scope_for(effective_since)
+    scope = filter_by_actor_first_name(scope) if @only_actor_first_name
 
-      if dry_run
+    if dry_run
+      # Outer transaction so we can atomically roll everything back at the end.
+      ActiveRecord::Base.transaction do
+        scope.find_in_batches(batch_size: BATCH_SIZE) { |b| process_batch(b, effective_since) }
         log 'DRY-RUN: rolling back all changes'
         raise ActiveRecord::Rollback
+      end
+    else
+      # Per-batch commit. Failure of one batch doesn't roll back prior batches;
+      # idempotency keys on the next run pick up wherever we stopped. This is
+      # essential at LINE scale (millions of rows in one transaction otherwise
+      # bloats WAL, holds locks, and is unrecoverable if the DB restarts).
+      scope.find_in_batches(batch_size: BATCH_SIZE) do |source_convs|
+        ActiveRecord::Base.transaction do
+          process_batch(source_convs, effective_since)
+        end
       end
     end
 
@@ -593,7 +607,13 @@ class Freshchat::Importer # rubocop:disable Metrics/ClassLength
 
     # json_key is always a hardcoded constant from this file — safe to interpolate.
     expr = "additional_attributes->>'#{json_key}'"
+    # Explicit `additional_attributes ? :k` predicate is required so PG's planner
+    # reliably picks our partial index (which is WHERE additional_attributes ?
+    # 'freshchat_customer_id/conversation_id/message_id'). Without it the
+    # planner sometimes falls back to a full seq scan of the messages table
+    # (~300K+ rows at LINE-time) and hits the 14s statement_timeout.
     model.where(account_id: inbox.account_id)
+         .where('additional_attributes ? :k', k: json_key)
          .where("#{expr} IN (?)", ids)
          .pluck(Arel.sql(expr), :id)
          .to_h
