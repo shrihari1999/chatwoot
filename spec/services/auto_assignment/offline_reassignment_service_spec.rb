@@ -24,6 +24,18 @@ RSpec.describe AutoAssignment::OfflineReassignmentService do
     create(:conversation, account: account, inbox: inbox, assignee: agent, status: :open, **attrs)
   end
 
+  # Counts SELECTs matching `pattern` issued inside the block.
+  def count_queries(pattern)
+    count = 0
+    subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |*, payload|
+      count += 1 if payload[:sql]&.match?(pattern)
+    end
+    yield
+    count
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+  end
+
   describe '#perform' do
     it 'unassigns a conversation stranded on an offline agent and kicks assignment' do
       conversation = conversation_for(offline_agent)
@@ -72,6 +84,29 @@ RSpec.describe AutoAssignment::OfflineReassignmentService do
 
       expect { described_class.new(account: account).perform }
         .not_to(change { conversation.reload.assignee_id })
+    end
+
+    it 'attributes the hand-off to the inbox assignment policy' do
+      conversation_for(offline_agent)
+      allow(Current).to receive(:executed_by=).and_call_original
+
+      described_class.new(account: account).perform
+
+      expect(Current).to have_received(:executed_by=).with(policy)
+    end
+
+    # The policy is per-inbox, so it is resolved once from the preloaded inboxes
+    # rather than walking conversation.inbox.assignment_policy for every row.
+    it 'does not issue more inbox or policy queries as the stranded set grows' do
+      one, many = [1, 4].map do |count|
+        Conversation.destroy_all
+        count.times { conversation_for(offline_agent) }
+        count_queries(/FROM "(inboxes|inbox_assignment_policies|assignment_policies)"/) do
+          described_class.new(account: account).perform
+        end
+      end
+
+      expect(one).to eq(many)
     end
   end
 
