@@ -3,7 +3,11 @@ module AutoAssignmentHandler
   include Events::Types
 
   included do
-    after_save :run_auto_assignment
+    # after_commit, not after_save: the AssignmentJob queries the inbox's unassigned
+    # conversations, so enqueueing from inside the open transaction lets Sidekiq run
+    # the scan before this row is committed — the conversation that triggered the job
+    # is invisible to it and stays unassigned until the next trigger or periodic sweep.
+    after_commit :run_auto_assignment, on: %i[create update]
   end
 
   private
@@ -15,9 +19,8 @@ module AutoAssignmentHandler
     return unless should_run_auto_assignment?
 
     if inbox.auto_assignment_v2_enabled?
-      # Coalesces bursts of triggers per inbox. Fine if the job runs even when the
-      # surrounding save rolls back: it only scans the inbox's current unassigned
-      # conversations, so running it for an uncommitted change is harmless.
+      # Coalesces bursts of triggers per inbox; a trigger skipped by the in-flight
+      # gate is replayed once by the running job (see AssignmentJob).
       AutoAssignment::AssignmentJob.enqueue_for_inbox(inbox.id)
     else
       # Use legacy assignment system

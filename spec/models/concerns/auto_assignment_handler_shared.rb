@@ -45,6 +45,24 @@ shared_examples_for 'auto_assignment_handler' do
       expect(conversation.reload.assignee).to be_nil
     end
 
+    it 'enqueues the v2 assignment job only after the enclosing transaction commits' do
+      # The job scans the inbox's unassigned conversations from another connection, so
+      # enqueueing mid-transaction lets it run before this row is visible and the
+      # conversation stays unassigned until the next trigger or the periodic sweep.
+      account.enable_features('assignment_v2')
+      step = nil
+      enqueued_at = nil
+      allow(AutoAssignment::AssignmentJob).to receive(:enqueue_for_inbox) { enqueued_at = step }
+
+      ActiveRecord::Base.transaction do
+        create(:conversation, account: account, contact: create(:contact, account: account), inbox: inbox, assignee: nil)
+        step = :transaction_body_finished
+      end
+
+      expect(AutoAssignment::AssignmentJob).to have_received(:enqueue_for_inbox).with(inbox.id)
+      expect(enqueued_at).to eq(:transaction_body_finished)
+    end
+
     it 'gets triggered on update only when status changes to open' do
       conversation.status = 'resolved'
       conversation.save!

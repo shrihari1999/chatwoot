@@ -80,7 +80,10 @@ RSpec.describe AutoAssignment::AssignmentJob, type: :job do
   end
 
   describe '.enqueue_for_inbox' do
-    after { Redis::Alfred.delete(format(Redis::Alfred::AUTO_ASSIGNMENT_IN_FLIGHT_KEY, inbox_id: inbox.id)) }
+    after do
+      Redis::Alfred.delete(format(Redis::Alfred::AUTO_ASSIGNMENT_IN_FLIGHT_KEY, inbox_id: inbox.id))
+      Redis::Alfred.delete(described_class.pending_key(inbox.id))
+    end
 
     it 'enqueues one run per inbox and coalesces concurrent triggers' do
       allow(described_class).to receive(:perform_later).and_return(true)
@@ -99,6 +102,52 @@ RSpec.describe AutoAssignment::AssignmentJob, type: :job do
       described_class.new.perform(inbox_id: inbox.id, token: 'stale-token')
 
       expect(Redis::Alfred.get(key)).to eq('newer-token')
+    end
+
+    it 'marks the inbox pending when a trigger is turned away by the gate' do
+      allow(described_class).to receive(:perform_later).and_return(true)
+
+      described_class.enqueue_for_inbox(inbox.id)
+      expect(Redis::Alfred.get(described_class.pending_key(inbox.id))).to be_nil
+
+      described_class.enqueue_for_inbox(inbox.id)
+      expect(Redis::Alfred.get(described_class.pending_key(inbox.id))).to eq('1')
+    end
+  end
+
+  describe 'replaying coalesced triggers' do
+    after do
+      Redis::Alfred.delete(format(Redis::Alfred::AUTO_ASSIGNMENT_IN_FLIGHT_KEY, inbox_id: inbox.id))
+      Redis::Alfred.delete(described_class.pending_key(inbox.id))
+    end
+
+    before do
+      allow(AutoAssignment::AssignmentService).to receive(:new)
+        .and_return(instance_double(AutoAssignment::AssignmentService, perform_bulk_assignment: 0))
+    end
+
+    it 'enqueues exactly one more run when a trigger was skipped mid-flight' do
+      Redis::Alfred.set(described_class.pending_key(inbox.id), '1', ex: 300)
+
+      expect { described_class.new.perform(inbox_id: inbox.id) }
+        .to have_enqueued_job(described_class).with(hash_including(inbox_id: inbox.id)).once
+      expect(Redis::Alfred.get(described_class.pending_key(inbox.id))).to be_nil
+    end
+
+    it 'does not enqueue a follow-up run when no trigger was skipped' do
+      expect { described_class.new.perform(inbox_id: inbox.id) }.not_to have_enqueued_job(described_class)
+    end
+
+    it 'replays even when the assignment service raises' do
+      allow(AutoAssignment::AssignmentService).to receive(:new)
+        .and_return(instance_double(AutoAssignment::AssignmentService).tap do |service|
+          allow(service).to receive(:perform_bulk_assignment).and_raise(StandardError, 'boom')
+        end)
+      Redis::Alfred.set(described_class.pending_key(inbox.id), '1', ex: 300)
+
+      expect do
+        expect { described_class.new.perform(inbox_id: inbox.id) }.to raise_error(StandardError, 'boom')
+      end.to have_enqueued_job(described_class).once
     end
   end
 

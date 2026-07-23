@@ -2,6 +2,7 @@ class AutoAssignment::AssignmentJob < ApplicationJob
   queue_as :default
 
   IN_FLIGHT_TTL = 5.minutes
+  PENDING_TTL = 5.minutes
 
   # Coalesce per inbox: at most one AssignmentJob per inbox is in-flight
   # (queued or running) at any time. The marker carries a token so a job only
@@ -9,7 +10,13 @@ class AutoAssignment::AssignmentJob < ApplicationJob
   def self.enqueue_for_inbox(inbox_id)
     key = format(::Redis::Alfred::AUTO_ASSIGNMENT_IN_FLIGHT_KEY, inbox_id: inbox_id)
     token = SecureRandom.uuid
-    return false unless ::Redis::Alfred.set(key, token, nx: true, ex: IN_FLIGHT_TTL)
+    unless ::Redis::Alfred.set(key, token, nx: true, ex: IN_FLIGHT_TTL)
+      # The in-flight run may already have scanned before this trigger's conversation
+      # landed, so coalescing into it would silently drop the trigger. Mark the inbox
+      # dirty; the running job replays one more run on completion.
+      ::Redis::Alfred.set(pending_key(inbox_id), '1', ex: PENDING_TTL)
+      return false
+    end
 
     return true if perform_later(inbox_id: inbox_id, token: token)
 
@@ -20,6 +27,10 @@ class AutoAssignment::AssignmentJob < ApplicationJob
     # Enqueue raised after we claimed the gate; release our own claim, then re-raise.
     ::Redis::Alfred.delete_if_equals(key, token)
     raise
+  end
+
+  def self.pending_key(inbox_id)
+    format(::Redis::Alfred::AUTO_ASSIGNMENT_PENDING_KEY, inbox_id: inbox_id)
   end
 
   def perform(inbox_id:, token: nil)
@@ -34,6 +45,7 @@ class AutoAssignment::AssignmentJob < ApplicationJob
     raise e if Rails.env.test?
   ensure
     release_in_flight(inbox_id, token)
+    replay_pending(inbox_id)
   end
 
   private
@@ -46,6 +58,15 @@ class AutoAssignment::AssignmentJob < ApplicationJob
 
     key = format(::Redis::Alfred::AUTO_ASSIGNMENT_IN_FLIGHT_KEY, inbox_id: inbox_id)
     ::Redis::Alfred.delete_if_equals(key, token)
+  end
+
+  # Replay the triggers the in-flight gate turned away while this job was running.
+  # Consuming the marker collapses a whole burst into one extra run, and it runs
+  # after release_in_flight so the re-enqueue can take a fresh claim.
+  def replay_pending(inbox_id)
+    return unless ::Redis::Alfred.delete(self.class.pending_key(inbox_id)).to_i.positive?
+
+    self.class.enqueue_for_inbox(inbox_id)
   end
 
   def bulk_assignment_limit
