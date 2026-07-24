@@ -34,6 +34,25 @@ describe OnlineStatusTracker do
     end
   end
 
+  context 'when get_present_user_ids' do
+    before do
+      [user1, user2, user3].each { |u| described_class.update_presence(account.id, 'User', u.id) }
+      described_class.set_status(account.id, user1.id, 'online')
+      described_class.set_status(account.id, user2.id, 'busy')
+      # user3 has a live tab but marked offline — present by key membership, offline by status.
+      described_class.set_status(account.id, user3.id, 'offline')
+    end
+
+    it 'includes online and busy agents but excludes offline-status agents with a live tab' do
+      expect(described_class.get_present_user_ids(account.id)).to contain_exactly(user1.id, user2.id)
+    end
+
+    it 'excludes an agent whose heartbeat expired even if their stored status is online' do
+      Redis::Alfred.delete(format(Redis::Alfred::ONLINE_PRESENCE_USERS, account_id: account.id))
+      expect(described_class.get_present_user_ids(account.id)).to be_empty
+    end
+  end
+
   context 'when get_available_contacts' do
     let(:online_contact) { create(:contact, account: account) }
     let(:offline_contact) { create(:contact, account: account) }

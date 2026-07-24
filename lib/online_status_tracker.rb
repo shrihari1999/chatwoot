@@ -77,4 +77,13 @@ class OnlineStatusTracker
     user_ids += account.account_users.where(auto_offline: false)&.map(&:user_id)&.map(&:to_s)
     user_ids.uniq
   end
+
+  # Agents who can currently take conversations: effective availability is online or
+  # busy (offline is excluded). get_available_users already folds in the heartbeat —
+  # an auto_offline agent with no recent ping isn't in the map at all — so this is the
+  # authoritative "present" set for assignment/reassignment. Anyone not here is offline.
+  # NOTE: ids are returned as integers.
+  def self.get_present_user_ids(account_id)
+    get_available_users(account_id).select { |_id, status| %w[online busy].include?(status) }.keys.map(&:to_i)
+  end
 end
