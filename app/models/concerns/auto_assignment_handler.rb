@@ -56,11 +56,10 @@ module AutoAssignmentHandler
     inbox.assignment_policy.present?
   end
 
-  # "Present" (online or busy) means a live heartbeat — same definition
-  # OfflineReassignmentService uses. Anyone absent from that set is offline.
+  # Offline = not in the present (online/busy) set — same definition
+  # OfflineReassignmentService uses, so a re-pool the handler triggers actually lands.
   def assignee_offline?
-    present_ids = OnlineStatusTracker.get_available_users(account_id).keys.map(&:to_i)
-    present_ids.exclude?(assignee_id)
+    OnlineStatusTracker.get_present_user_ids(account_id).exclude?(assignee_id)
   end
 
   # Re-pool via the existing service: it unassigns the offline agent's stranded

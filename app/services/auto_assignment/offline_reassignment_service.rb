@@ -82,8 +82,11 @@ class AutoAssignment::OfflineReassignmentService
                                  .index_by(&:id)
   end
 
-  # Agents with a live heartbeat (online or busy). Anyone not here is offline.
+  # Agents whose effective availability is online or busy. Anyone else — offline
+  # status, or no heartbeat at all — is offline and their conversations are re-pooled.
+  # NB: this is the *value* (status), not mere presence: an agent with a live tab but
+  # an offline status is offline, which key-membership alone would miss.
   def present_agent_ids
-    OnlineStatusTracker.get_available_users(account.id).keys.map(&:to_i)
+    OnlineStatusTracker.get_present_user_ids(account.id)
   end
 end

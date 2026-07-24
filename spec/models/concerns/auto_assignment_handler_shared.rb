@@ -117,6 +117,18 @@ shared_examples_for 'auto_assignment_handler' do
       expect(AutoAssignment::AssignmentJob).to have_received(:enqueue_for_inbox).with(inbox.id)
     end
 
+    it 're-pools when the assignee has a live tab but an offline status' do
+      # Owner kept the app open but set themselves offline — present by key membership,
+      # offline by status. The status-value check must still re-pool.
+      OnlineStatusTracker.update_presence(account.id, 'AccountUser', offline_agent.id)
+      OnlineStatusTracker.set_status(account.id, offline_agent.id, 'offline')
+      conversation = snoozed_conversation_for(offline_agent)
+
+      expect { conversation.open! }
+        .to change { conversation.reload.assignee_id }.from(offline_agent.id).to(nil)
+      expect(AutoAssignment::AssignmentJob).to have_received(:enqueue_for_inbox).with(inbox.id)
+    end
+
     it 'leaves a conversation reopened onto an online assignee with its assignee' do
       conversation = snoozed_conversation_for(online_agent)
 

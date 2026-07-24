@@ -62,6 +62,18 @@ RSpec.describe AutoAssignment::OfflineReassignmentService do
         .not_to(change { conversation.reload.assignee_id })
     end
 
+    it 're-pools a conversation whose assignee has a live tab but an offline status' do
+      # Agent kept the app open but set themselves offline (e.g. lunch). Key membership
+      # alone would treat them as present; the status value must classify them offline.
+      OnlineStatusTracker.update_presence(account.id, 'AccountUser', offline_agent.id)
+      OnlineStatusTracker.set_status(account.id, offline_agent.id, 'offline')
+      conversation = conversation_for(offline_agent)
+
+      expect { described_class.new(account: account).perform }
+        .to change { conversation.reload.assignee_id }.from(offline_agent.id).to(nil)
+      expect(AutoAssignment::AssignmentJob).to have_received(:enqueue_for_inbox).with(inbox.id)
+    end
+
     it 'ignores resolved conversations' do
       conversation = conversation_for(offline_agent, status: :resolved)
 
