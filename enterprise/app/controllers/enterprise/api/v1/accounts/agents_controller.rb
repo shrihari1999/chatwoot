@@ -2,6 +2,8 @@ module Enterprise::Api::V1::Accounts::AgentsController
   def create
     forbid_non_admin_assigning_administrator!
     super
+    return if @agent.blank?
+
     associate_agent_with_custom_role
   end
 
