@@ -1,7 +1,12 @@
 <script>
 import { mapGetters } from 'vuex';
+import { debounce } from '@chatwoot/utils';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import MentionBox from '../mentions/MentionBox.vue';
+
+// Every keystroke used to trigger a full refetch of the list. Waiting for a pause
+// collapses a burst of typing into a single request.
+const SEARCH_DEBOUNCE_MS = 300;
 
 export default {
   components: { MentionBox },
@@ -56,10 +61,17 @@ export default {
   },
   watch: {
     searchKey() {
-      this.fetchCannedResponses();
+      this.debouncedFetchCannedResponses();
     },
   },
+  created() {
+    this.debouncedFetchCannedResponses = debounce(
+      () => this.fetchCannedResponses(),
+      SEARCH_DEBOUNCE_MS
+    );
+  },
   mounted() {
+    // The initial load is immediate — the picker has just opened and has nothing to show.
     this.fetchCannedResponses();
   },
   methods: {
@@ -100,8 +112,11 @@ export default {
         <img
           v-for="file in item.files.slice(0, 3)"
           :key="file.blob_id"
-          :src="file.file_url"
+          :src="file.thumb_url"
           :alt="file.filename"
+          loading="lazy"
+          width="40"
+          height="40"
           class="w-10 h-10 object-cover rounded"
         />
         <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->
@@ -123,8 +138,11 @@ export default {
           <img
             v-for="file in item.files.slice(0, 2)"
             :key="file.blob_id"
-            :src="file.file_url"
+            :src="file.thumb_url"
             :alt="file.filename"
+            loading="lazy"
+            width="32"
+            height="32"
             class="w-8 h-8 object-cover rounded"
           />
           <!-- eslint-disable-next-line @intlify/vue-i18n/no-raw-text -->

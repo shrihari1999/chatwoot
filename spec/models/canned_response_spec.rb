@@ -75,4 +75,44 @@ RSpec.describe CannedResponse, type: :model do
       expect(cr.errors[:category]).to be_present
     end
   end
+
+  describe '#file_base_data' do
+    let(:canned_response) do
+      create(:canned_response, account: account, category: category, content: 'Hello', short_code: 'hi')
+    end
+
+    def attach(filename, content_type, io)
+      canned_response.files.attach(io: io, filename: filename, content_type: content_type)
+      canned_response.file_base_data.last
+    end
+
+    it 'exposes a variant thumb_url distinct from the original for a representable image' do
+      data = attach('card.png', 'image/png', Rails.root.join('spec/assets/avatar.png').open)
+
+      expect(data[:thumb_url]).to be_present
+      expect(data[:thumb_url]).not_to eq(data[:file_url])
+      expect(data[:thumb_url]).to include('representations')
+    end
+
+    it 'keeps file_url pointing at the untouched original' do
+      data = attach('card.png', 'image/png', Rails.root.join('spec/assets/avatar.png').open)
+
+      expect(data[:file_url]).to include('/blobs/')
+      expect(data[:file_url]).not_to include('representations')
+    end
+
+    it 'falls back to the original url when the attachment is not representable' do
+      data = attach('doc.txt', 'text/plain', StringIO.new('not an image'))
+
+      expect(data[:thumb_url]).to eq(data[:file_url])
+    end
+
+    # The picker and composer both render thumb_url, but the outgoing message is built
+    # from blob_signed_id. If that ever changed, customers would receive 96px thumbnails.
+    it 'still exposes the blob signed id used for sending' do
+      data = attach('card.png', 'image/png', Rails.root.join('spec/assets/avatar.png').open)
+
+      expect(data[:blob_signed_id]).to be_present
+    end
+  end
 end

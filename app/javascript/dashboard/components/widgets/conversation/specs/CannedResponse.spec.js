@@ -3,13 +3,13 @@ import { createStore } from 'vuex';
 
 import CannedResponse from '../CannedResponse.vue';
 
-const mountWithMessages = cannedMessages => {
+const mountWithMessages = (cannedMessages, { getCannedResponse } = {}) => {
   const store = createStore({
     getters: {
       getCannedResponses: () => cannedMessages,
     },
     actions: {
-      getCannedResponse: () => {},
+      getCannedResponse: getCannedResponse || (() => {}),
     },
   });
 
@@ -120,5 +120,77 @@ describe('CannedResponse', () => {
   it('returns an empty array when there are no canned responses', () => {
     const wrapper = mountWithMessages([]);
     expect(wrapper.vm.items).toEqual([]);
+  });
+
+  describe('search fetching', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('fetches immediately on mount so the picker is never empty', () => {
+      const getCannedResponse = vi.fn();
+      mountWithMessages([], { getCannedResponse });
+
+      expect(getCannedResponse).toHaveBeenCalledTimes(1);
+    });
+
+    it('collapses a burst of keystrokes into a single request', async () => {
+      const getCannedResponse = vi.fn();
+      const wrapper = mountWithMessages([], { getCannedResponse });
+      getCannedResponse.mockClear();
+
+      await wrapper.setProps({ searchKey: 'i' });
+      await wrapper.setProps({ searchKey: 'im' });
+      await wrapper.setProps({ searchKey: 'img' });
+
+      expect(getCannedResponse).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(300);
+
+      expect(getCannedResponse).toHaveBeenCalledTimes(1);
+      expect(getCannedResponse.mock.calls[0][1]).toEqual({
+        searchKey: 'img',
+        filterByVisibility: true,
+      });
+    });
+  });
+
+  describe('image rendering', () => {
+    const withImage = () => [
+      {
+        id: 1,
+        short_code: 'img',
+        content: '',
+        category: { id: 1, name: 'X' },
+        files: [
+          {
+            blob_id: 7,
+            filename: 'card.png',
+            file_url: 'https://example.test/blobs/redirect/card.png',
+            thumb_url: 'https://example.test/representations/redirect/card.png',
+          },
+        ],
+      },
+    ];
+
+    it('renders the thumbnail variant, never the full-size original', () => {
+      const wrapper = mountWithMessages(withImage());
+      const html = wrapper.html();
+
+      expect(html).not.toContain('/blobs/redirect/');
+    });
+
+    it('exposes the untouched file entry so the send path keeps the original', () => {
+      const wrapper = mountWithMessages(withImage());
+      const itemRow = wrapper.vm.items.find(i => i.type !== 'header');
+
+      expect(itemRow.files[0].file_url).toBe(
+        'https://example.test/blobs/redirect/card.png'
+      );
+    });
   });
 });
