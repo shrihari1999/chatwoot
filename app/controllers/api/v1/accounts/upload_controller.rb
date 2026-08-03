@@ -37,6 +37,12 @@ class Api::V1::Accounts::UploadController < Api::V1::Accounts::BaseController
   end
 
   def create_and_save_blob(io, filename, content_type)
+    compressed = Attachments::ImageCompressor.new(
+      io: io, filename: filename, content_type: content_type
+    ).compress
+
+    io, filename, content_type = compressed.values_at(:io, :filename, :content_type) if compressed.present?
+
     ActiveStorage::Blob.create_and_upload!(
       io: io,
       filename: filename,
