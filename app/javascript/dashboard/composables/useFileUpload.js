@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { DirectUpload } from 'activestorage';
 import { setDirectUploadAuthHeaders } from 'dashboard/helper/directUploadsHelper';
 import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
-import { getMaxUploadSizeByChannel } from '@chatwoot/utils';
+import { getMaxUploadSizeForChannel } from 'shared/helpers/channelUploadLimits';
 import {
   DEFAULT_MAXIMUM_FILE_UPLOAD_SIZE,
   resolveMaximumFileUploadSize,
@@ -42,7 +42,7 @@ export const useFileUpload = ({ inbox, attachFile, isPrivateNote = false }) => {
       return installationLimit;
     }
 
-    const channelLimit = getMaxUploadSizeByChannel({
+    const channelLimit = getMaxUploadSizeForChannel({
       channelType,
       medium: inbox?.medium, // e.g. 'sms' | 'whatsapp' | etc.
       mime, // e.g. 'image/png'
