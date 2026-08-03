@@ -301,8 +301,11 @@ const tableHeaders = computed(() => {
                     <img
                       v-for="file in cannedItem.files"
                       :key="file.id"
-                      :src="file.file_url"
+                      :src="file.thumb_url"
                       :alt="file.filename"
+                      loading="lazy"
+                      width="40"
+                      height="40"
                       class="w-10 h-10 object-cover rounded-md border border-n-weak"
                     />
                   </div>

@@ -36,7 +36,8 @@ export default {
       localCategoryId: this.edcategoryId,
       show: true,
       attachedFiles: (this.edfiles || []).map(f => ({
-        fileUrl: f.file_url,
+        // Preview only — the blob signed id is what actually gets re-attached on save.
+        fileUrl: f.thumb_url,
         blobId: f.blob_signed_id,
         filename: f.filename,
       })),

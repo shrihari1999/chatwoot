@@ -29,6 +29,10 @@ class CannedResponse < ApplicationRecord
   belongs_to :category, class_name: 'CannedResponseCategory'
   has_many_attached :files
 
+  # Longest edge of the preview variant. Every consumer of these URLs renders at
+  # 32-40px (picker, settings list, edit form, composer thumb), so 96px covers 3x DPI.
+  THUMB_DIMENSION = 96
+
   def file_base_data
     files.map do |file|
       {
@@ -36,6 +40,7 @@ class CannedResponse < ApplicationRecord
         canned_response_id: id,
         file_type: file.content_type,
         file_url: url_for(file),
+        thumb_url: thumb_url_for(file),
         blob_id: file.blob_id,
         blob_signed_id: file.blob.signed_id,
         filename: file.filename.to_s
@@ -57,6 +62,15 @@ class CannedResponse < ApplicationRecord
   }
 
   private
+
+  # Only the URL is built here — Active Storage generates the variant lazily on first
+  # request, so serialisation stays cheap. Non-representable attachments (a PDF, say)
+  # fall back to the original.
+  def thumb_url_for(file)
+    return url_for(file) unless file.representable?
+
+    url_for(file.representation(resize_to_limit: [THUMB_DIMENSION, THUMB_DIMENSION]))
+  end
 
   def content_or_files_present
     return if content.present?

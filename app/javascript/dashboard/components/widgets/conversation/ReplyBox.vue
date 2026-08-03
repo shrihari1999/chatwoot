@@ -1089,7 +1089,9 @@ export default {
             size: 0,
           },
           isPrivate: this.isPrivate,
-          thumb: file.file_url,
+          // Preview only — `blobSignedId` is what gets sent, so the customer still
+          // receives the full-resolution original, not this thumbnail.
+          thumb: file.thumb_url,
           blobSignedId: file.blob_signed_id,
           isRecordedAudio: false,
         });
