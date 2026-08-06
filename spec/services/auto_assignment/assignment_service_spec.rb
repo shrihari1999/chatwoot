@@ -107,19 +107,47 @@ RSpec.describe AutoAssignment::AssignmentService do
         expect(unassigned_conversation.reload.assignee).to eq(agent)
       end
 
-      it 'dispatches assignee changed event' do
+      # FORK DEVIATION: upstream asserted `hash_including(conversation:, user:)`, which only
+      # the removed explicit dispatch supplied. The surviving dispatch is the
+      # after_commit one from Conversation#notify_assignment_change, which carries richer
+      # data but no `user`. See the comment above `claim_and_assign` in AssignmentService.
+      it 'dispatches assignee changed event exactly once, with the full payload' do
         conversation # ensure it exists
         conversation.update!(assignee_id: nil)
 
-        # The conversation model also dispatches a conversation.updated event
-        allow(Rails.configuration.dispatcher).to receive(:dispatch)
-        expect(Rails.configuration.dispatcher).to receive(:dispatch).with(
-          Events::Types::ASSIGNEE_CHANGED,
-          anything,
-          hash_including(conversation: conversation, user: agent)
-        )
+        dispatched = []
+        allow(Rails.configuration.dispatcher).to receive(:dispatch) do |event, _time, data|
+          dispatched << data if event == Events::Types::ASSIGNEE_CHANGED
+        end
 
         service.perform_bulk_assignment(limit: 1)
+
+        # Exactly one: a second dispatch is the bug this deviation removes. Zero means the
+        # after_commit callback broke -- fix that, don't re-add the explicit dispatch.
+        expect(dispatched.size).to eq(1)
+        expect(dispatched.first).to include(
+          conversation: conversation,
+          notifiable_assignee_change: true
+        )
+        expect(dispatched.first[:performed_by]).to eq(assignment_policy)
+        expect(dispatched.first).to have_key(:changed_attributes)
+      end
+
+      it 'creates exactly one conversation participant without a unique violation' do
+        conversation # ensure it exists
+        conversation.update!(assignee_id: nil)
+
+        # Spy form, not `expect(...).not_to receive(:warn).with(...)`: a constrained message
+        # expectation fails on ANY unmatched :warn in this path, which would be a confusing
+        # failure for an unrelated log line.
+        allow(Rails.logger).to receive(:warn)
+
+        perform_enqueued_jobs { service.perform_bulk_assignment(limit: 1) }
+
+        expect(Rails.logger).not_to have_received(:warn).with(/Failed to create conversation participant/)
+        expect(
+          ConversationParticipant.where(conversation_id: conversation.id, user_id: agent.id).count
+        ).to eq(1)
       end
     end
 
