@@ -83,6 +83,26 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     @messaging[:message][:text]
   end
 
+  # Instagram delivers a shared reel as a link to the reel's web page, not to a media file.
+  # Downloading it stores the HTML page as the blob and leaves the bubble with an unplayable
+  # <video>, so keep the link and render it through the embed player instead.
+  # Facebook reels arrive as type `reel` and keep their own handling in the parent builder.
+  def attachment_params(attachment)
+    return super unless attachment['type'].to_s == 'ig_reel'
+
+    {
+      file_type: :embed,
+      account_id: @message.account_id,
+      external_url: reel_embed_url(attachment.dig('payload', 'url'))
+    }
+  end
+
+  def reel_embed_url(url)
+    return url if url.blank?
+
+    "#{url.chomp('/')}/embed/"
+  end
+
   def story_reply_attributes
     message[:reply_to][:story] if message[:reply_to].present? && message[:reply_to][:story].present?
   end

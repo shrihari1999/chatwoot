@@ -88,15 +88,26 @@ describe Messages::Instagram::MessageBuilder do
       expect(instagram_inbox.messages.count).to eq initial_message_count
     end
 
-    it 'creates message for shared reel' do
+    it 'creates message for shared reel as an embed without downloading the reel page' do
+      messaging = shared_reel_params[:entry][0]['messaging'][0]
+      create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
+
+      expect(Down).not_to receive(:download)
+      described_class.new(messaging, instagram_inbox).perform
+
+      attachment = instagram_inbox.messages.first.attachments.first
+      expect(attachment.file_type).to eq('embed')
+      expect(attachment.external_url).to eq('https://www.instagram.com/reel/DblfBKsvj4C/embed/')
+      expect(attachment.file).not_to be_attached
+    end
+
+    it 'exposes the reel embed url as the attachment data url' do
       messaging = shared_reel_params[:entry][0]['messaging'][0]
       create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
       described_class.new(messaging, instagram_inbox).perform
 
-      message = instagram_inbox.messages.first
-      expect(message.attachments.first.file_type).to eq('ig_reel')
-      expect(message.attachments.first.external_url).to eq(
-        shared_reel_params[:entry][0]['messaging'][0]['message']['attachments'][0]['payload']['url']
+      expect(instagram_inbox.messages.first.attachments.first.push_event_data[:data_url]).to eq(
+        'https://www.instagram.com/reel/DblfBKsvj4C/embed/'
       )
     end
 
