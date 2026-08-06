@@ -79,6 +79,78 @@ RSpec.describe 'Canned Responses API', type: :request do
         expect(response.parsed_body).to eq(expected_payload([cr3, cr2]))
       end
 
+      # Regression: Postgres rejects NUL bytes in query params with
+      # `ArgumentError: string contains null byte`, which 500'd this endpoint in
+      # production when an agent pasted into the conversation canned-response picker.
+      it 'strips a leading NUL byte and still matches' do
+        cr = create(:canned_response, account: account, content: 'Thanks for reaching out', short_code: 'thanks')
+
+        get "/api/v1/accounts/#{account.id}/canned_responses",
+            params: { search: "\u0000thanks" },
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body).to eq(expected_payload([cr]))
+      end
+
+      it 'treats a search of only NUL bytes as no search term' do
+        create(:canned_response, account: account, content: 'Great! Looking forward', short_code: 'short-code')
+
+        get "/api/v1/accounts/#{account.id}/canned_responses",
+            params: { search: "\u0000\u0000" },
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        # Stripping happens before the blank check, so this degrades to "no filter"
+        # rather than searching for "%%" and ordering by an empty term.
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body.length).to eq(account.canned_responses.count)
+      end
+
+      # The exact term from the production 500s: a NUL followed by a person emoji.
+      # It matches no short_code, so this asserts "no longer raises" -- not matching.
+      it 'does not raise on the exact search term that failed in production' do
+        create(:canned_response, account: account, content: 'Thanks for reaching out', short_code: 'thanks')
+
+        get "/api/v1/accounts/#{account.id}/canned_responses",
+            params: { search: "\u0000\u{1F464}" },
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body).to be_empty
+      end
+
+      # Interior NUL rather than leading: proves stripping preserves the surrounding
+      # term so matching still works, not merely that it stops raising.
+      it 'strips an interior NUL byte and still matches on the remaining characters' do
+        create(:canned_response, account: account, content: 'Great! Looking forward', short_code: 'short-code')
+        cr2 = create(:canned_response, account: account, content: 'Thanks for reaching out', short_code: 'content-with-thanks')
+        cr3 = create(:canned_response, account: account, content: 'Thanks for reaching out', short_code: 'Thanks')
+
+        get "/api/v1/accounts/#{account.id}/canned_responses",
+            params: { search: "tha\u0000nks" },
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body).to eq(expected_payload([cr3, cr2]))
+      end
+
+      # `?search[]=x` yields an Array, which must not reach String#delete. The
+      # is_a?(String) guard passes it through so behaviour is unchanged from before.
+      it 'passes a non-String search param through untouched' do
+        create(:canned_response, account: account, content: 'Great! Looking forward', short_code: 'short-code')
+
+        get "/api/v1/accounts/#{account.id}/canned_responses",
+            params: { search: ['thanks'] },
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+      end
+
       context 'when filtering by category_id' do
         let!(:category) { create(:canned_response_category, account: account, name: 'Support') }
         let!(:other_category) { create(:canned_response_category, account: account, name: 'Sales') }

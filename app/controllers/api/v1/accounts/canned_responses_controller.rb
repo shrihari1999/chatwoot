@@ -1,4 +1,8 @@
 class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseController
+  # Mirrors MailboxSanitizer::NULL_BYTE. Defined locally rather than reaching into a
+  # mailbox module from a canned-response controller.
+  NULL_BYTE = "\u0000".freeze
+
   before_action :fetch_canned_response, only: [:update, :destroy]
 
   def index
@@ -87,10 +91,33 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   end
 
   def search_scope
-    return Current.account.canned_responses.with_attached_files if params[:search].blank?
+    # Blank-check the *sanitised* term, not the raw param: a search made up entirely of
+    # NUL bytes would otherwise become "%%" and hit `order_by_search('')`. After
+    # stripping it correctly degrades to "no search term".
+    search = sanitized_search
+    return Current.account.canned_responses.with_attached_files if search.blank?
 
     Current.account.canned_responses.with_attached_files
-           .where('short_code ILIKE :search', search: "%#{params[:search]}%")
-           .order_by_search(params[:search])
+           .where('short_code ILIKE :search', search: "%#{search}%")
+           .order_by_search(search)
+  end
+
+  # Postgres rejects NUL bytes in query parameters with
+  # `ArgumentError: string contains null byte`, so a pasted "\u0000" 500s this endpoint.
+  # Agents hit this in production by pasting into the conversation canned-response picker
+  # (observed term: NUL + an emoji). Both consumers below need it stripped -- the ILIKE
+  # bind param, and `order_by_search`, whose `sanitize_sql_array` escapes SQL but does
+  # not remove NUL.
+  #
+  # Strips rather than 400s, matching MailboxSanitizer's handling of inbound email --
+  # including its `is_a?(String)` guard. `?search[]=x` yields an Array and `?search[a]=b`
+  # yields ActionController::Parameters; on those, `delete` means delete-by-key, not
+  # delete-characters. Non-strings are passed through untouched so they keep behaving
+  # exactly as they did before this fix.
+  def sanitized_search
+    value = params[:search]
+    return value unless value.is_a?(String)
+
+    value.delete(NULL_BYTE)
   end
 end
