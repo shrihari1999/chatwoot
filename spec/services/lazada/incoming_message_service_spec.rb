@@ -114,6 +114,49 @@ RSpec.describe Lazada::IncomingMessageService do
     end
   end
 
+  describe 'marketing push (template 200016)' do
+    # A real "sem_seller_engagement_push" payload: Lazada's seller-ads broadcast,
+    # HTML content, delivered on the same webhook as buyer chat.
+    def marketing_push(status: 0, message_id: 'push-1')
+      {
+        data: {
+          template_id: 200_016, from_account_type: 1, from_user_id: '100021725907',
+          status: status, message_id: message_id, session_id: 'sess-push', site_id: 'TH',
+          content: { txt: '<img width="250" src="https://img.lazcdn.com/us/sem_seller_engagement_push/x.png"></img>' }.to_json
+        }
+      }
+    end
+
+    it 'drops it without creating a conversation, contact or message' do
+      described_class.new(inbox: inbox, params: marketing_push).perform
+
+      expect(inbox.conversations).to be_empty
+      expect(inbox.contact_inboxes).to be_empty
+      expect(Message.where(inbox_id: inbox.id)).to be_empty
+    end
+
+    it 'does not enqueue an avatar fetch for it' do
+      expect(Lazada::ContactProfileJob).not_to receive(:perform_later)
+
+      described_class.new(inbox: inbox, params: marketing_push).perform
+    end
+
+    it 'drops a recall of a marketing push too — we never ingested the original' do
+      expect(Lazada::IncomingRecallService).not_to receive(:new)
+
+      described_class.new(inbox: inbox, params: marketing_push(status: 1)).perform
+    end
+
+    it 'still ingests an ordinary message from the same account' do
+      data = { template_id: 1, from_account_type: 1, from_user_id: '100021725907', message_id: 'sys-1',
+               session_id: 'sess-push', content: { txt: 'your order was updated' }.to_json }
+
+      described_class.new(inbox: inbox, params: { data: data }).perform
+
+      expect(inbox.conversations.last.messages.last.content).to eq('your order was updated')
+    end
+  end
+
   describe 'contact profile enrichment' do
     let(:params) do
       {

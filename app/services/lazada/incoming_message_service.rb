@@ -1,10 +1,23 @@
 class Lazada::IncomingMessageService
   include ::FileTypeHelper
+
+  # Lazada's "sem_seller_engagement_push" marketing broadcast — ads for seller
+  # webinars and promos, pushed down the same webhook as buyer chat.
+  MARKETING_PUSH_TEMPLATE_ID = 200_016
+
   pattr_initialize [:inbox!, :params!]
 
   def perform
     data = params[:data]
     return if data.blank?
+
+    # These carry raw HTML in their content, which the dashboard escapes into
+    # visible markup (markdown-it runs with html: false), and every one of them
+    # opens a conversation that auto-assignment hands to an agent. Nothing in
+    # them is actionable by the shop, so drop them before any contact or
+    # conversation exists. The sending account also posts ordinary system
+    # messages, so we key on the template, not the sender.
+    return log_dropped_marketing_push(data) if marketing_push?(data)
 
     # Recall webhooks (status=1) must be handled regardless of sender. Sellers
     # can recall their own outgoing messages too, and we still want to mark
@@ -48,6 +61,20 @@ class Lazada::IncomingMessageService
 
   def seller_message?(data)
     data[:from_account_type].to_i == 2
+  end
+
+  def marketing_push?(data)
+    data[:template_id].to_i == MARKETING_PUSH_TEMPLATE_ID
+  end
+
+  # Logged so we can confirm the drop is firing, and notice it if Lazada ever
+  # repurposes the template for something the shop needs to see.
+  def log_dropped_marketing_push(data)
+    Rails.logger.info(
+      "Lazada marketing push dropped (template #{MARKETING_PUSH_TEMPLATE_ID}): " \
+      "message_id=#{data[:message_id]} session_id=#{data[:session_id]}"
+    )
+    nil
   end
 
   # A resolved-then-reopened buyer thread can leave several Chatwoot conversations
