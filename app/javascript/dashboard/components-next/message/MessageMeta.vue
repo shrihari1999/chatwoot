@@ -88,6 +88,7 @@ const isDelivered = computed(() => {
     isATwilioChannel.value ||
     isASmsInbox.value ||
     isAFacebookInbox.value ||
+    isALazadaChannel.value ||
     isAnInstagramChannel.value ||
     isATiktokChannel.value ||
     isATiktokShopChannel.value

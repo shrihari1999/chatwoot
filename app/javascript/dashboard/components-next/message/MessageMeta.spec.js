@@ -3,28 +3,41 @@ import { ref, defineComponent } from 'vue';
 import MessageMeta from './MessageMeta.vue';
 import { provideMessageContext } from './provider.js';
 
-// Mock the useInbox composable so it returns a stable set of refs
-vi.mock('dashboard/composables/useInbox', () => ({
-  useInbox: () => ({
-    isAFacebookInbox: ref(false),
-    isALineChannel: ref(false),
-    isALazadaChannel: ref(false),
-    isAPIInbox: ref(false),
-    isASmsInbox: ref(false),
-    isATelegramChannel: ref(false),
-    isATwilioChannel: ref(false),
-    isAWebWidgetInbox: ref(false),
-    isAWhatsAppChannel: ref(false),
-    isAnEmailChannel: ref(false),
-    isAnInstagramChannel: ref(false),
-    isATiktokChannel: ref(false),
-    isATiktokShopChannel: ref(false),
-  }),
+// Mock the useInbox composable so it returns a stable set of refs. The refs live
+// outside the factory so a test can flip a channel on before mounting.
+const inboxFlags = vi.hoisted(() => ({
+  isAFacebookInbox: false,
+  isALineChannel: false,
+  isALazadaChannel: false,
+  isAPIInbox: false,
+  isASmsInbox: false,
+  isATelegramChannel: false,
+  isATwilioChannel: false,
+  isAWebWidgetInbox: false,
+  isAWhatsAppChannel: false,
+  isAnEmailChannel: false,
+  isAnInstagramChannel: false,
+  isATiktokChannel: false,
+  isATiktokShopChannel: false,
 }));
 
-// Stub MessageStatus and Icon so they don't need real dependencies
+vi.mock('dashboard/composables/useInbox', async () => {
+  const { ref: mockRef } = await import('vue');
+  return {
+    useInbox: () =>
+      Object.fromEntries(
+        Object.entries(inboxFlags).map(([key, value]) => [key, mockRef(value)])
+      ),
+  };
+});
+
+// Stub MessageStatus and Icon so they don't need real dependencies. MessageStatus
+// renders the status it was handed so the indicator assertions can read it.
 vi.mock('./MessageStatus.vue', () => ({
-  default: { template: '<span class="msg-status" />' },
+  default: {
+    props: ['status'],
+    template: '<span class="msg-status">{{ status }}</span>',
+  },
 }));
 
 vi.mock('next/icon/Icon.vue', () => ({
@@ -133,5 +146,45 @@ describe('MessageMeta.vue — (Edited) label', () => {
     });
     const timeEl = wrapper.find('time');
     expect(timeEl.exists()).toBe(true);
+  });
+});
+
+describe('MessageMeta.vue — Lazada status indicator', () => {
+  beforeEach(() => {
+    inboxFlags.isALazadaChannel = true;
+  });
+
+  afterEach(() => {
+    inboxFlags.isALazadaChannel = false;
+  });
+
+  const outgoing = overrides => ({
+    messageType: ref(1), // OUTGOING
+    sourceId: ref('lzd-msg-1'),
+    ...overrides,
+  });
+
+  // Seller-app sends and Lazada's own auto-replies arrive on the webhook already
+  // delivered, so they must render the double-check and not the sending clock.
+  it('shows delivered for a delivered message', () => {
+    const wrapper = mountWithContext(outgoing({ status: ref('delivered') }));
+    expect(wrapper.find('span.msg-status').text()).toBe('delivered');
+  });
+
+  it('shows sent for a sent message', () => {
+    const wrapper = mountWithContext(outgoing({ status: ref('sent') }));
+    expect(wrapper.find('span.msg-status').text()).toBe('sent');
+  });
+
+  it('shows read for a read message', () => {
+    const wrapper = mountWithContext(outgoing({ status: ref('read') }));
+    expect(wrapper.find('span.msg-status').text()).toBe('read');
+  });
+
+  it('falls back to progress when the message has no source id yet', () => {
+    const wrapper = mountWithContext(
+      outgoing({ status: ref('delivered'), sourceId: ref(null) })
+    );
+    expect(wrapper.find('span.msg-status').text()).toBe('progress');
   });
 });
