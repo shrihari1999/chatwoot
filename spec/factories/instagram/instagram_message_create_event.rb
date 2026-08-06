@@ -258,7 +258,7 @@ FactoryBot.define do
                     'payload': {
                       'reel_video_id': '1234',
                       'title': 'Reel title',
-                      'url': 'https://www.example.com/test.jpeg'
+                      'url': 'https://www.instagram.com/reel/DblfBKsvj4C/'
                     }
                   }
                 ]

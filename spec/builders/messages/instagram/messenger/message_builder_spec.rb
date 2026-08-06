@@ -95,10 +95,9 @@ describe Messages::Instagram::Messenger::MessageBuilder do
       described_class.new(messaging, instagram_messenger_inbox).perform
 
       message = instagram_messenger_channel.inbox.messages.first
-      expect(message.attachments.first.file_type).to eq('ig_reel')
-      expect(message.attachments.first.external_url).to eq(
-        shared_reel_params[:entry][0]['messaging'][0]['message']['attachments'][0]['payload']['url']
-      )
+      expect(message.attachments.first.file_type).to eq('embed')
+      expect(message.attachments.first.external_url).to eq('https://www.instagram.com/reel/DblfBKsvj4C/embed/')
+      expect(message.attachments.first.file).not_to be_attached
     end
 
     it 'creates message with for reply with story id' do
