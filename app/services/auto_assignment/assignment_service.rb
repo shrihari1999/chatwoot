@@ -100,10 +100,38 @@ class AutoAssignment::AssignmentService
     rate_limiter = build_rate_limiter(agent)
     rate_limiter.track_assignment(conversation)
 
-    dispatch_assignment_event(conversation, agent)
+    # NOTE: no explicit ASSIGNEE_CHANGED dispatch here on purpose -- see the comment
+    # above `claim_and_assign`.
     true
   end
 
+  # FORK DEVIATION from upstream v4.16.2 -- do not reinstate on sync without reading this.
+  #
+  # Upstream's `assign_conversation` called a `dispatch_assignment_event` helper here that
+  # dispatched ASSIGNEE_CHANGED explicitly. That made every successful auto-assignment
+  # dispatch the event TWICE, because `locked.update!(assignee: agent)` below already
+  # triggers `Conversation`'s `after_commit :notify_assignment_change`
+  # (app/models/concerns/assignment_handler.rb). Both dispatches reach the same four
+  # async listeners, so ParticipationListener ran twice and its `find_or_create_by!`
+  # raced itself -- ~470 unique-constraint violations/day on conversation_participants,
+  # 93% of all our Postgres ERROR lines. Harmless to users (the listener rescues
+  # RecordNotUnique) but it doubled the listener work on every assignment.
+  #
+  # The removed dispatch was also strictly poorer than the callback one. It sent only
+  # {conversation, user}; the callback sends {conversation, notifiable_assignee_change,
+  # changed_attributes, performed_by}. Note `performed_by` in particular: it reads
+  # Current.executed_by, which is still set when the after_commit fires (the `ensure`
+  # below runs after the transaction commits) but nil by the time the explicit dispatch
+  # ran. No assignee_changed listener reads `user`, so nothing depended on it.
+  #
+  # Upstream history: #9334 (2024-05-06) fixed the callback not firing; #9449 (2024-05-10)
+  # added the rescue that hid the race; #12320 (2025-11-17, Assignment v2) introduced the
+  # redundant dispatch. Reported upstream -- drop this deviation once they fix it.
+  #
+  # DEPENDENCY: this relies on the after_commit callback continuing to fire. The
+  # "dispatches assignee changed event exactly once" spec guards that; if it ever starts
+  # asserting zero dispatches, the callback broke -- fix that, don't re-add this helper.
+  #
   # Atomically claim the row so two bulk runs that overlap (the in-flight gate
   # is best-effort and can lapse on TTL) can't both assign the same conversation.
   def claim_and_assign(conversation, agent)
@@ -121,15 +149,6 @@ class AutoAssignment::AssignmentService
     end
   ensure
     Current.executed_by = nil
-  end
-
-  def dispatch_assignment_event(conversation, agent)
-    Rails.configuration.dispatcher.dispatch(
-      Events::Types::ASSIGNEE_CHANGED,
-      Time.zone.now,
-      conversation: conversation,
-      user: agent
-    )
   end
 
   def build_rate_limiter(agent)
