@@ -126,7 +126,8 @@ class AutoAssignment::AssignmentService
   #
   # Upstream history: #9334 (2024-05-06) fixed the callback not firing; #9449 (2024-05-10)
   # added the rescue that hid the race; #12320 (2025-11-17, Assignment v2) introduced the
-  # redundant dispatch. Reported upstream -- drop this deviation once they fix it.
+  # redundant dispatch. NOT yet reported upstream as of 2026-08-06 -- report it, then drop
+  # this deviation once it is fixed there.
   #
   # DEPENDENCY: this relies on the after_commit callback continuing to fire. The
   # "dispatches assignee changed event exactly once" spec guards that; if it ever starts
