@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_21_053000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_07_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -373,7 +373,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_21_053000) do
     t.datetime "created_at", precision: nil, null: false
     t.datetime "updated_at", precision: nil, null: false
     t.integer "category_id", null: false
-    t.index ["account_id", "category_id", "short_code"], name: "idx_canned_responses_unique_per_category", unique: true
     t.index ["category_id"], name: "index_canned_responses_on_category_id"
   end
 
