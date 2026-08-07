@@ -5,6 +5,28 @@ summary: List all Canned Responses in an Account
 description: Get Details of Canned Responses in an Account
 security:
   - userApiKey: []
+parameters:
+  - in: query
+    name: search
+    schema:
+      type: string
+    required: false
+    description: Filter to canned responses whose short code contains this term. Content is not searched.
+  - in: query
+    name: category_id
+    schema:
+      type: integer
+    required: false
+    description: Filter to canned responses in this category
+  - in: query
+    name: visible
+    schema:
+      type: string
+    required: false
+    description: >-
+      When present, restricts the result to categories visible to the current user —
+      categories scoped to another user or to a team the user is not on are excluded.
+      Omit to list every canned response in the account.
 responses:
   '200':
     description: Success
