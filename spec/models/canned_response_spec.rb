@@ -54,11 +54,12 @@ RSpec.describe CannedResponse, type: :model do
       expect(cr.errors[:category]).to be_present
     end
 
-    it 'allows the same short_code in different categories' do
+    it 'rejects duplicate short_code across categories' do
       other_category = create(:canned_response_category, account: account)
       create(:canned_response, account: account, category: category, content: 'Hello', short_code: 'dup')
       cr = build(:canned_response, account: account, category: other_category, content: 'World', short_code: 'dup')
-      expect(cr).to be_valid
+      expect(cr).not_to be_valid
+      expect(cr.errors[:short_code]).to be_present
     end
 
     it 'rejects duplicate short_code within the same category' do
@@ -66,6 +67,15 @@ RSpec.describe CannedResponse, type: :model do
       cr = build(:canned_response, account: account, category: category, content: 'World', short_code: 'dup')
       expect(cr).not_to be_valid
       expect(cr.errors[:short_code]).to be_present
+    end
+
+    it 'allows the same short_code in a different account' do
+      other_account = create(:account)
+      create(:canned_response, account: account, category: category, content: 'Hello', short_code: 'dup')
+      cr = build(:canned_response, account: other_account,
+                                   category: create(:canned_response_category, account: other_account),
+                                   content: 'World', short_code: 'dup')
+      expect(cr).to be_valid
     end
 
     it 'rejects a category from a different account' do

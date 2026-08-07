@@ -3547,7 +3547,7 @@
           },
           "short_code": {
             "type": "string",
-            "description": "Short Code for quick access of the canned response. Must be unique within its category, not across the whole account.",
+            "description": "Short Code for quick access of the canned response. Must be unique within the account.",
             "example": "welcome"
           },
           "category_id": {
