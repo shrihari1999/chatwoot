@@ -11,20 +11,54 @@ properties:
     description: Short Code for quick access of the canned response
   content:
     type: string
-    description: Message content for canned response
+    nullable: true
+    description: >-
+      Message content for canned response. Empty or null on an image-only response, where
+      the `files` array carries the content instead.
   category_id:
     type: integer
-    nullable: true
-    description: ID of the canned response category (optional)
+    description: ID of the canned response category the response belongs to
   category:
     type: object
-    nullable: true
     description: The category the canned response belongs to
     properties:
       id:
         type: integer
       name:
         type: string
+  files:
+    type: array
+    description: Image attachments on the canned response. Always present; empty when nothing is attached.
+    items:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID of the Active Storage attachment
+        canned_response_id:
+          type: integer
+          description: ID of the canned response the file belongs to
+        file_type:
+          type: string
+          description: Content type of the file
+          example: 'image/jpeg'
+        file_url:
+          type: string
+          description: URL of the original file
+        thumb_url:
+          type: string
+          description: >-
+            URL of a 96px preview variant, generated on first request. Falls back to the
+            original file URL for attachments that cannot be resized.
+        blob_id:
+          type: integer
+          description: ID of the underlying Active Storage blob
+        blob_signed_id:
+          type: string
+          description: Signed blob ID, to be passed back in `file_ids` when updating the response
+        filename:
+          type: string
+          description: Original filename of the attachment
   created_at:
     type: string
     description: The date and time when the canned response was created
