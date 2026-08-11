@@ -208,6 +208,16 @@ const flattenLink = (_match, text, url) => {
   return text === cleanUrl ? cleanUrl : `${text}: ${cleanUrl}`;
 };
 
+// markdown-it keeps emphasis open across a soft/hard break, but `.` stops at a
+// newline — so a single-line pattern leaves `**bold\ntext**` untouched and the
+// surviving strong_open token crashes the parse on a schema without the mark.
+// Matches a run that may cross single newlines but never a blank line, which
+// ends the paragraph and any emphasis with it.
+const INLINE_RUN = '(?:[^\\n]|\\n(?!\\s*\\n))+?';
+
+const inlinePattern = (open, close = open) =>
+  new RegExp(`${open}(${INLINE_RUN})${close}`, 'g');
+
 /**
  * Markdown formatting patterns for stripping unsupported formatting.
  *
@@ -231,8 +241,8 @@ export const MARKDOWN_PATTERNS = [
     patterns: [{ pattern: /^[\t ]*[-*+]\s+/gm, replacement: '' }],
   },
   {
-    type: 'orderedList', // PM: ordered_list, eg: 1. item
-    patterns: [{ pattern: /^[\t ]*\d+\.\s+/gm, replacement: '' }],
+    type: 'orderedList', // PM: ordered_list, eg: 1. item or 1) item
+    patterns: [{ pattern: /^[\t ]*\d+[.)]\s+/gm, replacement: '' }],
   },
   {
     type: 'heading', // PM: heading, eg: ## Heading
@@ -257,14 +267,20 @@ export const MARKDOWN_PATTERNS = [
   {
     type: 'strong', // PM: strong, eg: **bold** or __bold__
     patterns: [
-      { pattern: /\*\*(.+?)\*\*/g, replacement: '$1' },
-      { pattern: /__(.+?)__/g, replacement: '$1' },
+      { pattern: inlinePattern('\\*\\*'), replacement: '$1' },
+      { pattern: inlinePattern('__'), replacement: '$1' },
     ],
   },
   {
     type: 'em', // PM: em, eg: *italic* or _italic_
     patterns: [
-      { pattern: /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, replacement: '$1' },
+      {
+        pattern: new RegExp(
+          `(?<!\\*)\\*(?!\\*)(${INLINE_RUN})(?<!\\*)\\*(?!\\*)`,
+          'g'
+        ),
+        replacement: '$1',
+      },
       // Match _text_ only at word boundaries (whitespace/string start/end)
       // Preserves underscores in URLs (e.g., https://example.com/path_name) and variable names
       {
@@ -275,7 +291,7 @@ export const MARKDOWN_PATTERNS = [
   },
   {
     type: 'strike', // PM: strike, eg: ~~strikethrough~~
-    patterns: [{ pattern: /~~(.+?)~~/g, replacement: '$1' }],
+    patterns: [{ pattern: inlinePattern('~~'), replacement: '$1' }],
   },
   {
     type: 'code', // PM: code, eg: `inline code`

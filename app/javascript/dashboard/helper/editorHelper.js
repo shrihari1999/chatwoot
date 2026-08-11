@@ -480,6 +480,31 @@ export const createVariableInputRule = ({ isPrivate, getVariables }) => {
 };
 
 /**
+ * Builds a document of plain paragraphs from text, preserving line structure.
+ * Used when the markdown parse fails — every schema has doc/paragraph/text/
+ * hard_break, so this can always be inserted.
+ *
+ * @param {Object} schema - The ProseMirror schema to build the document with.
+ * @param {string} text - The text to wrap.
+ * @returns {Object} - A ProseMirror doc node.
+ */
+const buildPlainTextDoc = (schema, text) => {
+  const paragraphs = String(text).split(/\n{2,}/);
+  return schema.node(
+    'doc',
+    null,
+    paragraphs.map(paragraph => {
+      const content = [];
+      paragraph.split('\n').forEach((line, index) => {
+        if (index) content.push(schema.nodes.hard_break.create());
+        if (line) content.push(schema.text(line));
+      });
+      return schema.node('paragraph', null, content);
+    })
+  );
+};
+
+/**
  * Centralized node creation function that handles the creation of different types of nodes based on the specified type.
  * @param {Object} editorView - The editor view instance.
  * @param {string} nodeType - The type of node to create ('mention', 'cannedResponse', 'variable', 'emoji').
@@ -508,9 +533,18 @@ const createNode = (editorView, nodeType, content) => {
         content,
         state.schema
       );
-      return new MessageMarkdownTransformer(state.schema).parse(
-        sanitizedContent
-      );
+      try {
+        return new MessageMarkdownTransformer(state.schema).parse(
+          sanitizedContent
+        );
+      } catch (e) {
+        // Markdown the stripper missed still reaches the parser as a token the
+        // schema has no handler for (eg. `Token type strong_open not supported`).
+        // That throw propagates out of the picker's click handler and the agent
+        // gets nothing at all — insert the text unformatted instead.
+        Sentry.captureException(e);
+        return buildPlainTextDoc(state.schema, sanitizedContent);
+      }
     }
     case 'variable':
       return state.schema.text(content);

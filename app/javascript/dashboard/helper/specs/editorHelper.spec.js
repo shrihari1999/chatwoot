@@ -814,6 +814,38 @@ describe('getContentNode', () => {
     });
   });
 
+  describe('canned response node creation', () => {
+    // No marks, no nodes — TikTok / Lazada / SMS
+    const plainSchema = buildMessageSchema([], []);
+    const plainEditorView = { state: { schema: plainSchema } };
+    const insert = content =>
+      getContentNode(plainEditorView, 'cannedResponse', content, {
+        from: 0,
+        to: 0,
+      }).node;
+
+    it('inserts a canned response whose bold spans a hard break', () => {
+      expect(insert('ราคา **1,490 บาท\\\nFlavors:** Chiffon').textContent).toBe(
+        'ราคา 1,490 บาทFlavors: Chiffon'
+      );
+    });
+
+    it('falls back to plain text when the markdown still cannot be parsed', () => {
+      // Reference-style links survive the stripper and emit a link_open token
+      // the schema has no handler for.
+      const node = insert('[foo][bar]\n\n[bar]: https://example.com');
+
+      expect(node.textContent).toBe('[foo][bar][bar]: https://example.com');
+      expect(node.childCount).toBe(2);
+    });
+
+    it('keeps line breaks in the plain text fallback', () => {
+      const node = insert('[foo][bar]\nsecond line');
+
+      expect(node.child(0).childCount).toBe(3); // text, hard_break, text
+    });
+  });
+
   describe('unsupported node types', () => {
     it('returns null node for unsupported type', () => {
       const result = getContentNode(mockEditorView, 'unsupported', 'content', {
@@ -943,6 +975,30 @@ describe('stripUnsupportedFormatting', () => {
       expect(stripUnsupportedFormatting('__bold text__', emptySchema)).toBe(
         'bold text'
       );
+    });
+
+    it('strips emphasis that spans a line break inside a paragraph', () => {
+      // markdown-it keeps the mark open across a hard break, so the markers
+      // have to go too — otherwise the token crashes the parse.
+      expect(
+        stripUnsupportedFormatting(
+          'ราคา **1,490 บาท\\\nFlavors:** Chiffon',
+          emptySchema
+        )
+      ).toBe('ราคา 1,490 บาท\nFlavors: Chiffon');
+      expect(stripUnsupportedFormatting('*soft\nwrapped*', emptySchema)).toBe(
+        'soft\nwrapped'
+      );
+      expect(
+        stripUnsupportedFormatting('~~struck\nthrough~~', emptySchema)
+      ).toBe('struck\nthrough');
+    });
+
+    it('does not pair emphasis markers across a blank line', () => {
+      // A blank line ends the paragraph, so markdown-it renders both markers
+      // literally — stripping them would eat characters the agent typed.
+      const content = '**not bold\n\nalso not**';
+      expect(stripUnsupportedFormatting(content, emptySchema)).toBe(content);
     });
 
     it('strips italic formatting', () => {
@@ -1103,6 +1159,12 @@ describe('stripUnsupportedFormatting', () => {
     it('strips ordered list markers', () => {
       expect(
         stripUnsupportedFormatting('1. first\n2. second', emptySchema)
+      ).toBe('first\nsecond');
+    });
+
+    it('strips ordered list markers using the paren delimiter', () => {
+      expect(
+        stripUnsupportedFormatting('1) first\n 2) second', emptySchema)
       ).toBe('first\nsecond');
     });
 
