@@ -220,6 +220,96 @@ RSpec.describe Inbox do
     end
   end
 
+  describe 'out of office message rotation' do
+    let(:instagram_inbox) { create(:inbox, channel: create(:channel_instagram), out_of_office_message: 'closed one') }
+    let(:line_inbox) { create(:inbox, channel: create(:channel_line), out_of_office_message: 'closed one') }
+
+    describe '#out_of_office_messages' do
+      it 'returns the primary message followed by the variants for an instagram inbox' do
+        instagram_inbox.update!(out_of_office_message_variants: ['closed two', 'closed three'])
+
+        expect(instagram_inbox.out_of_office_messages).to eq(['closed one', 'closed two', 'closed three'])
+      end
+
+      it 'drops blank variants' do
+        instagram_inbox.update!(out_of_office_message_variants: ['closed two', '', '   '])
+
+        expect(instagram_inbox.out_of_office_messages).to eq(['closed one', 'closed two'])
+      end
+
+      it 'ignores variants on a non-instagram inbox' do
+        line_inbox.update!(out_of_office_message_variants: ['closed two', 'closed three'])
+
+        expect(line_inbox.out_of_office_messages).to eq(['closed one'])
+      end
+
+      it 'returns an empty list when no message is configured' do
+        instagram_inbox.update!(out_of_office_message: nil, out_of_office_message_variants: [])
+
+        expect(instagram_inbox.out_of_office_messages).to eq([])
+      end
+    end
+
+    describe '#next_out_of_office_message' do
+      it 'cycles through the messages in order and wraps around' do
+        instagram_inbox.update!(out_of_office_message_variants: ['closed two', 'closed three'])
+
+        drawn = Array.new(7) { instagram_inbox.next_out_of_office_message }
+
+        expect(drawn).to eq(['closed one', 'closed two', 'closed three',
+                             'closed one', 'closed two', 'closed three', 'closed one'])
+      end
+
+      it 'keeps the cursor within the list when a variant is removed' do
+        instagram_inbox.update!(out_of_office_message_variants: ['closed two', 'closed three'])
+        2.times { instagram_inbox.next_out_of_office_message }
+        instagram_inbox.update!(out_of_office_message_variants: [])
+
+        expect(instagram_inbox.next_out_of_office_message).to eq('closed one')
+      end
+
+      it 'does not advance the cursor when there is only one message' do
+        expect(instagram_inbox.next_out_of_office_message).to eq('closed one')
+        expect(instagram_inbox.reload.out_of_office_variant_cursor).to eq(0)
+      end
+
+      it 'always returns the single message for a non-instagram inbox' do
+        line_inbox.update!(out_of_office_message_variants: ['closed two', 'closed three'])
+
+        expect(Array.new(3) { line_inbox.next_out_of_office_message }).to all(eq('closed one'))
+      end
+
+      it 'returns nil when no message is configured' do
+        instagram_inbox.update!(out_of_office_message: nil)
+
+        expect(instagram_inbox.next_out_of_office_message).to be_nil
+      end
+    end
+
+    describe 'variant validation' do
+      it 'rejects more variants than the limit' do
+        instagram_inbox.out_of_office_message_variants = Array.new(Inbox::OUT_OF_OFFICE_MESSAGE_VARIANTS_LIMIT + 1, 'a')
+
+        expect(instagram_inbox).not_to be_valid
+        expect(instagram_inbox.errors.full_messages.join).to include('cannot hold more than')
+      end
+
+      it 'rejects a variant longer than the message limit' do
+        instagram_inbox.out_of_office_message_variants = ['a' * (Limits::OUT_OF_OFFICE_MESSAGE_MAX_LENGTH + 1)]
+
+        expect(instagram_inbox).not_to be_valid
+        expect(instagram_inbox.errors.full_messages.join).to include('too long')
+      end
+
+      it 'rejects a value that is not a list of messages' do
+        instagram_inbox.out_of_office_message_variants = { first: 'closed two' }
+
+        expect(instagram_inbox).not_to be_valid
+        expect(instagram_inbox.errors.full_messages.join).to include('must be a list of messages')
+      end
+    end
+  end
+
   describe '#update' do
     let!(:inbox) { FactoryBot.create(:inbox) }
     let!(:portal) { FactoryBot.create(:portal) }

@@ -559,6 +559,42 @@ RSpec.describe 'Inboxes API', type: :request do
         expect(response.parsed_body['name']).to eq 'new test inbox'
       end
 
+      it 'updates the out of office message variants of an instagram inbox' do
+        instagram_inbox = create(:inbox, channel: create(:channel_instagram, account: account), account: account,
+                                         out_of_office_message: 'closed one')
+
+        patch "/api/v1/accounts/#{account.id}/inboxes/#{instagram_inbox.id}",
+              headers: admin.create_new_auth_token,
+              params: { out_of_office_message_variants: ['closed two', 'closed three'] },
+              as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(instagram_inbox.reload.out_of_office_message_variants).to eq(['closed two', 'closed three'])
+        expect(response.parsed_body['out_of_office_message_variants']).to eq(['closed two', 'closed three'])
+      end
+
+      it 'rejects more out of office message variants than the limit' do
+        instagram_inbox = create(:inbox, channel: create(:channel_instagram, account: account), account: account)
+
+        patch "/api/v1/accounts/#{account.id}/inboxes/#{instagram_inbox.id}",
+              headers: admin.create_new_auth_token,
+              params: { out_of_office_message_variants: Array.new(Inbox::OUT_OF_OFFICE_MESSAGE_VARIANTS_LIMIT + 1, 'closed') },
+              as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(instagram_inbox.reload.out_of_office_message_variants).to eq([])
+      end
+
+      it 'does not expose out of office message variants on a non-instagram inbox' do
+        patch "/api/v1/accounts/#{account.id}/inboxes/#{inbox.id}",
+              headers: admin.create_new_auth_token,
+              params: valid_params,
+              as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body).not_to have_key('out_of_office_message_variants')
+      end
+
       it 'updates api inbox when administrator' do
         api_channel = create(:channel_api, account: account)
         api_inbox = create(:inbox, channel: api_channel, account: account)
