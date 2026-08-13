@@ -20,6 +20,11 @@ const DEFAULT_TIMEZONE = {
   value: 'America/Los_Angeles',
 };
 
+// Instagram inboxes cycle through several wordings of the unavailable message
+// so a returning customer is not sent the same auto-reply every time. The first
+// one lives in out_of_office_message; these are the extras.
+const UNAVAILABLE_MESSAGE_VARIANT_COUNT = 3;
+
 export default {
   components: {
     SettingsToggleSection,
@@ -39,7 +44,8 @@ export default {
   data() {
     return {
       isBusinessHoursEnabled: false,
-      unavailableMessage: '',
+      // Index 0 is the inbox's out_of_office_message; the rest are its variants.
+      unavailableMessages: [''],
       timeZone: DEFAULT_TIMEZONE,
       dayNames: {
         0: 'Sunday',
@@ -71,6 +77,15 @@ export default {
         if (match) this.timeZone = match;
       },
     },
+    // Only Instagram rotates, so every other channel keeps its single editor.
+    unavailableMessageCount() {
+      return this.isAnInstagramChannel
+        ? UNAVAILABLE_MESSAGE_VARIANT_COUNT + 1
+        : 1;
+    },
+    unavailableMessageIndexes() {
+      return [...Array(this.unavailableMessageCount).keys()];
+    },
   },
   watch: {
     inbox() {
@@ -85,6 +100,7 @@ export default {
       const {
         working_hours_enabled: isEnabled = false,
         out_of_office_message: unavailableMessage,
+        out_of_office_message_variants: unavailableMessageVariants = [],
         working_hours: timeSlots = [],
         timezone: timeZone,
       } = this.inbox;
@@ -92,7 +108,10 @@ export default {
         ? timeSlotParse(timeSlots)
         : defaultTimeSlot;
       this.isBusinessHoursEnabled = isEnabled;
-      this.unavailableMessage = unavailableMessage || '';
+      const messages = [unavailableMessage, ...unavailableMessageVariants];
+      this.unavailableMessages = this.unavailableMessageIndexes.map(
+        index => messages[index] || ''
+      );
       this.timeSlots = slots;
       this.timeZone =
         this.timeZones.find(item => timeZone === item.value) ||
@@ -105,15 +124,20 @@ export default {
     },
     async updateInbox() {
       try {
+        const [unavailableMessage, ...unavailableMessageVariants] =
+          this.unavailableMessages;
         const payload = {
           id: this.inbox.id,
           formData: false,
           working_hours_enabled: this.isBusinessHoursEnabled,
-          out_of_office_message: this.unavailableMessage,
+          out_of_office_message: unavailableMessage,
           working_hours: timeSlotTransform(this.timeSlots),
           timezone: this.timeZone.value,
           channel: {},
         };
+        if (this.isAnInstagramChannel) {
+          payload.out_of_office_message_variants = unavailableMessageVariants;
+        }
         await this.$store.dispatch('inboxes/updateInbox', payload);
         useAlert(this.$t('INBOX_MGMT.EDIT.API.SUCCESS_MESSAGE'));
       } catch (error) {
@@ -132,7 +156,29 @@ export default {
       :description="$t('INBOX_MGMT.BUSINESS_HOURS.TOGGLE_HELP')"
     >
       <template v-if="isBusinessHoursEnabled" #editor>
-        <div class="mb-4">
+        <p
+          v-if="isAnInstagramChannel"
+          class="mb-4 text-label-small text-n-slate-11"
+        >
+          {{
+            $t('INBOX_MGMT.BUSINESS_HOURS.UNAVAILABLE_MESSAGE_ROTATION_HELP')
+          }}
+        </p>
+        <div
+          v-for="index in unavailableMessageIndexes"
+          :key="index"
+          class="mb-4"
+        >
+          <label
+            v-if="isAnInstagramChannel"
+            class="block mb-1.5 text-heading-3 text-n-slate-12"
+          >
+            {{
+              $t('INBOX_MGMT.BUSINESS_HOURS.UNAVAILABLE_MESSAGE_VARIANT', {
+                number: index + 1,
+              })
+            }}
+          </label>
           <!--
             The editor derives its toolbar from the inbox's own channel, so each
             channel offers exactly what it can actually send: Facebook and
@@ -141,7 +187,7 @@ export default {
             rather than SMS.
           -->
           <WootMessageEditor
-            v-model="unavailableMessage"
+            v-model="unavailableMessages[index]"
             :channel-type="channelType"
             :medium="inbox.medium || ''"
             enable-variables

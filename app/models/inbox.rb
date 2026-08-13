@@ -19,6 +19,8 @@
 #  lock_to_single_conversation   :boolean          default(FALSE), not null
 #  name                          :string           not null
 #  out_of_office_message         :string
+#  out_of_office_message_variants :jsonb           not null
+#  out_of_office_variant_cursor  :integer          default(0), not null
 #  sender_name_type              :integer          default("friendly"), not null
 #  timezone                      :string           default("UTC")
 #  working_hours_enabled         :boolean          default(FALSE)
@@ -47,6 +49,10 @@ class Inbox < ApplicationRecord
   include InboxAgentAvailability
   include InboxBrandedEmailLayoutable
 
+  # Extra out-of-office wordings an Instagram inbox cycles through, on top of
+  # the one in out_of_office_message. Four total is what the settings UI renders.
+  OUT_OF_OFFICE_MESSAGE_VARIANTS_LIMIT = 3
+
   # Not allowing characters:
   validates :name, presence: true
   validates :account_id, presence: true
@@ -54,6 +60,7 @@ class Inbox < ApplicationRecord
   validates :out_of_office_message, length: { maximum: Limits::OUT_OF_OFFICE_MESSAGE_MAX_LENGTH }
   validates :greeting_message, length: { maximum: Limits::GREETING_MESSAGE_MAX_LENGTH }
   validate :ensure_valid_max_assignment_limit
+  validate :ensure_valid_out_of_office_message_variants
 
   belongs_to :account
   belongs_to :portal, optional: true
@@ -178,6 +185,32 @@ class Inbox < ApplicationRecord
     channel_type == 'Channel::TwilioSms' && channel.medium == 'whatsapp'
   end
 
+  # Every out-of-office wording this inbox may send, in cycle order. Only
+  # Instagram inboxes rotate; every other channel keeps sending the single
+  # out_of_office_message it always has.
+  def out_of_office_messages
+    return [out_of_office_message].compact_blank unless instagram_direct?
+
+    [out_of_office_message, *out_of_office_message_variants].compact_blank
+  end
+
+  # Draws the next wording and advances the cursor, so consecutive auto-replies
+  # walk the list linearly (1 -> 2 -> 3 -> 4 -> 1) instead of repeating. The row
+  # lock keeps two simultaneous sends from drawing the same entry. update_column
+  # deliberately skips dispatch_update_event -- moving the cursor is bookkeeping,
+  # not a settings change worth broadcasting to every open dashboard.
+  def next_out_of_office_message
+    messages = out_of_office_messages
+    return messages.first if messages.size <= 1
+
+    with_lock do
+      messages = out_of_office_messages
+      index = out_of_office_variant_cursor % messages.size
+      update_column(:out_of_office_variant_cursor, (index + 1) % messages.size) # rubocop:disable Rails/SkipsModelValidations
+      messages[index]
+    end
+  end
+
   def assignable_agents
     (account.users.where(id: members.select(:user_id)) + account.administrators).uniq
   end
@@ -271,6 +304,22 @@ class Inbox < ApplicationRecord
 
   def ensure_valid_max_assignment_limit
     # overridden in enterprise/app/models/enterprise/inbox.rb
+  end
+
+  def ensure_valid_out_of_office_message_variants
+    variants = out_of_office_message_variants
+    return if variants.blank?
+
+    unless variants.is_a?(Array) && variants.all?(String)
+      errors.add(:out_of_office_message_variants, 'must be a list of messages')
+      return
+    end
+
+    errors.add(:out_of_office_message_variants, "cannot hold more than #{OUT_OF_OFFICE_MESSAGE_VARIANTS_LIMIT} messages") if
+      variants.size > OUT_OF_OFFICE_MESSAGE_VARIANTS_LIMIT
+
+    errors.add(:out_of_office_message_variants, 'has a message that is too long') if
+      variants.any? { |variant| variant.length > Limits::OUT_OF_OFFICE_MESSAGE_MAX_LENGTH }
   end
 
   def delete_round_robin_agents
