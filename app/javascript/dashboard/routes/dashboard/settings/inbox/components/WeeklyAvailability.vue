@@ -71,15 +71,6 @@ export default {
         if (match) this.timeZone = match;
       },
     },
-    isRichEditorEnabled() {
-      if (
-        this.isATwilioChannel ||
-        this.isATwitterInbox ||
-        this.isAFacebookInbox
-      )
-        return false;
-      return true;
-    },
   },
   watch: {
     inbox() {
@@ -142,10 +133,17 @@ export default {
     >
       <template v-if="isBusinessHoursEnabled" #editor>
         <div class="mb-4">
+          <!--
+            The editor derives its toolbar from the inbox's own channel, so each
+            channel offers exactly what it can actually send: Facebook and
+            Instagram get bold/italic, LINE and the TikTok/Lazada channels get
+            none. Passing medium as well so a Twilio inbox resolves to WhatsApp
+            rather than SMS.
+          -->
           <WootMessageEditor
-            v-if="isRichEditorEnabled"
             v-model="unavailableMessage"
             :channel-type="channelType"
+            :medium="inbox.medium || ''"
             enable-variables
             is-format-mode
             :placeholder="
@@ -153,7 +151,6 @@ export default {
             "
             :min-height="4"
           />
-          <textarea v-else v-model="unavailableMessage" type="text" />
         </div>
       </template>
     </SettingsToggleSection>
@@ -230,9 +227,5 @@ export default {
 <style lang="scss" scoped>
 :deep(.message-editor) {
   @apply border-0;
-}
-
-textarea {
-  @apply min-h-[4rem] mt-1.5;
 }
 </style>
