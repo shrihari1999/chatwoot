@@ -6,7 +6,10 @@ class Messages::MarkdownRendererService
     'Channel::Whatsapp' => :render_whatsapp,
     'Channel::FacebookPage' => :render_instagram,
     'Channel::Instagram' => :render_instagram,
-    'Channel::Line' => :render_line,
+    # Channel::Line is deliberately absent: LINE has no text styling, so content
+    # is passed through verbatim rather than rewritten. The old LineRenderer
+    # turned emphasis into literal ' *text* ', which mangled anything an agent
+    # typed with an asterisk or underscore in it.
     'Channel::TwitterProfile' => :render_plain_text,
     'Channel::Sms' => :render_plain_text,
     'Channel::TwilioSms' => :render_plain_text
@@ -71,16 +74,6 @@ class Messages::MarkdownRendererService
     normalized_content = @content.gsub(/^[ \t]+$/m, '')
     content_with_preserved_newlines = preserve_multiple_newlines(normalized_content)
     renderer = Messages::MarkdownRenderers::InstagramRenderer.new
-    doc = CommonMarker.render_doc(content_with_preserved_newlines, [:DEFAULT, :STRIKETHROUGH_DOUBLE_TILDE])
-    result = renderer.render(doc).gsub(/\n+\z/, '')
-    restore_multiple_newlines(result)
-  end
-
-  def render_line
-    # Strip whitespace from whitespace-only lines to normalize newlines
-    normalized_content = @content.gsub(/^[ \t]+$/m, '')
-    content_with_preserved_newlines = preserve_multiple_newlines(normalized_content)
-    renderer = Messages::MarkdownRenderers::LineRenderer.new
     doc = CommonMarker.render_doc(content_with_preserved_newlines, [:DEFAULT, :STRIKETHROUGH_DOUBLE_TILDE])
     result = renderer.render(doc).gsub(/\n+\z/, '')
     restore_multiple_newlines(result)

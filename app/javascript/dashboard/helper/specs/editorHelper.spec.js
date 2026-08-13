@@ -863,6 +863,36 @@ describe('getContentNode', () => {
 });
 
 describe('getFormattingForEditor', () => {
+  // LINE displays markup literally, so the editor must offer no formatting at
+  // all. Asserted explicitly (not via the FORMATTING table) so an upstream sync
+  // that restores marks fails here instead of silently shipping asterisks to
+  // customers.
+  describe('plain-text channels offer no formatting', () => {
+    it.each([
+      'Channel::Line',
+      'Channel::Tiktok',
+      'Channel::TiktokShop',
+      'Channel::Lazada',
+    ])('offers no marks or nodes for %s', channelType => {
+      const result = getFormattingForEditor(channelType);
+
+      expect(result.marks).toEqual([]);
+      expect(result.nodes).toEqual([]);
+      expect(result.menu).not.toContain('strong');
+    });
+
+    it('strips bold from a canned response inserted on LINE', () => {
+      const lineSchema = buildMessageSchema(
+        FORMATTING['Channel::Line'].marks,
+        FORMATTING['Channel::Line'].nodes
+      );
+
+      expect(
+        stripUnsupportedFormatting('ราคา **1,490 บาท** ต่อชิ้น', lineSchema)
+      ).toBe('ราคา 1,490 บาท ต่อชิ้น');
+    });
+  });
+
   describe('context-specific formatting', () => {
     it('returns default formatting for Context::Default', () => {
       const result = getFormattingForEditor('Context::Default');
