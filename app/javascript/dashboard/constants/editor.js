@@ -91,10 +91,14 @@ export const FORMATTING = {
     nodes: [],
     menu: ['copilot', 'undo', 'redo'],
   },
+  // LINE plain-text messages carry no styling in either direction: inbound text
+  // arrives unformatted, and outbound markup is displayed literally (only Flex
+  // Messages support weight/decoration, and those render as cards, not chat
+  // bubbles). Offering marks here shipped "**bold**" to customers as asterisks.
   'Channel::Line': {
-    marks: ['strong', 'em', 'code', 'strike'],
-    nodes: ['codeBlock'],
-    menu: ['copilot', 'strong', 'em', 'code', 'strike', 'undo', 'redo'],
+    marks: [],
+    nodes: [],
+    menu: ['copilot', 'undo', 'redo'],
   },
   'Channel::Telegram': {
     marks: ['strong', 'em', 'link', 'code'],

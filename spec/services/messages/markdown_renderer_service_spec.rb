@@ -184,25 +184,25 @@ RSpec.describe Messages::MarkdownRendererService, type: :service do
       end
     end
 
+    # LINE has no text styling in either direction, so the editor offers no marks
+    # and nothing rewrites the content on the way out. Anything the agent typed
+    # reaches the customer byte for byte.
     context 'when channel is Channel::Line' do
       let(:channel_type) { 'Channel::Line' }
 
-      it 'adds spaces around bold markers' do
-        content = '**bold**'
-        result = described_class.new(content, channel_type).render
-        expect(result).to include(' *bold* ')
+      it 'passes content through untouched' do
+        content = '**bold** _italic_ `code`'
+        expect(described_class.new(content, channel_type).render).to eq(content)
       end
 
-      it 'adds spaces around italic markers' do
-        content = '_italic_'
-        result = described_class.new(content, channel_type).render
-        expect(result).to include(' _italic_ ')
+      it 'does not mangle asterisks the agent typed literally' do
+        content = 'ราคา 1,490 (6*6 in.) a *b* c'
+        expect(described_class.new(content, channel_type).render).to eq(content)
       end
 
-      it 'adds spaces around code markers' do
-        content = '`code`'
-        result = described_class.new(content, channel_type).render
-        expect(result).to include(' `code` ')
+      it 'leaves underscores in URLs alone' do
+        content = 'https://example.com/new_first_second'
+        expect(described_class.new(content, channel_type).render).to eq(content)
       end
     end
 

@@ -145,6 +145,7 @@ export default {
           <WootMessageEditor
             v-if="isRichEditorEnabled"
             v-model="unavailableMessage"
+            :channel-type="channelType"
             enable-variables
             is-format-mode
             :placeholder="
