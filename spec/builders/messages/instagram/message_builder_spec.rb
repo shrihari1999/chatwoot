@@ -75,6 +75,34 @@ describe Messages::Instagram::MessageBuilder do
       expect(instagram_inbox.messages.count).to be 1
     end
 
+    it 'does not hand a conversation opened by an outgoing echo to the agent bot' do
+      create(:agent_bot_inbox, inbox: instagram_inbox, account: account)
+      messaging = dm_params[:entry][0]['messaging'][0]
+      customer_id = messaging['sender']['id']
+      create_instagram_contact_for_sender(customer_id, instagram_inbox)
+      # An echo reverses the roles: the business is the sender, the customer the recipient.
+      messaging['sender']['id'] = 'chatwoot-app-user-id-1'
+      messaging['recipient']['id'] = customer_id
+
+      described_class.new(messaging, instagram_inbox, outgoing_echo: true).perform
+
+      conversation = instagram_inbox.conversations.last
+      expect(conversation.status).to eq('open')
+      expect(conversation.assignee_agent_bot).to be_nil
+    end
+
+    it 'still hands a conversation opened by an incoming message to the agent bot' do
+      bot_inbox = create(:agent_bot_inbox, inbox: instagram_inbox, account: account)
+      messaging = dm_params[:entry][0]['messaging'][0]
+      create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
+
+      described_class.new(messaging, instagram_inbox).perform
+
+      conversation = instagram_inbox.conversations.last
+      expect(conversation.status).to eq('pending')
+      expect(conversation.assignee_agent_bot).to eq(bot_inbox.agent_bot)
+    end
+
     it 'discards duplicate messages from webhook events with the same message_id' do
       messaging = dm_params[:entry][0]['messaging'][0]
       create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)

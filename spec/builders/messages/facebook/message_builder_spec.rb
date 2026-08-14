@@ -110,6 +110,28 @@ describe Messages::Facebook::MessageBuilder do
       expect(contact.reload.name).to eq('Kantoop Patchayada')
     end
 
+    it 'does not hand a conversation opened by an outgoing echo to the agent bot' do
+      create(:agent_bot_inbox, inbox: facebook_channel.inbox, account: facebook_channel.account)
+      contact = create(:contact, account: facebook_channel.account)
+      create(:contact_inbox, contact: contact, inbox: facebook_channel.inbox, source_id: '3383290475046708')
+      allow(Koala::Facebook::API).to receive(:new).and_return(fb_object)
+      allow(fb_object).to receive(:get_object)
+
+      echo_message_object = {
+        messaging: {
+          sender: { id: facebook_channel.page_id },
+          recipient: { id: '3383290475046708' },
+          message: { mid: 'm_echo_bot', text: 'Echo testing', is_echo: true, app_id: '263902037430900' }
+        }
+      }.to_json
+      described_class.new(Integrations::Facebook::MessageParser.new(echo_message_object),
+                          facebook_channel.inbox, outgoing_echo: true).perform
+
+      conversation = facebook_channel.inbox.conversations.last
+      expect(conversation.status).to eq('open')
+      expect(conversation.assignee_agent_bot).to be_nil
+    end
+
     it 'marks echo messages as external echo messages' do
       allow(Koala::Facebook::API).to receive(:new).and_return(fb_object)
       allow(fb_object).to receive(:get_object).and_return(

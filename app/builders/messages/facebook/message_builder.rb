@@ -88,7 +88,8 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
 
   def build_conversation
     Conversation.create!(conversation_params.merge(
-                           contact_inbox_id: @contact_inbox.id
+                           contact_inbox_id: @contact_inbox.id,
+                           created_by_outgoing_echo: @outgoing_echo
                          ))
   end
 

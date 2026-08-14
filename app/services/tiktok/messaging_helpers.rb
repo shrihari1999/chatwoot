@@ -38,8 +38,11 @@ module Tiktok::MessagingHelpers
     end
   end
 
-  def create_conversation(channel, contact_inbox, tt_conversation_id)
-    ::Conversation.create!(conversation_params(channel, contact_inbox, tt_conversation_id))
+  def create_conversation(channel, contact_inbox, tt_conversation_id, created_by_outgoing_echo: false)
+    ::Conversation.create!(
+      conversation_params(channel, contact_inbox, tt_conversation_id)
+        .merge(created_by_outgoing_echo: created_by_outgoing_echo)
+    )
   end
 
   def conversation_params(channel, contact_inbox, tt_conversation_id)

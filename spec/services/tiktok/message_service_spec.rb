@@ -62,6 +62,35 @@ RSpec.describe Tiktok::MessageService do
       expect(tiktok_client).to have_received(:image_send_capable?).with('tt-conv-1')
     end
 
+    it 'does not hand a conversation opened by an outgoing echo to the agent bot' do
+      create(:agent_bot_inbox, inbox: inbox, account: account)
+      # An echo reverses the roles: the business is the sender, the customer the recipient.
+      echo_content = text_content.merge(
+        message_id: 'tt-msg-echo', from: 'Biz', from_user: { id: 'biz-123' },
+        to: 'Alice', to_user: { id: 'user-1' }
+      )
+      service = described_class.new(channel: channel, content: echo_content, outgoing_echo: true)
+      allow(service).to receive(:create_contact_inbox).and_return(contact_inbox)
+
+      service.perform
+
+      conversation = inbox.conversations.last
+      expect(conversation.status).to eq('open')
+      expect(conversation.assignee_agent_bot).to be_nil
+    end
+
+    it 'still hands a conversation opened by an incoming message to the agent bot' do
+      bot_inbox = create(:agent_bot_inbox, inbox: inbox, account: account)
+      service = described_class.new(channel: channel, content: text_content)
+      allow(service).to receive(:create_contact_inbox).and_return(contact_inbox)
+
+      service.perform
+
+      conversation = inbox.conversations.last
+      expect(conversation.status).to eq('pending')
+      expect(conversation.assignee_agent_bot).to eq(bot_inbox.agent_bot)
+    end
+
     it 'creates an incoming unsupported message for non-supported types' do
       content = {
         type: 'sticker',
