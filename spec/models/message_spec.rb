@@ -171,6 +171,33 @@ RSpec.describe Message do
       expect(conversation.waiting_since).to be_nil
     end
 
+    it 'does not report a first response when the customer has never written' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      create(:message, message_type: :outgoing, conversation: conversation)
+
+      # Proactive outreach, or an echo of a message sent from the channel's own app.
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch)
+        .with(described_class::FIRST_REPLY_CREATED, anything, anything)
+    end
+
+    it 'still marks the conversation replied so SLA and the unattended filter are unaffected' do
+      outgoing_message = create(:message, message_type: :outgoing, conversation: conversation)
+
+      expect(conversation.first_reply_created_at).to eq outgoing_message.created_at
+      expect(conversation.waiting_since).to be_nil
+    end
+
+    it 'reports a first response once the customer has written' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+      create(:message, message_type: :incoming, conversation: conversation)
+
+      create(:message, message_type: :outgoing, conversation: conversation)
+
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch)
+        .with(described_class::FIRST_REPLY_CREATED, anything, anything)
+    end
+
     it 'does not update the conversation first reply created at if the message is incoming' do
       expect(conversation.first_reply_created_at).to be_nil
       expect(conversation.waiting_since).to eq conversation.created_at
