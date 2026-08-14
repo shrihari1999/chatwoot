@@ -74,6 +74,13 @@ offline_reassignment_job:
   class: 'AutoAssignment::OfflineReassignmentJob'
   queue: scheduled_jobs
 
+# resolves bot-held conversations once the customer has gone quiet for 15 minutes.
+# runs every 5 minutes, so a conversation resolves 15-20 minutes after last activity.
+bot_idle_resolution_job:
+  cron: '*/5 * * * *'
+  class: 'Conversations::BotIdleResolutionJob'
+  queue: scheduled_jobs
+
 # executed daily at 2230 UTC
 # removes old notifications (>1 month) and trims to 300 per user
 remove_old_notification_job:
