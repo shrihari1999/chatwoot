@@ -165,6 +165,13 @@ class Conversation < ApplicationRecord
     messages.where(account_id: account_id)&.incoming&.last
   end
 
+  # False while a conversation holds nothing but our own outbound messages — proactive
+  # outreach, or an echo of a message staff sent from the channel's own app. Nobody wrote
+  # in, so there is no response time to measure against them.
+  def customer_has_written?
+    messages.incoming.exists?
+  end
+
   def toggle_status
     # FIXME: implement state machine with aasm
     self.status = open? ? :resolved : :open

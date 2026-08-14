@@ -428,7 +428,13 @@ class Message < ApplicationRecord
     Rails.configuration.dispatcher.dispatch(MESSAGE_CREATED, Time.zone.now, message: self, performed_by: Current.executed_by)
 
     if valid_first_reply?
-      Rails.configuration.dispatcher.dispatch(FIRST_REPLY_CREATED, Time.zone.now, message: self, performed_by: Current.executed_by)
+      # A conversation opened by our own outbound message has no customer message that was
+      # responded to, and reports would record a 0-second first response for it. Keep the
+      # column — the unattended filter and the first-response SLA both read it, and both
+      # still want this treated as replied — but leave the event out of the reports.
+      if conversation.customer_has_written?
+        Rails.configuration.dispatcher.dispatch(FIRST_REPLY_CREATED, Time.zone.now, message: self, performed_by: Current.executed_by)
+      end
       conversation.update(first_reply_created_at: created_at, waiting_since: nil)
     else
       update_waiting_since
