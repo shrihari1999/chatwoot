@@ -157,6 +157,7 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     @contact_inbox ||= contact.contact_inboxes.find_by!(source_id: message_source_id)
     Conversation.create!(conversation_params.merge(
                            contact_inbox_id: @contact_inbox.id,
+                           created_by_outgoing_echo: @outgoing_echo,
                            additional_attributes: additional_conversation_attributes
                          ))
   end

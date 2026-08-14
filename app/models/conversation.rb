@@ -70,6 +70,12 @@ class Conversation < ApplicationRecord
   private_constant :CONVERSATION_UPDATED_ADDITIONAL_ATTRIBUTE_KEYS, :FILTERED_UNREAD_COUNT_ADDITIONAL_ATTRIBUTE_KEYS,
                    :FILTERED_UNREAD_COUNT_UPDATE_KEYS
 
+  # Set by the channel message builders when the conversation is being opened by an
+  # outbound echo. Not persisted: `determine_conversation_status` is the only reader
+  # and it runs before_create, while the message that carries the echo flag does not
+  # exist yet. See `determine_conversation_status`.
+  attr_accessor :created_by_outgoing_echo
+
   validates :account_id, presence: true
   validates :inbox_id, presence: true
   validates :contact_id, presence: true
@@ -291,6 +297,10 @@ class Conversation < ApplicationRecord
     self.status = :resolved and return if contact.blocked?
 
     return handle_campaign_status if campaign.present?
+    # An outbound echo is staff writing from the channel's own app. The conversation it
+    # opens holds no customer message, so there is nothing for the bot to answer: handing
+    # it over books a bot assignment against a thread the customer never started.
+    return if created_by_outgoing_echo
 
     set_active_bot_conversation if inbox.active_bot?
   end

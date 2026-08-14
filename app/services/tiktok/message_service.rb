@@ -31,7 +31,8 @@ class Tiktok::MessageService
                       else
                         contact_inbox.conversations.where.not(status: :resolved).order(created_at: :desc).first
                       end
-    @conversation ||= create_conversation(channel, contact_inbox, tt_conversation_id)
+    @conversation ||= create_conversation(channel, contact_inbox, tt_conversation_id,
+                                          created_by_outgoing_echo: outgoing_echo.present?)
   end
 
   def create_message

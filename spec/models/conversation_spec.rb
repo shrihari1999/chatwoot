@@ -732,6 +732,20 @@ RSpec.describe Conversation do
       expect(conversation.assignee).to be_nil
     end
 
+    it 'stays open and unassigned when opened by an outgoing echo' do
+      conversation = create(:conversation, inbox: bot_inbox.inbox, created_by_outgoing_echo: true)
+
+      expect(conversation.status).to eq('open')
+      expect(conversation.assignee_agent_bot).to be_nil
+    end
+
+    it 'does not persist the outgoing echo flag' do
+      conversation = create(:conversation, inbox: bot_inbox.inbox, created_by_outgoing_echo: true)
+
+      expect(described_class.column_names).not_to include('created_by_outgoing_echo')
+      expect(described_class.find(conversation.id).created_by_outgoing_echo).to be_nil
+    end
+
     it 'preserves explicit human assignee' do
       agent = create(:user, account: bot_inbox.inbox.account)
       conversation = create(:conversation, inbox: bot_inbox.inbox, assignee: agent)
