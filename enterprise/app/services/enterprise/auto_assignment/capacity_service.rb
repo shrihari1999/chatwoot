@@ -14,9 +14,12 @@ class Enterprise::AutoAssignment::CapacityService
     # If no specific limit for this inbox, agent has unlimited capacity for this inbox
     return true unless inbox_limit
 
-    # Count current open conversations for this agent in this inbox
+    # Fork deviation: the limit caps the agent's total open conversations across the
+    # whole account, not just this inbox. Upstream scopes the count to `inbox`, which
+    # means an agent can hold `conversation_limit` conversations in every inbox at once
+    # (7 inboxes x 20 = 140 here). We want one number that means what it says.
     current_count = user.assigned_conversations
-                        .where(inbox: inbox, status: :open)
+                        .where(account_id: inbox.account_id, status: :open)
                         .count
 
     # Agent has capacity if current count is below the limit

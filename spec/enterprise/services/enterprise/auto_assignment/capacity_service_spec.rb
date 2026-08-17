@@ -58,7 +58,7 @@ RSpec.describe Enterprise::AutoAssignment::CapacityService, type: :service do
 
     # Create existing assignments for agent_at_capacity (at limit)
     3.times do
-      create(:conversation, inbox: inbox, assignee: agent_at_capacity, status: :open)
+      create(:conversation, account: account, inbox: inbox, assignee: agent_at_capacity, status: :open)
     end
   end
 
@@ -135,12 +135,65 @@ RSpec.describe Enterprise::AutoAssignment::CapacityService, type: :service do
     end
   end
 
+  describe 'account-wide capacity counting' do
+    let(:other_inbox) { create(:inbox, account: account, enable_auto_assignment: true) }
+
+    before do
+      create(:inbox_capacity_limit,
+             agent_capacity_policy: agent_capacity_policy,
+             inbox: other_inbox,
+             conversation_limit: 3)
+
+      create(:inbox_member, inbox: other_inbox, user: agent_at_capacity)
+      create(:inbox_member, inbox: other_inbox, user: agent_with_capacity)
+    end
+
+    it 'counts open conversations from every inbox, not just the one being assigned' do
+      capacity_service = described_class.new
+
+      # agent_at_capacity holds 3 open conversations in `inbox` and none in `other_inbox`.
+      expect(agent_at_capacity.assigned_conversations.where(inbox: other_inbox, status: :open).count).to eq(0)
+      expect(capacity_service.agent_has_capacity?(agent_at_capacity, other_inbox)).to be false
+    end
+
+    it 'aggregates a load spread across inboxes' do
+      capacity_service = described_class.new
+
+      2.times { create(:conversation, account: account, inbox: inbox, assignee: agent_with_capacity, status: :open) }
+      expect(capacity_service.agent_has_capacity?(agent_with_capacity, other_inbox)).to be true
+
+      create(:conversation, account: account, inbox: other_inbox, assignee: agent_with_capacity, status: :open)
+      expect(capacity_service.agent_has_capacity?(agent_with_capacity, other_inbox)).to be false
+    end
+
+    it 'still treats an inbox without a limit as unlimited' do
+      unlimited_inbox = create(:inbox, account: account, enable_auto_assignment: true)
+      create(:inbox_member, inbox: unlimited_inbox, user: agent_at_capacity)
+
+      expect(described_class.new.agent_has_capacity?(agent_at_capacity, unlimited_inbox)).to be true
+    end
+
+    it 'ignores conversations belonging to another account' do
+      other_account = create(:account)
+      other_account_inbox = create(:inbox, account: other_account)
+      3.times { create(:conversation, account: other_account, inbox: other_account_inbox, assignee: agent_with_capacity, status: :open) }
+
+      expect(described_class.new.agent_has_capacity?(agent_with_capacity, inbox)).to be true
+    end
+
+    it 'ignores conversations that are not open' do
+      3.times { create(:conversation, account: account, inbox: other_inbox, assignee: agent_with_capacity, status: :resolved) }
+
+      expect(described_class.new.agent_has_capacity?(agent_with_capacity, inbox)).to be true
+    end
+  end
+
   describe 'assignment with capacity' do
     let(:service) { AutoAssignment::AssignmentService.new(inbox: inbox) }
 
     it 'assigns to agents with available capacity' do
       # Create conversation before assignment
-      conversation = create(:conversation, inbox: inbox, assignee: nil, status: :open)
+      conversation = create(:conversation, account: account, inbox: inbox, assignee: nil, status: :open)
 
       # Mock the selector to prefer agent_at_capacity (but should skip due to capacity)
       selector = instance_double(AutoAssignment::RoundRobinSelector)
@@ -157,10 +210,10 @@ RSpec.describe Enterprise::AutoAssignment::CapacityService, type: :service do
 
     it 'returns false when all agents are at capacity' do
       # Fill up remaining agents
-      3.times { create(:conversation, inbox: inbox, assignee: agent_with_capacity, status: :open) }
+      3.times { create(:conversation, account: account, inbox: inbox, assignee: agent_with_capacity, status: :open) }
 
       # agent_without_capacity has no limit, so should still be available
-      conversation2 = create(:conversation, inbox: inbox, assignee: nil, status: :open)
+      conversation2 = create(:conversation, account: account, inbox: inbox, assignee: nil, status: :open)
       assigned_count = service.perform_bulk_assignment(limit: 1)
       expect(assigned_count).to eq(1)
       expect(conversation2.reload.assignee).to eq(agent_without_capacity)
