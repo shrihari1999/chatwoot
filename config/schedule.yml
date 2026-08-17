@@ -81,6 +81,23 @@ bot_idle_resolution_job:
   class: 'Conversations::BotIdleResolutionJob'
   queue: scheduled_jobs
 
+# executed daily at 0100 UTC
+# which is 08:00 Bangkok, when the bot goes on duty and is connected to every inbox
+connect_agent_bots_job:
+  cron: '0 1 * * *'
+  class: 'AgentBots::ScheduledConnectionJob'
+  queue: scheduled_jobs
+  args: ['active']
+
+# executed daily at 1100 UTC
+# which is 18:00 Bangkok, when the bot goes off duty: the inboxes are disconnected and
+# the conversations it still owns are released, so it cannot answer overnight
+disconnect_agent_bots_job:
+  cron: '0 11 * * *'
+  class: 'AgentBots::ScheduledConnectionJob'
+  queue: scheduled_jobs
+  args: ['inactive']
+
 # executed daily at 2230 UTC
 # removes old notifications (>1 month) and trims to 300 per user
 remove_old_notification_job:
