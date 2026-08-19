@@ -2,6 +2,7 @@ import { throwErrorMessage } from 'dashboard/store/utils/api';
 import * as MutationHelpers from 'shared/helpers/vuex/mutationHelpers';
 import * as types from '../mutation-types';
 import CannedResponseAPI from '../../api/cannedResponse';
+import * as Sentry from '@sentry/vue';
 
 const state = {
   records: [],
@@ -98,9 +99,11 @@ const actions = {
   },
 
   // Records that the composer just inserted the wording at the current cursor, so the
-  // next insertion -- by this agent or any other -- gets the following one. Deliberately
-  // silent: the text is already in the composer, so a failed bump costs a repeat, not
-  // an error the agent can act on.
+  // next insertion -- by this agent or any other -- gets the following one. Stays
+  // silent for the agent: the text is already in the composer, so a failed bump costs
+  // a repeat, not an error they can act on. It must not stay silent for us, though --
+  // if this fails for everyone the cursor never moves, every customer gets the first
+  // wording again, and the rotation is quietly undone with nothing to show for it.
   advanceCannedResponseVariant: async function advanceCannedResponseVariant(
     _context,
     id
@@ -108,7 +111,8 @@ const actions = {
     try {
       await CannedResponseAPI.advanceVariant(id);
     } catch (error) {
-      // no-op
+      Sentry.setContext('canned response variant', { cannedResponseId: id });
+      Sentry.captureException(error);
     }
   },
 
