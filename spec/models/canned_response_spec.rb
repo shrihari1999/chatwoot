@@ -125,4 +125,76 @@ RSpec.describe CannedResponse, type: :model do
       expect(data[:blob_signed_id]).to be_present
     end
   end
+
+  describe 'content variants' do
+    let(:canned_response) do
+      create(:canned_response, account: account, category: category, content: 'hello one', short_code: 'hi')
+    end
+
+    describe '#contents' do
+      it 'returns the main wording followed by its variants' do
+        canned_response.update!(content_variants: ['hello two', 'hello three'])
+
+        expect(canned_response.contents).to eq(['hello one', 'hello two', 'hello three'])
+      end
+
+      it 'drops blank variants' do
+        canned_response.update!(content_variants: ['hello two', '', '  '])
+
+        expect(canned_response.contents).to eq(['hello one', 'hello two'])
+      end
+
+      it 'returns just the main wording when there are no variants' do
+        expect(canned_response.contents).to eq(['hello one'])
+      end
+    end
+
+    describe '#advance_content_variant!' do
+      it 'walks the cursor through the wordings and wraps around' do
+        canned_response.update!(content_variants: ['hello two', 'hello three'])
+
+        expect(Array.new(4) { canned_response.advance_content_variant! }).to eq([1, 2, 0, 1])
+      end
+
+      it 'still resolves to a real wording when a variant is removed under a high cursor' do
+        canned_response.update!(content_variants: ['hello two', 'hello three'])
+        2.times { canned_response.advance_content_variant! }
+        expect(canned_response.reload.content_variant_cursor).to eq(2)
+
+        canned_response.update!(content_variants: [])
+
+        # The cursor is left where it was -- callers take it modulo the wording count,
+        # so a stale value can never point past the end of the list.
+        wordings = canned_response.contents
+        expect(wordings[canned_response.content_variant_cursor % wordings.size]).to eq('hello one')
+        expect(canned_response.advance_content_variant!).to eq(0)
+      end
+
+      it 'does not move the cursor when there is only one wording' do
+        expect(canned_response.advance_content_variant!).to eq(0)
+        expect(canned_response.reload.content_variant_cursor).to eq(0)
+      end
+
+      it 'does not touch updated_at' do
+        canned_response.update!(content_variants: ['hello two'])
+        expect { canned_response.advance_content_variant! }.not_to(change { canned_response.reload.updated_at })
+      end
+    end
+
+    describe 'validation' do
+      it 'rejects more variants than the limit' do
+        canned_response.content_variants = Array.new(CannedResponse::CONTENT_VARIANTS_LIMIT + 1, 'x')
+
+        expect(canned_response).not_to be_valid
+        expect(canned_response.errors.full_messages.join).to include('cannot hold more than')
+      end
+
+      it 'rejects a value that is not a list of messages' do
+        canned_response.content_variants = { first: 'hello two' }
+
+        expect(canned_response).not_to be_valid
+        expect(canned_response.errors.full_messages.join).to include('must be a list of messages')
+      end
+    end
+  end
 end

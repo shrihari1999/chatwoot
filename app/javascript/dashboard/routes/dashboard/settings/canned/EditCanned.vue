@@ -8,6 +8,10 @@ import WootMessageEditor from 'dashboard/components/widgets/WootWriter/Editor.vu
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Modal from '../../../../components/Modal.vue';
 
+// Alternative wordings, on top of the main one. Instagram conversations cycle through
+// them so the same text is not sent to every customer.
+const CONTENT_VARIANT_COUNT = 3;
+
 export default {
   components: {
     NextButton,
@@ -17,6 +21,7 @@ export default {
   props: {
     id: { type: Number, default: null },
     edcontent: { type: String, default: '' },
+    edcontentVariants: { type: Array, default: () => [] },
     edshortCode: { type: String, default: '' },
     edfiles: { type: Array, default: () => [] },
     edcategoryId: { type: Number, default: null },
@@ -33,6 +38,9 @@ export default {
       },
       shortCode: this.edshortCode,
       content: this.edcontent,
+      contentVariants: [...Array(CONTENT_VARIANT_COUNT).keys()].map(
+        index => (this.edcontentVariants || [])[index] || ''
+      ),
       localCategoryId: this.edcategoryId,
       show: true,
       attachedFiles: (this.edfiles || []).map(f => ({
@@ -122,6 +130,7 @@ export default {
           id: this.id,
           short_code: this.shortCode,
           content: this.content,
+          content_variants: this.contentVariants,
           category_id: this.localCategoryId,
           file_ids: this.attachedFiles.map(f => f.blobId),
         })
@@ -190,6 +199,33 @@ export default {
               :enable-canned-responses="false"
               :placeholder="$t('CANNED_MGMT.EDIT.FORM.CONTENT.PLACEHOLDER')"
               @blur="v$.content.$touch"
+            />
+          </div>
+        </div>
+
+        <div class="w-full">
+          <label>
+            {{ $t('CANNED_MGMT.EDIT.FORM.CONTENT_VARIANTS.LABEL') }}
+          </label>
+          <p class="mb-2 text-sm text-n-slate-11">
+            {{ $t('CANNED_MGMT.EDIT.FORM.CONTENT_VARIANTS.HELP') }}
+          </p>
+          <div
+            v-for="(variant, index) in contentVariants"
+            :key="index"
+            class="editor-wrap"
+          >
+            <WootMessageEditor
+              v-model="contentVariants[index]"
+              class="message-editor [&>div]:px-1"
+              channel-type="Context::Default"
+              enable-variables
+              :enable-canned-responses="false"
+              :placeholder="
+                $t('CANNED_MGMT.EDIT.FORM.CONTENT_VARIANTS.PLACEHOLDER', {
+                  number: index + 2,
+                })
+              "
             />
           </div>
         </div>

@@ -97,6 +97,21 @@ const actions = {
     }
   },
 
+  // Records that the composer just inserted the wording at the current cursor, so the
+  // next insertion -- by this agent or any other -- gets the following one. Deliberately
+  // silent: the text is already in the composer, so a failed bump costs a repeat, not
+  // an error the agent can act on.
+  advanceCannedResponseVariant: async function advanceCannedResponseVariant(
+    _context,
+    id
+  ) {
+    try {
+      await CannedResponseAPI.advanceVariant(id);
+    } catch (error) {
+      // no-op
+    }
+  },
+
   deleteCannedResponse: async function deleteCannedResponse({ commit }, id) {
     commit(types.default.SET_CANNED_UI_FLAG, { deletingItem: true });
     try {

@@ -348,6 +348,31 @@ RSpec.describe 'Canned Responses API', type: :request do
         expect(canned_response.reload.short_code).to eq('B')
       end
 
+      it 'updates the content variants' do
+        params = { content_variants: ['hello two', 'hello three'] }
+
+        put "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}",
+            params: params,
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(canned_response.reload.content_variants).to eq(['hello two', 'hello three'])
+        expect(response.parsed_body['content_variants']).to eq(['hello two', 'hello three'])
+      end
+
+      it 'rejects more content variants than the limit' do
+        params = { content_variants: Array.new(CannedResponse::CONTENT_VARIANTS_LIMIT + 1, 'x') }
+
+        put "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}",
+            params: params,
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(canned_response.reload.content_variants).to eq([])
+      end
+
       it 'rolls back when clearing both content and file_ids' do
         original_content = canned_response.content
         params = { content: '', file_ids: [] }
@@ -409,6 +434,50 @@ RSpec.describe 'Canned Responses API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(CannedResponse.count).to eq(0)
+      end
+    end
+  end
+
+  describe 'POST /api/v1/accounts/{account.id}/canned_responses/:id/advance_variant' do
+    let(:canned_response) { CannedResponse.last }
+
+    context 'when it is an unauthenticated user' do
+      it 'returns unauthorized' do
+        post "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}/advance_variant"
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context 'when it is an authenticated user' do
+      let(:agent) { create(:user, account: account, role: :agent) }
+
+      it 'moves the cursor on to the next wording' do
+        canned_response.update!(content_variants: ['hello two', 'hello three'])
+
+        post "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}/advance_variant",
+             headers: agent.create_new_auth_token, as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['content_variant_cursor']).to eq(1)
+        expect(canned_response.reload.content_variant_cursor).to eq(1)
+      end
+
+      it 'is a no-op when the response has no variants' do
+        post "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}/advance_variant",
+             headers: agent.create_new_auth_token, as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(canned_response.reload.content_variant_cursor).to eq(0)
+      end
+
+      it 'does not leak a canned response from another account' do
+        other = create(:canned_response, account: create(:account))
+
+        post "/api/v1/accounts/#{account.id}/canned_responses/#{other.id}/advance_variant",
+             headers: agent.create_new_auth_token, as: :json
+
+        expect(response).to have_http_status(:not_found)
       end
     end
   end

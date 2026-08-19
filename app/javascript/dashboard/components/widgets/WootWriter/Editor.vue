@@ -883,6 +883,7 @@ useEmitter(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, insertContentIntoEditor);
     <CannedResponse
       v-if="shouldShowCannedResponses"
       :search-key="cannedSearchTerm"
+      :channel-type="channelType"
       @replace="content => insertSpecialContent('cannedResponse', content)"
       @attach-files="files => emit('attachCannedFiles', files)"
     />

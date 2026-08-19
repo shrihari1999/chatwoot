@@ -18,6 +18,12 @@ class CannedResponse extends ApiClient {
     const url = query ? `${this.url}?${query}` : this.url;
     return axios.get(url);
   }
+
+  // Records that a wording was just used, so the next insertion gets the following
+  // one. Fired without awaiting -- the text is already in the composer.
+  advanceVariant(id) {
+    return axios.post(`${this.url}/${id}/advance_variant`);
+  }
 }
 
 export default new CannedResponse();

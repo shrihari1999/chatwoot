@@ -3,17 +3,22 @@ import { createStore } from 'vuex';
 
 import CannedResponse from '../CannedResponse.vue';
 
-const mountWithMessages = (cannedMessages, { getCannedResponse } = {}) => {
+const mountWithMessages = (
+  cannedMessages,
+  { getCannedResponse, advanceCannedResponseVariant, channelType = '' } = {}
+) => {
   const store = createStore({
     getters: {
       getCannedResponses: () => cannedMessages,
     },
     actions: {
       getCannedResponse: getCannedResponse || (() => {}),
+      advanceCannedResponseVariant: advanceCannedResponseVariant || (() => {}),
     },
   });
 
   return shallowMount(CannedResponse, {
+    props: { channelType },
     global: {
       plugins: [store],
     },
@@ -55,6 +60,7 @@ describe('CannedResponse', () => {
         label: 'refund',
         key: 20,
         description: 'Refund initiated',
+        rotates: false,
         files: [],
         category: billing,
       },
@@ -63,6 +69,7 @@ describe('CannedResponse', () => {
         label: 'ticket',
         key: 10,
         description: 'Ticket created',
+        rotates: false,
         files: [],
         category: support,
       },
@@ -70,6 +77,7 @@ describe('CannedResponse', () => {
         label: 'close',
         key: 30,
         description: 'Closing ticket',
+        rotates: false,
         files: [],
         category: support,
       },
@@ -192,5 +200,94 @@ describe('CannedResponse', () => {
         'https://example.test/blobs/redirect/card.png'
       );
     });
+  });
+});
+
+describe('CannedResponse content variants', () => {
+  const category = { id: 1, name: 'General' };
+  const withVariants = {
+    id: 10,
+    short_code: 'hi',
+    content: 'hello one',
+    content_variants: ['hello two', 'hello three'],
+    content_variant_cursor: 1,
+    files: [],
+    category,
+  };
+
+  it('inserts the wording at the cursor on an Instagram conversation', () => {
+    const wrapper = mountWithMessages([withVariants], {
+      channelType: 'Channel::Instagram',
+    });
+    const item = wrapper.vm.items.find(i => i.key === 10);
+
+    expect(item.description).toBe('hello two');
+    expect(item.rotates).toBe(true);
+  });
+
+  it('wraps the cursor around the end of the list', () => {
+    const wrapper = mountWithMessages(
+      [{ ...withVariants, content_variant_cursor: 3 }],
+      { channelType: 'Channel::Instagram' }
+    );
+
+    expect(wrapper.vm.items.find(i => i.key === 10).description).toBe(
+      'hello one'
+    );
+  });
+
+  it('ignores blank wordings', () => {
+    const wrapper = mountWithMessages(
+      [
+        {
+          ...withVariants,
+          content_variants: ['   ', 'hello three'],
+          content_variant_cursor: 1,
+        },
+      ],
+      { channelType: 'Channel::Instagram' }
+    );
+
+    expect(wrapper.vm.items.find(i => i.key === 10).description).toBe(
+      'hello three'
+    );
+  });
+
+  it('does not rotate on a non-Instagram conversation', () => {
+    const wrapper = mountWithMessages([withVariants], {
+      channelType: 'Channel::Line',
+    });
+    const item = wrapper.vm.items.find(i => i.key === 10);
+
+    expect(item.description).toBe('hello one');
+    expect(item.rotates).toBe(false);
+  });
+
+  it('advances the cursor after inserting a rotating response', () => {
+    const advance = vi.fn();
+    const wrapper = mountWithMessages([withVariants], {
+      channelType: 'Channel::Instagram',
+      advanceCannedResponseVariant: advance,
+    });
+
+    wrapper.vm.handleMentionClick(wrapper.vm.items.find(i => i.key === 10));
+
+    expect(advance).toHaveBeenCalledTimes(1);
+    expect(advance.mock.calls[0][1]).toBe(10);
+  });
+
+  it('does not advance the cursor for a response with a single wording', () => {
+    const advance = vi.fn();
+    const wrapper = mountWithMessages(
+      [{ ...withVariants, content_variants: [] }],
+      {
+        channelType: 'Channel::Instagram',
+        advanceCannedResponseVariant: advance,
+      }
+    );
+
+    wrapper.vm.handleMentionClick(wrapper.vm.items.find(i => i.key === 10));
+
+    expect(advance).not.toHaveBeenCalled();
   });
 });

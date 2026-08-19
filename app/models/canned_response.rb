@@ -4,6 +4,8 @@
 #
 #  id         :integer          not null, primary key
 #  content    :text
+#  content_variants :jsonb           not null
+#  content_variant_cursor :integer   default(0), not null
 #  short_code :string
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
@@ -19,11 +21,17 @@ class CannedResponse < ApplicationRecord
   # before the attachments physically exist on the record.
   attr_accessor :pending_file_ids
 
+  # Alternative wordings of the same message. Instagram penalises an account that
+  # sends byte-identical text repeatedly, so the composer cycles through these
+  # instead of always inserting `content`. Four wordings total is what the UI renders.
+  CONTENT_VARIANTS_LIMIT = 3
+
   validates :short_code, presence: true
   validates :account, presence: true
   validates :short_code, uniqueness: { scope: :account_id }
   validate :content_or_files_present
   validate :category_belongs_to_account, if: -> { category_id.present? }
+  validate :ensure_valid_content_variants
 
   belongs_to :account
   belongs_to :category, class_name: 'CannedResponseCategory'
@@ -52,6 +60,26 @@ class CannedResponse < ApplicationRecord
     super(options).merge(files: file_base_data)
   end
 
+  # Every wording this response may insert, in cycle order. The attachments are
+  # shared across all of them -- only the text varies.
+  def contents
+    [content, *content_variants].compact_blank
+  end
+
+  # Moves the cursor on to the next wording and returns its index. The composer has
+  # already inserted the wording at the previous index, so this only records that it
+  # was used. update_column keeps this out of the record's updated_at/callbacks --
+  # it is bookkeeping, not an edit to the canned response.
+  def advance_content_variant!
+    return 0 if contents.size <= 1
+
+    with_lock do
+      next_index = (content_variant_cursor + 1) % contents.size
+      update_column(:content_variant_cursor, next_index) # rubocop:disable Rails/SkipsModelValidations
+      next_index
+    end
+  end
+
   scope :order_by_search, lambda { |search|
     short_code_starts_with = sanitize_sql_array(['WHEN short_code ILIKE ? THEN 1', "#{search}%"])
     short_code_like = sanitize_sql_array(['WHEN short_code ILIKE ? THEN 0.5', "%#{search}%"])
@@ -78,6 +106,19 @@ class CannedResponse < ApplicationRecord
     return if pending_file_ids.present?
 
     errors.add(:base, 'A canned response must have a message or at least one image attachment')
+  end
+
+  def ensure_valid_content_variants
+    return if content_variants.blank?
+
+    unless content_variants.is_a?(Array) && content_variants.all?(String)
+      errors.add(:content_variants, 'must be a list of messages')
+      return
+    end
+
+    return unless content_variants.size > CONTENT_VARIANTS_LIMIT
+
+    errors.add(:content_variants, "cannot hold more than #{CONTENT_VARIANTS_LIMIT} messages")
   end
 
   def category_belongs_to_account
