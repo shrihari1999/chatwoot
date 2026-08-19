@@ -3,6 +3,7 @@ import { mapGetters } from 'vuex';
 import { debounce } from '@chatwoot/utils';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import MentionBox from '../mentions/MentionBox.vue';
+import { INBOX_TYPES } from 'dashboard/helper/inbox';
 
 // Every keystroke used to trigger a full refetch of the list. Waiting for a pause
 // collapses a burst of typing into a single request.
@@ -12,6 +13,10 @@ export default {
   components: { MentionBox },
   props: {
     searchKey: {
+      type: String,
+      default: '',
+    },
+    channelType: {
       type: String,
       default: '',
     },
@@ -25,16 +30,30 @@ export default {
     ...mapGetters({
       cannedMessages: 'getCannedResponses',
     }),
+    // Only Instagram rotates. Every other channel inserts `content`, exactly as before.
+    isAnInstagramChannel() {
+      return this.channelType === INBOX_TYPES.INSTAGRAM;
+    },
     items() {
       // `key` must be unique across the list, but the same `short_code` can now
       // appear in multiple categories — so we key by id, not short_code.
-      const toItem = cannedMessage => ({
-        label: cannedMessage.short_code,
-        key: cannedMessage.id,
-        description: cannedMessage.content,
-        files: cannedMessage.files || [],
-        category: cannedMessage.category,
-      });
+      const toItem = cannedMessage => {
+        const wordings = this.wordingsFor(cannedMessage);
+        const rotates = wordings.length > 1;
+        const cursor = cannedMessage.content_variant_cursor || 0;
+        return {
+          label: cannedMessage.short_code,
+          key: cannedMessage.id,
+          // The wording the picker previews IS the one it will insert, so the agent
+          // never sees one thing and sends another.
+          description: rotates
+            ? wordings[cursor % wordings.length]
+            : cannedMessage.content,
+          rotates,
+          files: cannedMessage.files || [],
+          category: cannedMessage.category,
+        };
+      };
 
       // Every canned response has a category (DB-enforced).
       const groupsByName = this.cannedMessages.reduce((acc, cannedMessage) => {
@@ -75,6 +94,15 @@ export default {
     this.fetchCannedResponses();
   },
   methods: {
+    // Alternative wordings of the same response, blanks dropped. Attachments are
+    // shared across wordings, so only the text differs.
+    wordingsFor(cannedMessage) {
+      if (!this.isAnInstagramChannel) return [];
+
+      return [cannedMessage.content, ...(cannedMessage.content_variants || [])]
+        .filter(Boolean)
+        .filter(wording => wording.trim());
+    },
     fetchCannedResponses() {
       this.$store.dispatch('getCannedResponse', {
         searchKey: this.searchKey,
@@ -91,6 +119,11 @@ export default {
       this.$emit('replace', item.description || '');
       if (item.files && item.files.length) {
         this.$emit('attachFiles', item.files);
+      }
+      // Not awaited -- the wording is already in the composer, and the picker closing
+      // must not wait on the network.
+      if (item.rotates) {
+        this.$store.dispatch('advanceCannedResponseVariant', item.key);
       }
     },
   },

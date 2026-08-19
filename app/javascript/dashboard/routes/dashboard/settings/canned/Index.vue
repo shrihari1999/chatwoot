@@ -353,6 +353,7 @@ const tableHeaders = computed(() => {
         :id="activeResponse.id"
         :edshort-code="activeResponse.short_code"
         :edcontent="activeResponse.content"
+        :edcontent-variants="activeResponse.content_variants || []"
         :edfiles="activeResponse.files"
         :edcategory-id="
           activeResponse.category_id ?? activeResponse.category?.id ?? null

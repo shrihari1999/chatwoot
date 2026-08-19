@@ -3,7 +3,7 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   # mailbox module from a canned-response controller.
   NULL_BYTE = "\u0000".freeze
 
-  before_action :fetch_canned_response, only: [:update, :destroy]
+  before_action :fetch_canned_response, only: [:update, :destroy, :advance_variant]
 
   def index
     render json: canned_responses.map { |cr| serialize(cr) }
@@ -31,6 +31,13 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     render json: serialize(@canned_response)
   end
 
+  # Records that the composer just used the wording at the current cursor, so the next
+  # insertion -- by this agent or any other -- gets the following one. Fire-and-forget
+  # from the picker: the text is already in the composer by the time this runs.
+  def advance_variant
+    render json: { content_variant_cursor: @canned_response.advance_content_variant! }
+  end
+
   def destroy
     @canned_response.destroy!
     head :ok
@@ -43,7 +50,7 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
   end
 
   def canned_response_params
-    params.require(:canned_response).permit(:short_code, :content, :category_id)
+    params.require(:canned_response).permit(:short_code, :content, :category_id, content_variants: [])
   end
 
   def serialize(canned_response)

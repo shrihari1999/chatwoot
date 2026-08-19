@@ -55,6 +55,11 @@
           "PLACEHOLDER": "Please write the message you want to save as a template to use later.",
           "ERROR": "Message is required."
         },
+        "CONTENT_VARIANTS": {
+          "LABEL": "Alternative wordings",
+          "HELP": "Instagram penalises sending the same text repeatedly. On Instagram conversations the composer inserts these wordings in turn instead of always using the message above. Leave a box empty to skip it. Other channels always use the message above.",
+          "PLACEHOLDER": "Wording {number} (optional)"
+        },
         "SUBMIT": "Submit"
       },
       "BUTTON_TEXT": "Edit",
