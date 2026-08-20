@@ -15,7 +15,7 @@ For any task that touches code, additionally read the topic-specific files in `.
 
 - **Plan first, code second.** For anything beyond a 1-3 line typo/config fix, present an explicit plan and wait for the user's "go ahead" before writing code. See `00-operating-principles.md` and `USER_PREFERENCES.md`.
 - **Verify automatically.** When you say "I'm done", you must have already run the relevant rspec / curl / Rails runner check yourself. Don't ask the user to test in the GUI.
-- **Deploy after merge, automatically.** Once a PR is merged, SSH to Azure and run the documented deploy sequence in `30-deploy-and-verify.md` without being asked.
+- **Deploy after merge, automatically.** Once a PR is merged, SSH to the production VM and run the documented deploy sequence in `30-deploy-and-verify.md` without being asked.
 - **Be transparent about constraints.** When a tool or platform restriction blocks a task, explain *why* it's failing before showing the workaround.
 - **Telemetry stays fully blocked.** Multiple layers (code stubs + env vars + DNS + iptables) per `90-enterprise-unlock-recipe.md`.
 
