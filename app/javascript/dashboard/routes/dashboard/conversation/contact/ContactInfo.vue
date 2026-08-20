@@ -77,6 +77,17 @@ export default {
       }
       return this.findCountryFlag(countryCode, cityAndCountry);
     },
+    isInstagramVerified() {
+      return (
+        this.additionalAttributes.social_instagram_is_verified_user === true
+      );
+    },
+    instagramFollowerCount() {
+      const count = this.additionalAttributes.social_instagram_follower_count;
+      if (count === undefined || count === null) return '';
+
+      return new Intl.NumberFormat().format(count);
+    },
     socialProfiles() {
       const {
         social_profiles: socialProfiles,
@@ -214,6 +225,11 @@ export default {
           </h3>
           <div class="flex flex-row items-center gap-2">
             <span
+              v-if="isInstagramVerified"
+              v-tooltip.left="$t('CONTACT_PANEL.VERIFIED_ACCOUNT')"
+              class="i-ph-seal-check-fill text-sm text-n-blue-11"
+            />
+            <span
               v-if="contact.created_at"
               v-tooltip.left="
                 `${$t('CONTACT_PANEL.CREATED_AT_LABEL')} ${dynamicTime(
@@ -279,6 +295,13 @@ export default {
                   },
                 })
             "
+          />
+          <ContactInfoRow
+            v-if="instagramFollowerCount"
+            :value="instagramFollowerCount"
+            icon="people"
+            emoji="👥"
+            :title="$t('CONTACT_PANEL.INSTAGRAM_FOLLOWERS')"
           />
           <ContactInfoRow
             v-if="location || additionalAttributes.location"
