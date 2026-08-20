@@ -104,6 +104,18 @@
       "ig_reel": {
         "CONTENT": "Instagram Reel"
       },
+      "ig_story": {
+        "CONTENT": "Instagram Story"
+      },
+      "ig_post": {
+        "CONTENT": "Instagram Post"
+      },
+      "story_mention": {
+        "CONTENT": "Story mention"
+      },
+      "share": {
+        "CONTENT": "Shared post"
+      },
       "fallback": {
         "CONTENT": "has shared a url"
       },
