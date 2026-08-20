@@ -70,6 +70,12 @@ const isAgentBotAssignee = computed(
   () => props.chat?.meta?.assignee_type === 'AgentBot'
 );
 
+const isInstagramVerified = computed(
+  () =>
+    props.currentContact?.additional_attributes
+      ?.social_instagram_is_verified_user === true
+);
+
 const hasSlaPolicyId = computed(
   () => props.chat?.applied_sla?.id && !props.currentContact?.blocked
 );
@@ -194,12 +200,21 @@ watch(
           />
         </div>
       </div>
-      <h4
-        class="conversation--user text-sm my-0 mx-2 capitalize pt-0.5 text-ellipsis overflow-hidden whitespace-nowrap flex-1 min-w-0 ltr:pr-16 rtl:pl-16 text-n-slate-12"
-        :class="hasUnread ? 'font-semibold' : 'font-medium'"
+      <div
+        class="flex items-center gap-1 mx-2 flex-1 min-w-0 ltr:pr-16 rtl:pl-16"
       >
-        {{ currentContact.name }}
-      </h4>
+        <h4
+          class="conversation--user text-sm my-0 capitalize pt-0.5 text-ellipsis overflow-hidden whitespace-nowrap min-w-0 text-n-slate-12"
+          :class="hasUnread ? 'font-semibold' : 'font-medium'"
+        >
+          {{ currentContact.name }}
+        </h4>
+        <span
+          v-if="isInstagramVerified"
+          v-tooltip="$t('CHAT_LIST.VERIFIED_ACCOUNT')"
+          class="i-ph-seal-check-fill text-n-blue-11 text-sm flex-shrink-0"
+        />
+      </div>
       <VoiceCallStatus
         v-if="voiceCallData.status"
         key="voice-status-row"
