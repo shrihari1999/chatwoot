@@ -73,6 +73,12 @@ const currentContact = computed(() =>
   store.getters['contacts/getContact'](props.chat.meta.sender.id)
 );
 
+const isInstagramVerified = computed(
+  () =>
+    currentContact.value?.additional_attributes
+      ?.social_instagram_is_verified_user === true
+);
+
 const isSnoozed = computed(
   () => currentChat.value.status === wootConstants.STATUS_TYPE.SNOOZED
 );
@@ -139,6 +145,11 @@ const copyConversationId = async () => {
           >
             {{ currentContact.name }}
           </span>
+          <span
+            v-if="isInstagramVerified"
+            v-tooltip="$t('CONVERSATION.HEADER.VERIFIED_ACCOUNT')"
+            class="i-ph-seal-check-fill text-n-blue-11 text-sm flex-shrink-0"
+          />
           <fluent-icon
             v-if="!isHMACVerified"
             v-tooltip="$t('CONVERSATION.UNVERIFIED_SESSION')"
