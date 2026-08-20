@@ -48,6 +48,12 @@ const voiceCallData = computed(() => {
 
 const unreadCount = computed(() => props.chat.unread_count);
 
+const isInstagramVerified = computed(
+  () =>
+    props.currentContact?.additional_attributes
+      ?.social_instagram_is_verified_user === true
+);
+
 const slaCardLabel = useTemplateRef('slaCardLabel');
 
 const hasSlaPolicyId = computed(
@@ -152,11 +158,18 @@ const selectedModel = computed({
         :hide-thumbnail="false"
       />
 
-      <h4
-        class="text-heading-3 my-0 capitalize truncate text-n-slate-12 font-medium w-32 flex-shrink-0"
-      >
-        {{ currentContact.name }}
-      </h4>
+      <div class="flex items-center gap-1 w-32 flex-shrink-0">
+        <h4
+          class="text-heading-3 my-0 capitalize truncate text-n-slate-12 font-medium"
+        >
+          {{ currentContact.name }}
+        </h4>
+        <span
+          v-if="isInstagramVerified"
+          v-tooltip="$t('CHAT_LIST.VERIFIED_ACCOUNT')"
+          class="i-ph-seal-check-fill text-n-blue-11 text-sm flex-shrink-0"
+        />
+      </div>
 
       <CardContent
         :last-message="lastMessageInChat"
