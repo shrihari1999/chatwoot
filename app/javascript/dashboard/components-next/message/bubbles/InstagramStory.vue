@@ -49,14 +49,21 @@ const onVideoLoadError = () => {
       {{ t('COMPONENTS.FILE_BUBBLE.INSTAGRAM_STORY_REPLY') }}
     </p>
     <div v-if="content" v-dompurify-html="formattedContent" class="mb-2" />
+    <!--
+      attachments can be empty: the story asset expired, or the bubble re-rendered
+      after the agent navigated away while a load-error handler was in flight.
+      Without the attachment guard the img/video branch still evaluated
+      attachment.dataUrl on undefined and crashed the render, so guard the whole
+      chain and fall through to the unavailable state instead.
+    -->
     <img
-      v-if="!hasImgStoryError"
+      v-if="attachment && !hasImgStoryError"
       class="rounded-lg max-w-80 skip-context-menu"
       :src="attachment.dataUrl"
       @error="onImageLoadError"
     />
     <video
-      v-else-if="!hasVideoStoryError"
+      v-else-if="attachment && !hasVideoStoryError"
       class="rounded-lg max-w-80 skip-context-menu"
       controls
       :src="attachment.dataUrl"
