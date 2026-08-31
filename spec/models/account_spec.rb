@@ -61,6 +61,10 @@ RSpec.describe Account do
 
   describe 'captain defaults for new accounts' do
     it 'does not store Captain model overrides or enable premium Captain features' do
+      # FORK: this install runs as self_hosted_enterprise, whose enable_default_features
+      # turns Captain on for every new account. Stub it off to exercise the upstream
+      # default path this test documents.
+      allow(ChatwootApp).to receive(:self_hosted_enterprise?).and_return(false)
       InstallationConfig.find_or_initialize_by(name: 'ACCOUNT_LEVEL_FEATURE_DEFAULTS').update!(
         value: Featurable::FEATURE_LIST,
         locked: true
@@ -112,6 +116,34 @@ RSpec.describe Account do
     end
   end
 
+  describe 'resuming delayed automations' do
+    let(:account) { create(:account) }
+
+    it 'reschedules the overdue backlog in the same transaction that re-enables the flag' do
+      row = create(:automation_rule_pending_execution, account: account, due_at: 5.days.ago)
+
+      ActiveRecord::Base.transaction(requires_new: true) do
+        account.enable_features!('delayed_automations')
+        # Still uncommitted: no sweep can see the flag yet, and the backlog is already re-clocked,
+        # so there is no window where the account is sweepable on a stale due_at.
+        expect(row.reload.due_at).to be_within(5.seconds).of(Time.current)
+        raise ActiveRecord::Rollback
+      end
+
+      expect(account.reload.feature_delayed_automations?).to be(false)
+      expect(row.reload.due_at).to be_within(5.seconds).of(5.days.ago)
+    end
+
+    it 'leaves the backlog alone when the flag is turned off' do
+      account.enable_features!('delayed_automations')
+      row = create(:automation_rule_pending_execution, account: account, due_at: 5.days.ago)
+
+      account.disable_features!('delayed_automations')
+
+      expect(row.reload.due_at).to be_within(5.seconds).of(5.days.ago)
+    end
+  end
+
   describe 'feature flag columns' do
     let(:account) { described_class.new(name: 'Test Account') }
 
@@ -122,7 +154,11 @@ RSpec.describe Account do
         feature_data_import: 1 << 1,
         feature_api_and_webhooks: 1 << 2,
         feature_whatsapp_reconfigure: 1 << 3,
-        feature_whatsapp_embedded_signup_inbox_creation: 1 << 4
+        feature_whatsapp_embedded_signup_inbox_creation: 1 << 4,
+        # FORK: channel_tiktok_shop occupies ext_1 bit 6, pushing upstream's
+        # delayed_automations to bit 7 (preserves account 2's stored bit-6 value).
+        feature_channel_tiktok_shop: 1 << 5,
+        feature_delayed_automations: 1 << 6
       )
       expect(described_class.flag_mapping['feature_flags_ext_1'][:feature_whatsapp_manual_transfer]).to eq(1)
       expect(described_class.flag_mapping['feature_flags_ext_1'][:feature_data_import]).to eq(2)
@@ -396,6 +432,10 @@ RSpec.describe Account do
   end
 
   describe 'captain_preferences' do
+    # FORK: self_hosted_enterprise enables Captain for new accounts; stub it off so the
+    # "unconfigured defaults" cases below reflect upstream's intended default state.
+    before { allow(ChatwootApp).to receive(:self_hosted_enterprise?).and_return(false) }
+
     let(:account) { create(:account) }
 
     describe 'with no saved preferences' do

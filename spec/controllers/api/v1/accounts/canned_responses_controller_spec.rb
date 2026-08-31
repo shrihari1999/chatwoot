@@ -232,6 +232,20 @@ RSpec.describe 'Canned Responses API', type: :request do
           expect(returned_category_ids).to include(other_user_category.id, other_team_category.id)
         end
       end
+
+      it 'ignores null bytes in the search string' do
+        matching_response = create(:canned_response, account: account, content: 'Unique response', short_code: 'unique')
+
+        get "/api/v1/accounts/#{account.id}/canned_responses",
+            params: { search: "uni\0que" },
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        # Fork serializes canned responses with extra fields (category, files, variants),
+        # so assert on the match itself rather than exact-equality with the raw model JSON.
+        expect(response.parsed_body.pluck('id')).to eq([matching_response.id])
+      end
     end
   end
 

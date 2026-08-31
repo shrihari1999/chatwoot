@@ -12,6 +12,8 @@ RSpec.describe 'Enterprise Agents API', type: :request do
     user
   end
 
+  before { account.enable_features!('custom_roles') }
+
   describe 'POST /api/v1/accounts/{account.id}/agents' do
     let(:params) { { email: 'test@example.com', name: 'Test User', role: 'agent', custom_role_id: custom_role.id } }
 
@@ -90,6 +92,23 @@ RSpec.describe 'Enterprise Agents API', type: :request do
             as: :json
 
         expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context 'when the custom_roles feature is disabled' do
+      before do
+        other_agent.account_users.first.update!(custom_role_id: custom_role.id)
+        account.disable_features!('custom_roles')
+      end
+
+      it 'ignores assignment but still allows clearing a stale custom role' do
+        put "/api/v1/accounts/#{account.id}/agents/#{other_agent.id}",
+            headers: admin.create_new_auth_token, params: { custom_role_id: custom_role.id }, as: :json
+        expect(other_agent.account_users.first.reload.custom_role_id).to eq(custom_role.id)
+
+        put "/api/v1/accounts/#{account.id}/agents/#{other_agent.id}",
+            headers: admin.create_new_auth_token, params: { custom_role_id: nil }, as: :json
+        expect(other_agent.account_users.first.reload.custom_role_id).to be_nil
       end
     end
   end

@@ -14,6 +14,7 @@
 
 class CannedResponse < ApplicationRecord
   include Rails.application.routes.url_helpers
+  include AccountCacheRevalidator
 
   # Transient attribute set by the controller before `save` on create, carrying the
   # Active Storage signed blob IDs of files that will be attached after the record is
@@ -26,6 +27,8 @@ class CannedResponse < ApplicationRecord
   # instead of always inserting `content`. Four wordings total is what the UI renders.
   CONTENT_VARIANTS_LIMIT = 3
 
+  # NOTE: upstream's `validates :content, presence: true` is intentionally omitted —
+  # the fork allows image-only canned responses via `content_or_files_present` below.
   validates :short_code, presence: true
   validates :account, presence: true
   validates :short_code, uniqueness: { scope: :account_id }
