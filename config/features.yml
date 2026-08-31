@@ -272,3 +272,7 @@
   display_name: TikTok Shop Channel
   enabled: true
   column: feature_flags_ext_1
+- name: delayed_automations
+  display_name: Delayed Automations
+  enabled: false
+  column: feature_flags_ext_1
