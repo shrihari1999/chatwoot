@@ -318,6 +318,36 @@ describe Messages::Facebook::MessageBuilder do
       end
     end
 
+    # Regression: a share whose title exceeded MAX_STRING_COLUMN_LENGTH raised
+    # RecordInvalid from Attachment#save!, which aborted the builder's enclosing
+    # transaction and rolled the whole message back -- the customer's shared post
+    # never reached the agent at all.
+    it 'stores a share whose title is longer than the column limit' do
+      allow(Koala::Facebook::API).to receive(:new).and_return(fb_object)
+      allow(fb_object).to receive(:get_object).and_return(
+        { first_name: 'Jane', last_name: 'Dae', profile_pic: 'https://chatwoot-assets.local/sample.png' }.with_indifferent_access
+      )
+      long_title = 'a' * (ApplicationRecord::MAX_STRING_COLUMN_LENGTH + 100)
+
+      message_object = {
+        messaging: {
+          sender: { id: '3383290475046708' },
+          recipient: { id: facebook_channel.page_id },
+          message: {
+            mid: 'm_long_title_test',
+            attachments: [{ type: 'share', title: long_title, payload: { url: 'https://www.facebook.com/example/posts/789' } }]
+          }
+        }
+      }.to_json
+      message = Integrations::Facebook::MessageParser.new(message_object)
+
+      described_class.new(message, facebook_channel.inbox).perform
+
+      created = facebook_channel.inbox.messages.find_by(source_id: 'm_long_title_test')
+      expect(created).to be_present
+      expect(created.attachments.first.fallback_title.length).to eq(ApplicationRecord::MAX_STRING_COLUMN_LENGTH)
+    end
+
     context 'when lock to single conversation' do
       subject(:mocked_message_builder) do
         described_class.new(mocked_incoming_fb_text_message, facebook_channel.inbox).perform
