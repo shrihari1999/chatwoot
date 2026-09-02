@@ -24,6 +24,49 @@ RSpec.describe Attachment do
     end
   end
 
+  # Regression: a Facebook share whose title ran past MAX_STRING_COLUMN_LENGTH
+  # failed validation inside the message builder's transaction, rolling back the
+  # entire message. The customer's shared post never reached the agent.
+  describe 'fallback_title truncation' do
+    let(:max) { ApplicationRecord::MAX_STRING_COLUMN_LENGTH }
+    let(:attachment) { message.attachments.new(account_id: message.account_id, file_type: :fallback) }
+
+    it 'saves an over-long inbound title instead of rejecting the record' do
+      attachment.fallback_title = 'a' * (max + 100)
+
+      expect(attachment.save).to be true
+      expect(attachment.reload.fallback_title.length).to eq(max)
+    end
+
+    it 'adds no validation error for an over-long title' do
+      attachment.fallback_title = 'a' * (max + 100)
+      attachment.valid?
+
+      expect(attachment.errors[:fallback_title]).to be_empty
+    end
+
+    it 'truncates without an ellipsis so the title stays within the column limit' do
+      attachment.fallback_title = 'b' * (max + 1)
+      attachment.valid?
+
+      expect(attachment.fallback_title).to eq('b' * max)
+    end
+
+    it 'leaves a title within the limit untouched' do
+      attachment.fallback_title = 'c' * max
+
+      expect(attachment.save).to be true
+      expect(attachment.reload.fallback_title).to eq('c' * max)
+    end
+
+    it 'leaves a blank title alone' do
+      attachment.fallback_title = nil
+
+      expect(attachment.save).to be true
+      expect(attachment.reload.fallback_title).to be_nil
+    end
+  end
+
   describe 'download_url' do
     it 'returns valid download url' do
       attachment = message.attachments.new(account_id: message.account_id, file_type: :image)

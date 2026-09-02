@@ -41,6 +41,16 @@ class Attachment < ApplicationRecord
   belongs_to :account
   belongs_to :message
   has_one_attached :file
+  # fallback_title is filled straight from inbound payloads (a shared Facebook
+  # post's title, a LINE location name) and is unbounded, but ApplicationRecord
+  # rejects any string column over MAX_STRING_COLUMN_LENGTH. That error was raised
+  # inside the message builder's transaction, so the whole message rolled back and
+  # a customer sharing a long-titled post vanished instead of arriving with a
+  # clipped title. Clip it here rather than in each builder -- seven channels feed
+  # this column, and a new one must not be able to reintroduce the message loss.
+  # prepend: true is required: ApplicationRecord registers its length check first,
+  # so without it the error is added before this callback ever runs.
+  before_validation :truncate_fallback_title, prepend: true
   before_save :set_extension
   validate :acceptable_file
   validates :external_url, length: { maximum: Limits::URL_LENGTH_LIMIT }
@@ -174,6 +184,12 @@ class Attachment < ApplicationRecord
     return true if message.inbox.instagram_direct?
 
     message.inbox.instagram? && message.conversation&.additional_attributes&.dig('type') == 'instagram_direct_message'
+  end
+
+  def truncate_fallback_title
+    return if fallback_title.blank?
+
+    self.fallback_title = fallback_title.truncate(ApplicationRecord::MAX_STRING_COLUMN_LENGTH, omission: '')
   end
 
   def set_extension
