@@ -30,6 +30,8 @@
         "WEBHOOKS": "Webhooks",
         "AUTOMATION_RULES": "Automation rules",
         "MACROS": "Macros",
+        "CANNED_RESPONSES": "Canned responses",
+        "CANNED_RESPONSE_CATEGORIES": "Canned response categories",
         "CONVERSATION_DELETIONS": "Conversation deletions"
       },
       "SORT": {
@@ -88,6 +90,16 @@
       "ADD": "{agentName} created a new macro (#{id})",
       "EDIT": "{agentName} updated a macro (#{id})",
       "DELETE": "{agentName} deleted a macro (#{id})"
+    },
+    "CANNED_RESPONSE": {
+      "ADD": "{agentName} created a new canned response (#{id})",
+      "EDIT": "{agentName} updated a canned response (#{id})",
+      "DELETE": "{agentName} deleted a canned response (#{id})"
+    },
+    "CANNED_RESPONSE_CATEGORY": {
+      "ADD": "{agentName} created a new canned response category (#{id})",
+      "EDIT": "{agentName} updated a canned response category (#{id})",
+      "DELETE": "{agentName} deleted a canned response category (#{id})"
     },
     "INBOX_MEMBER": {
       "ADD": "{agentName} added {user} to the inbox(#{inbox_id})",

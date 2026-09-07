@@ -32,3 +32,5 @@ class CannedResponseCategory < ApplicationRecord
     self.team_id = nil unless specific_team?
   end
 end
+
+CannedResponseCategory.include_mod_with('Audit::CannedResponseCategory')

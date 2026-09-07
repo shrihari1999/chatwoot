@@ -130,3 +130,5 @@ class CannedResponse < ApplicationRecord
     errors.add(:category, 'must belong to the same account')
   end
 end
+
+CannedResponse.include_mod_with('Audit::CannedResponse')
