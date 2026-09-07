@@ -144,7 +144,11 @@ const onEnd = () => {
   isPlaying.value = false;
   currentTime.value = 0;
   playbackSpeed.value = 1;
-  audioPlayer.value.playbackRate = 1;
+  // The `ended` event can land after the bubble has been torn down -- the agent
+  // navigated to another conversation while the clip was finishing -- leaving
+  // the template ref null. Reset the reactive state either way, but only touch
+  // the element when it is still there.
+  if (audioPlayer.value) audioPlayer.value.playbackRate = 1;
 };
 
 const changePlaybackSpeed = () => {
