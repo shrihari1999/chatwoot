@@ -79,7 +79,15 @@ class Webhooks::Trigger
     return unless conversation&.pending?
     return if conversation&.account&.keep_pending_on_bot_failure
 
-    conversation.open!
+    # FORK: `bot_handoff!`, not upstream's `open!`. Opening alone leaves the bot as the
+    # assignee, and that hides the conversation from everything that would route it to a
+    # human: `should_run_auto_assignment?` bails on `assignee_agent_bot_id.present?`, the
+    # assignment sweep and the agents' Unassigned folder both scan the `unassigned` scope
+    # (which requires `assignee_agent_bot_id: nil`), and BotIdleResolutionJob only looks at
+    # `pending` conversations. The customer's question then waits for someone to spot it in
+    # All — 102 min on conv 1079805. `bot_handoff!` clears the bot and dispatches the
+    # handoff event, same as the idle-bot path.
+    conversation.bot_handoff!
     create_agent_bot_error_activity(conversation)
   end
 
