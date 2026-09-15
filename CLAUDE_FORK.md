@@ -6,8 +6,8 @@ This is a self-hosted fork of [Chatwoot](https://github.com/chatwoot/chatwoot) m
 
 ## Production Instance
 
-- **Host**: `137.116.150.85` (Azure VM)
-- **SSH**: `ssh -i ~/Downloads/chatwoot_key.pem chatwoot@137.116.150.85`
+- **Host**: `5.223.57.108` (Hetzner cpx32, Singapore)
+- **SSH**: `ssh chatwoot@5.223.57.108` (default `~/.ssh/id_ed25519`, no `-i`/`.pem`); use `ssh root@5.223.57.108` for `systemctl`
 - **App directory on server**: `/home/chatwoot/chatwoot`
 - **Ruby managed via**: `rvm` (not rbenv — the server uses rvm)
 - **Process manager**: systemd (`chatwoot.target`)
