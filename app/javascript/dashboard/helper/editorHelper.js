@@ -422,6 +422,47 @@ export function stripUnsupportedFormatting(content, schema) {
 }
 
 /**
+ * Contexts whose content is rendered as CommonMark *without* hard breaks
+ * enabled, so a markdown hard break there must keep its trailing backslash.
+ * Email replies go through `ChatwootMarkdownRenderer#render_message` with the
+ * default options (app/views/mailers/conversation_reply_mailer/*.erb), and an
+ * agent signature is appended to that same body.
+ */
+const MARKDOWN_HARD_BREAK_CONTEXTS = [
+  INBOX_TYPES.EMAIL,
+  'Context::MessageSignature',
+];
+
+/**
+ * Serializes an editor document to the markdown we store on the message.
+ *
+ * A line break in the editor is a `hard_break` node, which the serializer
+ * writes as CommonMark's escaped hard break -- a backslash before the newline.
+ * Every channel except email ships `message.content` to the customer verbatim,
+ * so that backslash reaches LINE/Instagram/Facebook/TikTok/Lazada as a visible
+ * "\" at the end of each line. A bare newline renders as a line break for all
+ * of them, as it does in the dashboard and the widget (`breaks: true`).
+ *
+ * Upstream intends this -- `MARKDOWN_PATTERNS.hardBreak` strips the backslash
+ * for channels without hard break support -- but `buildMessageSchema` adds
+ * `hard_break` to every channel schema, so that rule never matches. Stripping
+ * it at insert time would not help either: a bare newline is parsed straight
+ * back into a `hard_break` node (markdown-it `softbreak`), so serialization is
+ * the only place the choice sticks.
+ *
+ * @param {Object} doc - The ProseMirror document to serialize.
+ * @param {string} channelType - The channel type or editor context the content is written for.
+ * @returns {string} - The serialized markdown.
+ */
+export function serializeMessageContent(doc, channelType) {
+  const markdown = MessageMarkdownSerializer.serialize(doc);
+
+  if (MARKDOWN_HARD_BREAK_CONTEXTS.includes(channelType)) return markdown;
+
+  return markdown.replace(/\\\n/g, '\n');
+}
+
+/**
  * Content Node Creation Helper Functions for
  * - mention
  * - canned response

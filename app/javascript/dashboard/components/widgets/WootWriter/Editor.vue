@@ -39,7 +39,6 @@ import {
   buildEditor,
   EditorView,
   MessageMarkdownTransformer,
-  MessageMarkdownSerializer,
   EditorState,
   Selection,
   imageResizeView,
@@ -63,6 +62,7 @@ import {
   getEffectiveChannelType,
   stripUnsupportedFormatting,
   createVariableInputRule,
+  serializeMessageContent,
 } from 'dashboard/helper/editorHelper';
 import {
   hasPressedEnterAndNotCmdOrShift,
@@ -230,7 +230,10 @@ const handleCopilotAction = actionKey => {
 };
 
 const contentFromEditor = () => {
-  return MessageMarkdownSerializer.serialize(editorView.state.doc);
+  return serializeMessageContent(
+    editorView.state.doc,
+    props.isPrivate ? PRIVATE_NOTE_FORMATTING : effectiveChannelType.value
+  );
 };
 
 const shouldShowVariables = computed(() => {

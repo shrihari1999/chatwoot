@@ -15,12 +15,13 @@ import {
   buildEditor,
   EditorView,
   MessageMarkdownTransformer,
-  MessageMarkdownSerializer,
   EditorState,
   Selection,
 } from '@chatwoot/prosemirror-schema';
 
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
+
+import { serializeMessageContent } from 'dashboard/helper/editorHelper';
 
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
@@ -105,7 +106,7 @@ async function requestRoomForSuggestion() {
 
 function contentFromEditor() {
   if (editorView) {
-    return MessageMarkdownSerializer.serialize(editorView.state.doc);
+    return serializeMessageContent(editorView.state.doc);
   }
   return '';
 }

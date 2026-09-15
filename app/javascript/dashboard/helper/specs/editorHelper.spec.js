@@ -24,6 +24,7 @@ import {
   insertAtCursor,
   removeSignature,
   replaceSignature,
+  serializeMessageContent,
   stripInlineBase64Images,
   stripUnsupportedFormatting,
   stripUnsupportedMarkdown,
@@ -150,6 +151,60 @@ describe('appendSignature', () => {
       const { body, signature } = HAS_SIGNATURE[key];
       expect(appendSignature(body, signature)).toBe(body);
     });
+  });
+});
+
+describe('serializeMessageContent', () => {
+  // The markdown a canned response with line breaks is stored as: every
+  // hard break carries CommonMark's escaped-newline backslash.
+  const STORED = 'Order form\\\nName:\\\nPhone:';
+
+  const parseFor = (markdown, channelType) => {
+    const { marks, nodes } = getFormattingForEditor(channelType);
+    const channelSchema = buildMessageSchema(marks, nodes);
+    return new MessageMarkdownTransformer(channelSchema).parse(markdown);
+  };
+
+  const serializeFor = (markdown, channelType) =>
+    serializeMessageContent(parseFor(markdown, channelType), channelType);
+
+  it('drops the hard break backslash on plain-text channels', () => {
+    expect(serializeFor(STORED, 'Channel::Line')).toBe(
+      'Order form\nName:\nPhone:'
+    );
+  });
+
+  it('drops the hard break backslash on Instagram and Facebook', () => {
+    expect(serializeFor(STORED, 'Channel::Instagram')).not.toContain('\\');
+    expect(serializeFor(STORED, 'Channel::FacebookPage')).not.toContain('\\');
+  });
+
+  it('keeps the hard break backslash for email, which renders without hardbreaks', () => {
+    expect(serializeFor(STORED, 'Channel::Email')).toBe(STORED);
+  });
+
+  it('keeps the hard break backslash for the agent signature', () => {
+    expect(serializeFor(STORED, 'Context::MessageSignature')).toBe(STORED);
+  });
+
+  it('strips the backslash when no channel type is given', () => {
+    const doc = parseFor(STORED, 'Channel::Line');
+    expect(serializeMessageContent(doc)).toBe('Order form\nName:\nPhone:');
+  });
+
+  it('leaves paragraph breaks and list markers alone', () => {
+    expect(serializeFor('First\n\nSecond', 'Channel::Line')).toBe(
+      'First\n\nSecond'
+    );
+    const list = serializeFor('* one\n* two', 'Channel::FacebookPage');
+    expect(list).not.toContain('\\');
+    expect(list).toContain('* one');
+    expect(list).toContain('* two');
+  });
+
+  it('round trips without accumulating changes', () => {
+    const once = serializeFor(STORED, 'Channel::Line');
+    expect(serializeFor(once, 'Channel::Line')).toBe(once);
   });
 });
 
