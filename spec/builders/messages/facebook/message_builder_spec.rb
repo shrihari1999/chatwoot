@@ -129,7 +129,7 @@ describe Messages::Facebook::MessageBuilder do
 
       conversation = facebook_channel.inbox.conversations.last
       expect(conversation.status).to eq('open')
-      expect(conversation.assignee_agent_bot).to be_nil
+      expect(conversation.ai_assignee).to be_nil
     end
 
     it 'marks echo messages as external echo messages' do
@@ -346,6 +346,38 @@ describe Messages::Facebook::MessageBuilder do
       created = facebook_channel.inbox.messages.find_by(source_id: 'm_long_title_test')
       expect(created).to be_present
       expect(created.attachments.first.fallback_title.length).to eq(ApplicationRecord::MAX_STRING_COLUMN_LENGTH)
+    end
+
+    context 'when message is a postback' do
+      let(:postback_message_object) do
+        {
+          messaging: {
+            sender: { id: '3383290475046708' },
+            recipient: { id: facebook_channel.page_id },
+            timestamp: 1_772_452_164_516,
+            postback: {
+              title: 'Get Started',
+              payload: 'GET_STARTED_PAYLOAD'
+            }
+          }
+        }.to_json
+      end
+      let(:postback_message) { Integrations::Facebook::MessageParser.new(postback_message_object) }
+
+      before do
+        allow(Koala::Facebook::API).to receive(:new).and_return(fb_object)
+        allow(fb_object).to receive(:get_object).and_return(
+          { first_name: 'Jane', last_name: 'Dae', profile_pic: 'https://chatwoot-assets.local/sample.png' }.with_indifferent_access
+        )
+      end
+
+      it 'creates an incoming message using the postback title' do
+        described_class.new(postback_message, facebook_channel.inbox).perform
+
+        message = facebook_channel.inbox.messages.last
+        expect(message).to be_present
+        expect(message.content).to eq('Get Started')
+      end
     end
 
     context 'when lock to single conversation' do

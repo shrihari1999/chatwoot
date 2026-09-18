@@ -12,7 +12,7 @@ RSpec.describe Conversations::BotIdleResolutionJob do
   # bumps that column to now and would lift the conversation back out of the idle window.
   def bot_conversation(last_activity_at:, messages: [])
     conversation = create(:conversation, account: account, inbox: inbox, status: :pending,
-                                         assignee_agent_bot: bot_inbox.agent_bot)
+                                         ai_assignee: bot_inbox.agent_bot)
     messages.each do |message_type|
       create(:message, account: account, inbox: inbox, conversation: conversation, message_type: message_type)
     end
@@ -108,7 +108,7 @@ RSpec.describe Conversations::BotIdleResolutionJob do
 
   it 'resolves at most the bulk actions limit in one run' do
     create_list(:conversation, 3, account: account, inbox: inbox, status: :pending,
-                                  assignee_agent_bot: bot_inbox.agent_bot, last_activity_at: 20.minutes.ago)
+                                  ai_assignee: bot_inbox.agent_bot, last_activity_at: 20.minutes.ago)
     stub_const('Limits::BULK_ACTIONS_LIMIT', 2)
 
     described_class.perform_now
