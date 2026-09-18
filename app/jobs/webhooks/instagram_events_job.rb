@@ -11,7 +11,7 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   retry_on_lock_conflict wait: ->(executions) { executions.seconds }, attempts: 3, on_exhaustion: :process_without_lock
 
   # @return [Array] Messaging event keys that are routed to handlers below.
-  SUPPORTED_EVENTS = [:message, :read, :reaction, :message_edit].freeze
+  SUPPORTED_EVENTS = [:message, :read, :reaction, :message_edit, :postback].freeze
 
   def perform(entries)
     @entries = entries
@@ -147,7 +147,7 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
   end
 
   def event_name(messaging)
-    @event_name ||= SUPPORTED_EVENTS.find { |key| messaging.key?(key) }
+    SUPPORTED_EVENTS.find { |key| messaging.key?(key) }
   end
 
   def message(messaging, channel)
@@ -169,6 +169,14 @@ class Webhooks::InstagramEventsJob < MutexApplicationJob
 
   def message_edit(messaging, channel)
     ::Instagram::UpdateMessageService.new(inbox: channel.inbox, messaging: messaging).perform
+  end
+
+  def postback(messaging, channel)
+    postback_message = {
+      mid: messaging[:postback][:mid],
+      text: messaging[:postback][:title]
+    }
+    message(messaging.merge(message: postback_message), channel)
   end
 
   def messages(entry)

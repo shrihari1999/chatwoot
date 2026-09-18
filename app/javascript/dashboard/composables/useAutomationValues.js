@@ -55,12 +55,10 @@ export default function useAutomationValues() {
 
   const statusFilterOptions = computed(() => {
     const statusFilters = statusFilterItems.value;
-    return [
-      ...Object.keys(statusFilters).map(status => ({
-        id: status,
-        name: statusFilters[status].TEXT,
-      })),
-    ];
+    return Object.keys(statusFilters).map(status => ({
+      id: status,
+      name: statusFilters[status].TEXT,
+    }));
   });
 
   const messageTypeOptions = computed(() =>

@@ -32,7 +32,8 @@
         "MACROS": "Macros",
         "CANNED_RESPONSES": "Canned responses",
         "CANNED_RESPONSE_CATEGORIES": "Canned response categories",
-        "CONVERSATION_DELETIONS": "Conversation deletions"
+        "CONVERSATION_DELETIONS": "Conversation deletions",
+        "MESSAGE_DELETIONS": "Message deletions"
       },
       "SORT": {
         "NEWEST": "Newest first",
@@ -46,7 +47,8 @@
       "TABLE_HEADER": {
         "ACTIVITY": "Activity",
         "TIME": "Time",
-        "IP_ADDRESS": "IP Address"
+        "LOCATION": "Location",
+        "IP_ADDRESS": "IP address"
       }
     },
     "API": {
@@ -114,6 +116,9 @@
     },
     "CONVERSATION": {
       "DELETE": "{agentName} deleted conversation #{id}"
+    },
+    "MESSAGE": {
+      "DELETE": "{agentName} deleted a message in conversation #{conversationId}"
     }
   }
 }

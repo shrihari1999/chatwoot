@@ -3,7 +3,7 @@
 #
 # Chatwoot has no notion of bot working hours, and "disconnect the bot" is not enough on
 # its own: `agent_bot_inbox` only decides which bot picks up *new* conversations, while
-# `conversation.assignee_agent_bot` is live ownership of *this* conversation and keeps
+# `conversation.ai_assignee` is live ownership of *this* conversation and keeps
 # receiving webhooks regardless of the inbox link (AgentBotListener#agent_bots_for reads
 # both sources). That ownership also survives `resolved!` — exactly like a human
 # assignee — so a conversation the bot answered this afternoon would wake it again when

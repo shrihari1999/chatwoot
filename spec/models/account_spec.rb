@@ -156,9 +156,11 @@ RSpec.describe Account do
         feature_whatsapp_reconfigure: 1 << 3,
         feature_whatsapp_embedded_signup_inbox_creation: 1 << 4,
         # FORK: channel_tiktok_shop occupies ext_1 bit 6, pushing upstream's
-        # delayed_automations to bit 7 (preserves account 2's stored bit-6 value).
+        # delayed_automations to bit 7 and audit_log_ip_address to bit 8
+        # (preserves account 2's stored bit-6 value).
         feature_channel_tiktok_shop: 1 << 5,
-        feature_delayed_automations: 1 << 6
+        feature_delayed_automations: 1 << 6,
+        feature_audit_log_ip_address: 1 << 7
       )
       expect(described_class.flag_mapping['feature_flags_ext_1'][:feature_whatsapp_manual_transfer]).to eq(1)
       expect(described_class.flag_mapping['feature_flags_ext_1'][:feature_data_import]).to eq(2)

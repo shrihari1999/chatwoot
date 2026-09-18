@@ -76,7 +76,7 @@ RSpec.describe Tiktok::MessageService do
 
       conversation = inbox.conversations.last
       expect(conversation.status).to eq('open')
-      expect(conversation.assignee_agent_bot).to be_nil
+      expect(conversation.ai_assignee).to be_nil
     end
 
     it 'still hands a conversation opened by an incoming message to the agent bot' do
@@ -88,7 +88,7 @@ RSpec.describe Tiktok::MessageService do
 
       conversation = inbox.conversations.last
       expect(conversation.status).to eq('pending')
-      expect(conversation.assignee_agent_bot).to eq(bot_inbox.agent_bot)
+      expect(conversation.ai_assignee).to eq(bot_inbox.agent_bot)
     end
 
     it 'creates an incoming unsupported message for non-supported types' do

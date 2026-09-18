@@ -37,6 +37,8 @@ RSpec.describe Channel::FacebookPage do
   end
 
   describe '#subscribe' do
+    let(:channel) { build(:channel_facebook_page) }
+
     it 'subscribes to message_edits along with the other webhook fields' do
       expect(Facebook::Messenger::Subscriptions).to receive(:subscribe).with(
         access_token: an_instance_of(String),
@@ -53,6 +55,17 @@ RSpec.describe Channel::FacebookPage do
       )
 
       create(:channel_facebook_page)
+    end
+
+    it 'subscribes to messaging postbacks' do
+      expect(Facebook::Messenger::Subscriptions).to receive(:subscribe).with(
+        hash_including(
+          access_token: channel.page_access_token,
+          subscribed_fields: include('messaging_postbacks')
+        )
+      )
+
+      channel.subscribe
     end
   end
 end

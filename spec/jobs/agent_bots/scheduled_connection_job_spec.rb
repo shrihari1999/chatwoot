@@ -11,7 +11,7 @@ RSpec.describe AgentBots::ScheduledConnectionJob do
 
   # A conversation the bot currently owns.
   def bot_conversation(status: :pending)
-    create(:conversation, account: account, inbox: inbox, status: status, assignee_agent_bot: agent_bot)
+    create(:conversation, account: account, inbox: inbox, status: status, ai_assignee: agent_bot)
   end
 
   it 'enqueues the job' do

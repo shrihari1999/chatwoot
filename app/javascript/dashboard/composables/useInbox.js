@@ -162,6 +162,7 @@ export const useInbox = (inboxId = null) => {
     isASmsInbox,
     isATelegramChannel,
     isATwilioChannel,
+    isATwilioSMSChannel,
     isAWebWidgetInbox,
     isAWhatsAppChannel,
     isAMicrosoftInbox,

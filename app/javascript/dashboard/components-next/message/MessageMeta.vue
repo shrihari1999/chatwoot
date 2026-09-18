@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { messageTimestamp } from 'shared/helpers/timeHelper';
+import { useExactTimestamp } from 'shared/composables/useExactTimestamp';
 
 import MessageStatus from './MessageStatus.vue';
 import Icon from 'next/icon/Icon.vue';
@@ -8,6 +9,8 @@ import { useInbox } from 'dashboard/composables/useInbox';
 import { useMessageContext } from './provider.js';
 
 import { MESSAGE_STATUS, MESSAGE_TYPES } from './constants';
+
+const exactTimestamp = useExactTimestamp();
 
 const {
   isAFacebookInbox,
@@ -37,6 +40,8 @@ const {
 const readableTime = computed(() =>
   messageTimestamp(createdAt.value, 'LLL d, h:mm a')
 );
+
+const exactTime = computed(() => exactTimestamp(createdAt.value));
 
 const showStatusIndicator = computed(() => {
   if (isPrivate.value) return false;
@@ -146,7 +151,15 @@ const isMessageEdited = computed(() =>
 <template>
   <div class="text-xs flex items-center gap-1.5">
     <div class="inline">
-      <time class="inline">{{ readableTime }}</time>
+      <time
+        v-tooltip.top="{
+          content: exactTime,
+          delay: { show: 500, hide: 0 },
+        }"
+        class="inline"
+      >
+        {{ readableTime }}
+      </time>
     </div>
     <span v-if="isMessageEdited" class="italic">
       {{ $t('CONVERSATION.EDITED') }}
