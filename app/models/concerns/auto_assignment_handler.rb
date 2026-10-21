@@ -6,12 +6,13 @@ module AutoAssignmentHandler
     # Legacy (V1) status changes assign inside the same save so status + assignee commit
     # as one change-set (upstream). Bails for assignment_v2 inboxes and for new records.
     before_save :run_legacy_auto_assignment, unless: :new_record?
-    # FORK: after_commit, not upstream's after_save. The V2 AssignmentJob queries the
-    # inbox's unassigned conversations, so enqueueing from inside the open transaction
-    # lets Sidekiq run the scan before this row is committed — the conversation that
-    # triggered the job is invisible to it and stays unassigned until the next trigger
-    # or periodic sweep. Legacy (before_save) and V2 (after_commit) paths don't overlap:
-    # run_legacy bails for v2, and new records only reach run_auto_assignment.
+    # FORK: after_commit, not upstream's after_save. Upstream (v4.19, #16154) now defers
+    # its own V2 enqueue past the commit, but the fork's reopen-onto-offline-assignee
+    # repool (repool_from_offline_assignee -> OfflineReassignmentService) also enqueues
+    # AssignmentJob directly; under after_save that enqueue would run inside the open
+    # transaction and the job could scan before the reopened conversation is visible.
+    # Legacy (before_save) and V2 (after_commit) paths don't overlap: run_legacy bails
+    # for v2, and new records only reach run_auto_assignment.
     after_commit :run_auto_assignment, on: %i[create update]
   end
 
@@ -23,6 +24,7 @@ module AutoAssignmentHandler
   def run_legacy_auto_assignment
     return unless status_changed? && open?
     return if inbox.auto_assignment_v2_enabled?
+    return if will_save_change_to_assignee_id? && assignee_id.present?
     return unless should_run_auto_assignment?
 
     AutoAssignment::AgentAssignmentService.new(conversation: self, allowed_agent_ids: legacy_allowed_agent_ids).assign_under_lock
@@ -42,9 +44,14 @@ module AutoAssignmentHandler
     return unless should_run_auto_assignment?
 
     if inbox.auto_assignment_v2_enabled?
-      # Coalesces bursts of triggers per inbox; a trigger skipped by the in-flight
+      # Enqueue after commit so the job's scan can see this conversation. (Under the
+      # fork's after_commit callback no transaction is open, so this runs immediately.)
+      # enqueue_for_inbox coalesces bursts per inbox; a trigger skipped by the in-flight
       # gate is replayed once by the running job (see AssignmentJob).
-      AutoAssignment::AssignmentJob.enqueue_for_inbox(inbox.id)
+      inbox_id = inbox.id
+      ActiveRecord.after_all_transactions_commit do
+        AutoAssignment::AssignmentJob.enqueue_for_inbox(inbox_id)
+      end
     elsif saved_change_to_id?
       # Legacy (V1) assignment for new conversations stays post-save: their status is only
       # finalized by before_create callbacks, which run after before_save.
