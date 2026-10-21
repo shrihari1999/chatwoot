@@ -14,6 +14,7 @@ import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirecti
 const props = defineProps({
   x: { type: Number, default: 0 },
   y: { type: Number, default: 0 },
+  closeOnFocusOut: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['close']);
@@ -82,7 +83,7 @@ const handleFocusOut = event => {
   // input or the reaction emoji buttons); close it once focus leaves the
   // menu entirely. `handleMouseDown` (below) is the primary guard for clicks
   // on descendants, since `relatedTarget` can be null in Safari/older WebKit.
-  if (menuRef.value?.contains(event.relatedTarget)) {
+  if (!props.closeOnFocusOut || menuRef.value?.contains(event.relatedTarget)) {
     return;
   }
   handleClose();

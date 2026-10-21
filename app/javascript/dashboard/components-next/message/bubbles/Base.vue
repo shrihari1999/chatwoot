@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import MessageMeta from '../MessageMeta.vue';
 import MessageReactions from '../MessageReactions.vue';
 import CaptainGenerationDetails from '../CaptainGenerationDetails.vue';
+import TranslationToggle from '../TranslationToggle.vue';
 
 import { emitter } from 'shared/helpers/mitt';
 import { useMessageContext } from '../provider.js';
@@ -11,7 +12,7 @@ import { useI18n } from 'vue-i18n';
 
 import MessageFormatter from 'shared/helpers/MessageFormatter.js';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
-import { MESSAGE_VARIANTS, ORIENTATION, SENDER_TYPES } from '../constants';
+import { MESSAGE_VARIANTS, ORIENTATION } from '../constants';
 
 const props = defineProps({
   hideMeta: { type: Boolean, default: false },
@@ -24,15 +25,10 @@ const {
   shouldGroupWithNext,
   contentAttributes,
   id,
-  sender,
-  senderType,
+  isCaptainMessage,
+  showingOriginal,
 } = useMessageContext();
 const { t } = useI18n();
-
-const isCaptainMessage = computed(
-  () =>
-    (sender.value?.type ?? senderType.value) === SENDER_TYPES.CAPTAIN_ASSISTANT
-);
 
 const metaColorClass = computed(() =>
   variant.value === MESSAGE_VARIANTS.PRIVATE
@@ -151,8 +147,16 @@ const replyToPreview = computed(() => {
         :message-id="id"
         class="mt-2"
       >
+        <TranslationToggle
+          :icon="false"
+          :showing-original="showingOriginal"
+          @toggle="showingOriginal = !showingOriginal"
+        />
         <template #meta>
-          <MessageMeta :class="[emailMetaClass, metaColorClass]" />
+          <MessageMeta
+            class="shrink-0 whitespace-nowrap"
+            :class="[emailMetaClass, metaColorClass]"
+          />
         </template>
       </CaptainGenerationDetails>
       <MessageMeta

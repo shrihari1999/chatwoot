@@ -35,8 +35,10 @@ class Facebook::UserProfileService
     @api ||= Koala::Facebook::API.new(channel.page_access_token)
   end
 
+  # Prefer Graph's full `name` when present (mirrors upstream v4.19 #15841); fall back to
+  # joining the separate fields, never padding a missing surname.
   def full_name(profile)
-    [profile['first_name'], profile['last_name']].compact_blank.join(' ')
+    profile['name'].presence || [profile['first_name'], profile['last_name']].compact_blank.join(' ')
   end
 
   def fetch_profile
