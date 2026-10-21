@@ -29,4 +29,15 @@ RSpec.describe Internal::CheckNewVersionsJob do
     job
     expect(reconsile_premium_config_service).to have_received(:perform)
   end
+
+  # FORK: with the real (stubbed) ChatwootHub, the job must not touch the plan.
+  it 'leaves the pricing plan unchanged when the hub sync is stubbed' do
+    allow(RestClient).to receive(:post)
+    InstallationConfig.where(name: 'INSTALLATION_PRICING_PLAN').first_or_create!(value: 'enterprise').update!(value: 'enterprise', locked: true)
+    InstallationConfig.where(name: 'INSTALLATION_PRICING_PLAN_QUANTITY').first_or_create!(value: 9_999_999).update!(value: 9_999_999)
+    expect { job }.not_to raise_error
+    expect(RestClient).not_to have_received(:post)
+    expect(InstallationConfig.find_by(name: 'INSTALLATION_PRICING_PLAN').value).to eq 'enterprise'
+    expect(InstallationConfig.find_by(name: 'INSTALLATION_PRICING_PLAN_QUANTITY').value).to eq 9_999_999
+  end
 end
