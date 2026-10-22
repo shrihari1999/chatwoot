@@ -63,6 +63,12 @@ class Message < ApplicationRecord
     }
   }.to_json.freeze
 
+  # Postgres rejects NUL bytes in text columns. A customer message pasted from a
+  # document with a stray \0 therefore failed at INSERT, exhausted its retries and
+  # was discarded from the dead set -- lost for good, with nothing in the inbox to
+  # say it ever arrived. Strip it here; this runs before the before_save that
+  # copies content into processed_message_content, so both columns come out clean.
+  before_validation :strip_null_bytes_from_content
   before_validation :ensure_content_type
   before_validation :prevent_message_flooding
   before_save :ensure_processed_message_content
@@ -353,6 +359,10 @@ class Message < ApplicationRecord
       Rails.logger.error "Too many message: Account Id - #{account_id} : Conversation id - #{conversation_id}"
       errors.add(:base, 'Too many messages')
     end
+  end
+
+  def strip_null_bytes_from_content
+    self.content = content.delete("\u0000") if content&.include?("\u0000")
   end
 
   def ensure_processed_message_content
