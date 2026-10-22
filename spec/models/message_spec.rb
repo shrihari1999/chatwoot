@@ -89,6 +89,29 @@ RSpec.describe Message do
     end
   end
 
+  # Regression: Postgres rejects NUL bytes in text, so a pasted LINE message
+  # carrying a stray \0 failed at INSERT and was dropped after its retries.
+  describe 'null bytes in content' do
+    let(:message) { build(:message, content: "before\u0000after") }
+
+    it 'strips them so the message can be stored' do
+      expect(message.save).to be true
+      expect(message.reload.content).to eq('beforeafter')
+    end
+
+    it 'keeps them out of processed_message_content as well' do
+      message.save!
+
+      expect(message.reload.processed_message_content).not_to include("\u0000")
+    end
+
+    it 'leaves ordinary content untouched' do
+      message = create(:message, content: 'สวัสดีค่ะ plain text')
+
+      expect(message.reload.content).to eq('สวัสดีค่ะ plain text')
+    end
+  end
+
   describe 'concerns' do
     it_behaves_like 'liqudable'
   end

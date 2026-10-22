@@ -277,6 +277,38 @@ describe Line::IncomingMessageService do
       end
     end
 
+    # Regression (2026-10-17): a student's long enquiry, pasted from a document,
+    # carried a NUL byte. Postgres rejected the INSERT, the job exhausted its
+    # retries and the message was lost; the agent only ever saw her follow-up sticker.
+    context 'when the text contains a null byte' do
+      let(:line_bot) { double }
+      let(:line_user_profile) { double }
+      let(:null_byte_params) do
+        params.deep_dup.tap do |p|
+          p['events'] = [p['events'].first]
+          p['events'].first['message']['text'] = "Hello\u0000 from a pasted document"
+        end
+      end
+
+      before do
+        allow(Line::Bot::Client).to receive(:new).and_return(line_bot)
+        allow(line_bot).to receive(:get_profile).with('U4af4980629').and_return(line_user_profile)
+        allow(line_user_profile).to receive(:body).and_return(
+          { 'displayName': 'LINE Test', 'userId': 'U4af4980629', 'pictureUrl': 'https://test.com' }.to_json
+        )
+      end
+
+      it 'stores the message instead of failing the insert' do
+        expect do
+          described_class.new(inbox: line_channel.inbox, params: null_byte_params).perform
+        end.not_to raise_error
+
+        message = line_channel.inbox.messages.find_by(source_id: '325708')
+        expect(message).to be_present
+        expect(message.content).to eq('Hello from a pasted document')
+      end
+    end
+
     context 'when valid text message params' do
       let(:line_bot) { double }
       let(:line_user_profile) { double }
