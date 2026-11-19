@@ -6,6 +6,7 @@ import { vOnClickOutside } from '@vueuse/components';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
+import { openCommandBar } from 'dashboard/modules/command-bar/openCommandBar';
 
 const props = defineProps({
   showResolve: {

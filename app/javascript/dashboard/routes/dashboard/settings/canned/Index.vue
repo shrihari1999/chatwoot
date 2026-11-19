@@ -14,6 +14,10 @@ import {
 } from 'dashboard/composables/store';
 import { picoSearch } from '@chatwoot/pico-search';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
+import {
+  usePageCommands,
+  recordCommands,
+} from 'dashboard/modules/command-bar/composables/usePageCommands';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -184,6 +188,30 @@ const tableHeaders = computed(() => {
     t('CANNED_MGMT.LIST.TABLE_HEADER.ACTIONS'),
   ];
 });
+
+usePageCommands(() => [
+  {
+    id: 'add_canned_response',
+    title: t('CANNED_MGMT.HEADER_BTN_TXT'),
+    run: openAddPopup,
+  },
+  ...recordCommands({
+    id: 'edit_canned_response',
+    title: t('CANNED_MGMT.EDIT.TITLE'),
+    icon: 'i-lucide-pencil',
+    records: records.value,
+    label: response => `/${response.short_code}`,
+    run: openEditPopup,
+  }),
+  ...recordCommands({
+    id: 'delete_canned_response',
+    title: t('COMMAND_BAR.COMMANDS.DELETE_CANNED_RESPONSE'),
+    icon: 'i-lucide-trash-2',
+    records: records.value,
+    label: response => `/${response.short_code}`,
+    run: openDeletePopup,
+  }),
+]);
 </script>
 
 <template>

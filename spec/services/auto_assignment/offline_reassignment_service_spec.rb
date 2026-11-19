@@ -25,10 +25,15 @@ RSpec.describe AutoAssignment::OfflineReassignmentService do
   end
 
   # Counts SELECTs matching `pattern` issued inside the block.
+  # Counts the service's own queries. Event listeners are excluded: each unassignment
+  # broadcasts once, and since v4.20 the ActionCable listener loads the contact inbox's
+  # inbox per broadcast, which is per-event cost, not the service scaling with the set.
   def count_queries(pattern)
     count = 0
     subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |*, payload|
-      count += 1 if payload[:sql]&.match?(pattern)
+      next unless payload[:sql]&.match?(pattern)
+
+      count += 1 if caller.none? { |frame| frame.include?('/app/listeners/') }
     end
     yield
     count
