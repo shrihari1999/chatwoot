@@ -164,7 +164,6 @@ export default {
       </UpgradePage>
       <template v-if="!showUpgradePage">
         <router-view />
-        <CommandBar />
         <!-- Copilot hidden in this fork — Captain feature is unused. -->
         <!-- <CopilotLauncher /> -->
         <MobileSidebarLauncher
