@@ -23,6 +23,11 @@ describe ChatwootHub do
       expect(RestClient).not_to have_received(:post)
     end
 
+    it 'sync_with_hub accepts refresh_billing without contacting the hub' do
+      expect(described_class.sync_with_hub(refresh_billing: true)).to eq({})
+      expect(RestClient).not_to have_received(:post)
+    end
+
     it 'register_instance does not contact the hub' do
       described_class.register_instance('test', 'test', 'test@test.com')
       expect(RestClient).not_to have_received(:post)

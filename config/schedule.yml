@@ -14,6 +14,14 @@ dispatch_conversation_monitors_job:
   class: 'Internal::DispatchConversationMonitorsJob'
   queue: scheduled_jobs
 
+# FORK: upstream names this entry internal_check_new_versions_job; renamed so that name
+# never appears in cron. The fork's job no longer schedules the hub version check.
+# executed daily at 0000 UTC
+trigger_daily_scheduled_items_job:
+  cron: '0 0 * * *'
+  class: 'Internal::TriggerDailyScheduledItemsJob'
+  queue: scheduled_jobs
+
 # # executed At every 5th minute..
 trigger_scheduled_items_job:
   cron: '*/5 * * * *'

@@ -13,6 +13,7 @@ import wootConstants from 'dashboard/constants/globals';
 import AgentLoadingPlaceholder from './agentLoadingPlaceholder.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import { openCommandBar } from 'dashboard/modules/command-bar/openCommandBar';
 
 const MENU = {
   MARK_AS_READ: 'mark-as-read',

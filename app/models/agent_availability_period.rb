@@ -27,7 +27,7 @@ class AgentAvailabilityPeriod < ApplicationRecord
   belongs_to :user
 
   # Keys intentionally match the strings returned by AvailabilityStatusable#availability_status.
-  enum status: { online: 0, busy: 1, offline: 2 }
+  enum :status, { online: 0, busy: 1, offline: 2 }
 
   validates :started_at, presence: true
 

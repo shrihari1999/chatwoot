@@ -7,7 +7,7 @@ class CannedResponseCategory < ApplicationRecord
   has_many :canned_responses, foreign_key: :category_id, dependent: :restrict_with_error, inverse_of: :category
 
   # Controls who sees this category's canned responses in the conversation picker.
-  enum visibility: { everyone: 0, only_me: 1, specific_team: 2 }
+  enum :visibility, { everyone: 0, only_me: 1, specific_team: 2 }
 
   before_validation :clear_unused_scope
 

@@ -6,7 +6,8 @@
 # is gated by ENABLE_PUSH_RELAY_SERVER.
 module ForkDisableChatwootHub
   # Callers index the result (`['version']`), so return an empty hash, not nil.
-  def sync_with_hub
+  # Accepts any keywords upstream adds (v4.20: refresh_billing:) so callers don't raise.
+  def sync_with_hub(**)
     {}
   end
 

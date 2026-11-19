@@ -44,6 +44,7 @@ class Message < ApplicationRecord
   include MessageFilterHelpers
   include Liquidable
   NUMBER_OF_PERMITTED_ATTACHMENTS = 15
+  BOT_SENDER_TYPES = %w[AgentBot Captain::Assistant].freeze
 
   TEMPLATE_PARAMS_SCHEMA = {
     'type': 'object',
@@ -96,8 +97,8 @@ class Message < ApplicationRecord
   # recalled (which would be a redundant round-trip / loop).
   attr_accessor :recall_from_platform
 
-  enum message_type: { incoming: 0, outgoing: 1, activity: 2, template: 3 }
-  enum content_type: {
+  enum :message_type, { incoming: 0, outgoing: 1, activity: 2, template: 3 }
+  enum :content_type, {
     text: 0,
     input_text: 1,
     input_textarea: 2,
@@ -112,7 +113,7 @@ class Message < ApplicationRecord
     sticker: 11,
     voice_call: 12
   }
-  enum status: { sent: 0, delivered: 1, read: 2, failed: 3 }
+  enum :status, { sent: 0, delivered: 1, read: 2, failed: 3 }
   # [:submitted_email, :items, :submitted_values] : Used for bot message types
   # [:email] : Used by conversation_continuity incoming email messages
   # [:in_reply_to] : Used to reply to a particular tweet in threads
@@ -187,6 +188,19 @@ class Message < ApplicationRecord
     data
   end
 
+  # The widget learns only that a contact sent the message, not the contact's stored details
+  def widget_sender_data
+    return { type: 'contact' } if sender.is_a?(Contact)
+
+    sender.push_event_data
+  end
+
+  # The widget renders the whole message and forwards it to the host page, so the payload stays whole
+  # and only a contact sender loses its stored details. Pass a built push_event_data to skip building it again.
+  def widget_push_event_data(data = push_event_data)
+    sender.is_a?(Contact) ? data.merge(sender: widget_sender_data) : data
+  end
+
   def webhook_push_event_data
     push_event_data.merge(
       content: Messages::WebhookContentNormalizer.normalize(content),
@@ -246,7 +260,7 @@ class Message < ApplicationRecord
     return false unless human_response? && !private?
     return false if conversation.first_reply_created_at.present?
     return false if conversation.messages.outgoing
-                                .where.not(sender_type: ['AgentBot', 'Captain::Assistant'])
+                                .where.not(sender_type: BOT_SENDER_TYPES)
                                 .where.not(private: true)
                                 .not_forwarded
                                 .where("(additional_attributes->'campaign_id') is null").count > 1
@@ -442,7 +456,7 @@ class Message < ApplicationRecord
 
   def bot_response?
     # Check if this is a response from AgentBot or Captain::Assistant
-    outgoing? && sender_type.in?(['AgentBot', 'Captain::Assistant'])
+    outgoing? && sender_type.in?(BOT_SENDER_TYPES)
   end
 
   def dispatch_create_events

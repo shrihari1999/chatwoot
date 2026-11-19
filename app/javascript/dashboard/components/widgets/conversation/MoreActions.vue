@@ -24,6 +24,7 @@ const [showEmailActionsModal, toggleEmailModal] = useToggle(false);
 const [showActionsDropdown, toggleDropdown] = useToggle(false);
 
 const currentChat = computed(() => store.getters.getSelectedChat);
+const autoTranslate = computed(() => store.getters.getAutoTranslate);
 
 const actionMenuItems = computed(() => {
   const items = [];
@@ -53,8 +54,38 @@ const actionMenuItems = computed(() => {
     value: 'send_transcript',
   });
 
+  const { enabled, disabledInConversation, language } = autoTranslate.value;
+  if (enabled) {
+    items.push({
+      icon: 'i-lucide-languages',
+      label: disabledInConversation
+        ? t('CONVERSATION.HEADER.AUTO_TRANSLATE.TURN_ON')
+        : t('CONVERSATION.HEADER.AUTO_TRANSLATE.TURN_OFF'),
+      hint: disabledInConversation ? '' : language,
+      action: 'auto_translate',
+      value: 'auto_translate',
+    });
+  }
+
   return items;
 });
+
+const toggleAutoTranslate = async () => {
+  const disabled = !autoTranslate.value.disabledInConversation;
+  try {
+    await store.dispatch('setConversationAutoTranslate', {
+      conversationId: currentChat.value.id,
+      disabled,
+    });
+    useAlert(
+      disabled
+        ? t('CONVERSATION.HEADER.AUTO_TRANSLATE.TURNED_OFF')
+        : t('CONVERSATION.HEADER.AUTO_TRANSLATE.TURNED_ON')
+    );
+  } catch {
+    useAlert(t('CONVERSATION.HEADER.AUTO_TRANSLATE.UPDATE_FAILED'));
+  }
+};
 
 const handleActionClick = ({ action }) => {
   toggleDropdown(false);
@@ -67,6 +98,8 @@ const handleActionClick = ({ action }) => {
     useAlert(t('CONTACT_PANEL.UNMUTED_SUCCESS'));
   } else if (action === 'send_transcript') {
     toggleEmailModal();
+  } else if (action === 'auto_translate') {
+    toggleAutoTranslate();
   }
 };
 
@@ -83,12 +116,14 @@ const unmute = () => {
 
 emitter.on(CMD_MUTE_CONVERSATION, mute);
 emitter.on(CMD_UNMUTE_CONVERSATION, unmute);
-emitter.on(CMD_SEND_TRANSCRIPT, toggleEmailModal);
+
+const openEmailModal = () => toggleEmailModal(true);
+emitter.on(CMD_SEND_TRANSCRIPT, openEmailModal);
 
 onUnmounted(() => {
   emitter.off(CMD_MUTE_CONVERSATION, mute);
   emitter.off(CMD_UNMUTE_CONVERSATION, unmute);
-  emitter.off(CMD_SEND_TRANSCRIPT, toggleEmailModal);
+  emitter.off(CMD_SEND_TRANSCRIPT, openEmailModal);
 });
 </script>
 
@@ -116,7 +151,16 @@ onUnmounted(() => {
         :menu-items="actionMenuItems"
         class="mt-1 ltr:right-0 rtl:left-0 top-full"
         @action="handleActionClick"
-      />
+      >
+        <template #trailing-icon="{ item }">
+          <span
+            v-if="item.hint"
+            class="flex-shrink-0 ms-auto ps-4 text-sm text-n-slate-11"
+          >
+            {{ item.hint }}
+          </span>
+        </template>
+      </DropdownMenu>
     </div>
     <EmailTranscriptModal
       v-if="showEmailActionsModal"
